@@ -2,33 +2,7 @@ import torch
 from torch import nn
 
 from agi.replay_buffer import ReplayBuffer
-
-class MockDistributedDataLoader():
-    def __init__(self):
-        self.minibatch_size
-        self.buffer_size
-        self.obs_space
-        self.action_space
-
-
-    def __iter__(self):
-        for i in range(len(self)):
-            mini_batch = {
-                "obs" : torch.randn(4,7)
-            }
-            yield mini_batch
-        #raise StopIteration()
-
-    def __len__(self):
-        return 8
-
-
-class Model(nn.Module):
-    pass
-
-    def get_weights():
-        pass
-
+from agi.utils.mocks.mock_distributed_data_loader import MockDistributedDataLoader
 
 class Opt:
     pass
@@ -50,18 +24,17 @@ def train():
     model = nn.Linear(7,1)
     opt = torch.optim.Adam(model.parameters(), lr=0.001)
     while n_updates < total_updates:
+        print("starting epoch")
+        for minibatch in ddl:
+            #minibatch = minibatch.to(gpu_id)
+            print(minibatch["obs"]["vector"].shape)
+            preds = model(minibatch["obs"]["vector"])
+            loss = loss_function(preds, minibatch)
+            loss.backward()
 
-        for epoch in range(num_epochs):
-            print("epoch")
-            for minibatch in ddl:
-                #minibatch = minibatch.to(gpu_id)
-                print(minibatch["obs"].shape)
-                preds = model(minibatch["obs"])
-                loss = loss_function(preds, minibatch)
-                loss.backward()
-
-                opt.step()
+            opt.step()
             print("model update")
+            n_updates += 1
 
 
 
