@@ -3,7 +3,6 @@ import pytest
 import torch
 from gym.spaces import Box, Dict
 
-
 from gia.mocks.mock_config import MockConfig
 from gia.model.encoder import default_make_encoder_func
 

@@ -1,7 +1,8 @@
 import torch
-from gym.spaces import Dict, Box, Discrete
-from gia.utils.utils import check_space_is_flat_dict, to_torch_dtype
+from gym.spaces import Box, Dict, Discrete
+
 from gia.utils.tensor_dict import TensorDict
+from gia.utils.utils import check_space_is_flat_dict, to_torch_dtype
 
 
 class ReplayBuffer:

@@ -1,9 +1,9 @@
 import torch.distributed.rpc as rpc
+from torch.distributed.rpc import RRef, remote, rpc_async, rpc_sync
 
-from gia.environment_worker import WORKER_NAME, DistributedEnvironmentWorker, EnvironmentWorker
+from gia.environment_worker import (WORKER_NAME, DistributedEnvironmentWorker,
+                                    EnvironmentWorker)
 from gia.utils.utils import _call_remote_method
-
-from torch.distributed.rpc import RRef, rpc_sync, rpc_async, remote
 
 
 class DistributedDataLoader:

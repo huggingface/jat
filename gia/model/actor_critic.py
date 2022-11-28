@@ -1,19 +1,21 @@
 from typing import Optional
 
 import torch
-from torch import Tensor, nn
 from gym.spaces import Dict as Dict
-from gia.utils.action_distributions import is_continuous_action_space, sample_actions_log_probs
-from gia.utils.running_mean_std import RunningMeanStdInPlace, running_mean_std_summaries
-from gia.utils.tensor_dict import TensorDict
+from torch import Tensor, nn
+
+from gia.config.config import Config
 from gia.config.configurable import Configurable
 from gia.model.action_parameterization import (
     ActionParameterizationContinuousNonAdaptiveStddev,
-    ActionParameterizationDefault,
-)
+    ActionParameterizationDefault)
 from gia.model.model_utils import model_device
+from gia.utils.action_distributions import (is_continuous_action_space,
+                                            sample_actions_log_probs)
 from gia.utils.normalize import ObservationNormalizer
-from gia.config.config import Config
+from gia.utils.running_mean_std import (RunningMeanStdInPlace,
+                                        running_mean_std_summaries)
+from gia.utils.tensor_dict import TensorDict
 
 
 class ActorCritic(nn.Module, Configurable):

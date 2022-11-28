@@ -16,8 +16,9 @@ import torch
 from torch import nn
 
 from gia.utils.constants import EPS
-from gia.utils.running_mean_std import RunningMeanStdDictInPlace, running_mean_std_summaries
 from gia.utils.dicts import copy_dict_structure, iter_dicts_recursively
+from gia.utils.running_mean_std import (RunningMeanStdDictInPlace,
+                                        running_mean_std_summaries)
 
 
 class ObservationNormalizer(nn.Module):

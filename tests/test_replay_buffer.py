@@ -1,7 +1,7 @@
+import numpy as np
 import pytest
 import torch
-import numpy as np
-from gym.spaces import Dict, Discrete, Box
+from gym.spaces import Box, Dict, Discrete
 
 from gia.replay_buffer import ReplayBuffer
 from gia.utils.utils import to_torch_dtype

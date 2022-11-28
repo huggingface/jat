@@ -3,9 +3,9 @@ from typing import List
 
 import torch
 
-from gia.model.model_utils import calc_num_elements
-from gia.model.model_utils import ModelModule, create_mlp, nonlinearity
 from gia.config.config import Config
+from gia.model.model_utils import (ModelModule, calc_num_elements, create_mlp,
+                                   nonlinearity)
 
 
 class Decoder(ModelModule, ABC):

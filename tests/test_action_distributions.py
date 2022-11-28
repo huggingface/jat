@@ -6,12 +6,10 @@ import pytest
 import torch
 from torch.distributions import Categorical
 
-from gia.utils.action_distributions import (
-    calc_num_action_parameters,
-    calc_num_actions,
-    get_action_distribution,
-    sample_actions_log_probs,
-)
+from gia.utils.action_distributions import (calc_num_action_parameters,
+                                            calc_num_actions,
+                                            get_action_distribution,
+                                            sample_actions_log_probs)
 
 
 @pytest.mark.parametrize("gym_space", [gym.spaces.Discrete(3)])

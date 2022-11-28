@@ -3,8 +3,8 @@ from abc import ABC
 import torch
 from torch import nn
 
-from gia.model.model_utils import ModelModule
 from gia.config.config import Config
+from gia.model.model_utils import ModelModule
 
 
 class ModelCore(ModelModule, ABC):

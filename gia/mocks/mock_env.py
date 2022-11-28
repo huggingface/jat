@@ -3,7 +3,7 @@ from typing import Optional, Union
 
 import numpy as np
 from gym import Env, Space
-from gym.spaces import Box, Discrete, MultiBinary, MultiDiscrete, Dict
+from gym.spaces import Box, Dict, Discrete, MultiBinary, MultiDiscrete
 
 from gia.utils.utils import dol_to_lod, lod_to_dol
 

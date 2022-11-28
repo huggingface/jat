@@ -1,12 +1,12 @@
-from typing import Optional, List
+from typing import List, Optional
 
 import torch
 from gym import spaces
-from gym.spaces import Dict, Box
+from gym.spaces import Box, Dict
 from torch import Tensor, nn
 
-from gia.model.model_utils import calc_num_elements
-from gia.model.model_utils import ModelModule, create_mlp, model_device, nonlinearity
+from gia.model.model_utils import (ModelModule, calc_num_elements, create_mlp,
+                                   model_device, nonlinearity)
 
 
 # noinspection PyMethodMayBeStatic,PyUnusedLocal

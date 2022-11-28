@@ -1,12 +1,12 @@
 from typing import Callable
+
 from gym.spaces import Dict
 
+from gia.config.config import Config
 from gia.model.actor_critic import ActorCritic, default_make_actor_critic_func
 from gia.model.core import ModelCore, default_make_core_func
 from gia.model.decoder import Decoder, default_make_decoder_func
 from gia.model.encoder import Encoder, default_make_encoder_func
-from gia.config.config import Config
-
 
 MakeActorCriticFunc = Callable[[Config, Dict, Dict], ActorCritic]
 MakeEncoderFunc = Callable[[Config, Dict], Encoder]

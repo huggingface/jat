@@ -1,10 +1,9 @@
-from typing import Union
 import math
+from typing import Union
 
-
-from gym.spaces import Dict, Tuple, Discrete, Box
 import numpy as np
 import torch
+from gym.spaces import Box, Dict, Discrete, Tuple
 from torch import Tensor
 from torch.distributions import Independent, Normal
 from torch.nn import functional
@@ -237,7 +236,9 @@ class TupleActionDistribution:
         return entropy
 
     def kl_divergence(self, other):
-        kls = [d.kl_divergence(other_d).unsqueeze(dim=1) for d, other_d in zip(self.distributions, other.distributions)]
+        kls = [
+            d.kl_divergence(other_d).unsqueeze(dim=1) for d, other_d in zip(self.distributions, other.distributions)
+        ]
 
         kls = torch.cat(kls, dim=1)
         kl = kls.sum(dim=1)

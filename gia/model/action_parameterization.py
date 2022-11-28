@@ -3,11 +3,9 @@ import math
 import torch
 from torch import Tensor, nn
 
-from gia.utils.action_distributions import (
-    calc_num_action_parameters,
-    get_action_distribution,
-    is_continuous_action_space,
-)
+from gia.utils.action_distributions import (calc_num_action_parameters,
+                                            get_action_distribution,
+                                            is_continuous_action_space)
 
 
 class ActionsParameterization(nn.Module):

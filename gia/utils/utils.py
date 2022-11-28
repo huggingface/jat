@@ -1,8 +1,6 @@
 import numpy as np
 import torch
-
-
-from gym.spaces import Box, Discrete, Dict
+from gym.spaces import Box, Dict, Discrete
 
 # numpy_to_torch_dtype_dict = {
 #     np.bool       : torch.bool,

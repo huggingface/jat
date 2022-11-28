@@ -1,5 +1,5 @@
-import torch
 import numpy as np
+import torch
 
 
 class TensorDict(dict):
@@ -53,4 +53,3 @@ class TensorDict(dict):
                     raise ValueError(f"Type {type(new_data)} not supported in set_data_func")
 
                 x[index] = n
-

@@ -1,7 +1,8 @@
 import random
 
-from .mock_constants import MOCK_OBS_SPACE, MOCK_ACTION_SPACE
 from gia.replay_buffer import ReplayBuffer
+
+from .mock_constants import MOCK_ACTION_SPACE, MOCK_OBS_SPACE
 
 
 class MockDistributedDataLoader:
