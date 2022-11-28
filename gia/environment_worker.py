@@ -62,7 +62,7 @@ class EnvironmentWorker:
         return self.env.observation_space, self.env.action_space
 
     def update_model_weights(self):
-        raise NotImplementedError
+        print("updating weight not implemented in ", self.__class__)
 
 
 class DistributedEnvironmentWorker(EnvironmentWorker):
