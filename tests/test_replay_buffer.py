@@ -3,8 +3,8 @@ import torch
 import numpy as np
 from gym.spaces import Dict, Discrete, Box
 
-from agi.replay_buffer import ReplayBuffer
-from agi.utils.utils import to_torch_dtype
+from gia.replay_buffer import ReplayBuffer
+from gia.utils.utils import to_torch_dtype
 
 @pytest.mark.parametrize("obs_space",[Dict(image=Box(0,1,shape=(3,32,40), dtype=np.float32), discrete=Discrete(4))])
 @pytest.mark.parametrize("action_space",[Dict(cont=Box(0,1,shape=(17,), dtype=np.float32), discrete=Discrete(3))])

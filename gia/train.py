@@ -1,8 +1,8 @@
 import torch
 from torch import nn
 
-from agi.replay_buffer import ReplayBuffer
-from agi.utils.mocks.mock_distributed_data_loader import MockDistributedDataLoader
+from gia.replay_buffer import ReplayBuffer
+from gia.utils.mocks.mock_distributed_data_loader import MockDistributedDataLoader
 
 class Opt:
     pass

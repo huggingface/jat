@@ -1,7 +1,7 @@
 import random
 
 from .mock_constants import MOCK_OBS_SPACE, MOCK_ACTION_SPACE
-from agi.replay_buffer import ReplayBuffer
+from gia.replay_buffer import ReplayBuffer
 
 class MockDistributedDataLoader():
     def __init__(self, obs_space=MOCK_OBS_SPACE, action_space=MOCK_ACTION_SPACE, n_agents=8, rollout_length=16, n_epochs=4, mini_batch_size=4):

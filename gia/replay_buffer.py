@@ -1,7 +1,7 @@
 import torch
 from gym.spaces import Dict, Box, Discrete
-from agi.utils.utils import check_space_is_flat_dict, to_torch_dtype
-from agi.utils.tensor_dict import TensorDict
+from gia.utils.utils import check_space_is_flat_dict, to_torch_dtype
+from gia.utils.tensor_dict import TensorDict
 
 class ReplayBuffer():
     def __init__(self, obs_space, action_space, n_agents, rollout_length):

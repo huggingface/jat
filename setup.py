@@ -1,5 +1,5 @@
 # Lint as: python3
-""" HuggingFace/agi is an open library the training of generally intelligent agents
+""" HuggingFace/gia is an open library the training of generally intelligent agents
 
 Note:
 
@@ -84,18 +84,18 @@ EXTRAS_REQUIRE = {
 
 
 setup(
-    name="agi",
+    name="gia",
     version=__version__,
     description="is an open library the training of generally intelligent agents",
     long_description=open("README.md", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
     author="HuggingFace Inc.",
     author_email="edward@huggingface.co",
-    url="https://github.com/huggingface/agi",
-    download_url="https://github.com/huggingface/agi/tags",
+    url="https://github.com/huggingface/gia",
+    download_url="https://github.com/huggingface/gia/tags",
     license="Apache 2.0",
     package_dir={"": "./"},
-    packages=find_packages(where="./", include="agi*"),
+    packages=find_packages(where="./", include="gia*"),
     install_requires=REQUIRED_PKGS,
     extras_require=EXTRAS_REQUIRE,
     classifiers=[
