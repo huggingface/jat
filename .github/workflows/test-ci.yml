@@ -1,0 +1,40 @@
+name: tests
+
+on:
+  push:
+    branches:
+    - main
+  pull_request:
+    branches:
+    - main
+
+jobs:
+  run-tests-ubuntu:
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.8', '3.9', '3.10']
+        os: ['ubuntu-latest']
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python
+      uses: actions/setup-python@v3
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Add conda to system path
+      run: |
+        # $CONDA is an environment variable pointing to the root of the miniconda directory
+        echo $CONDA/bin >> $GITHUB_PATH
+    - name: Install conda env & dependencies
+      run: |
+       conda install python=${{ matrix.python-version }}
+       pip install -e '.[dev]'
+       conda list
+    - name: Install test dependencies
+      run: |
+        pip install pytest
+    - name: Run tests
+      run: |
+        # run all tests
+        pytest -s
