@@ -1,42 +1,27 @@
+import os
 import torch
 from torch import nn
-
-from gia.replay_buffer import ReplayBuffer
-from gia.utils.mocks.mock_distributed_data_loader import MockDistributedDataLoader
-
-class Opt:
-    pass
-
-
-def loss_function(preds, minibatch):
-    return preds.sum()
-
-
-
-def train():
-
-    n_updates = 0
-    total_updates = 1_000
-    num_epochs = 2
-    gpu_id = 0  # local rank
-
-    ddl = MockDistributedDataLoader()
-    model = nn.Linear(7,1)
-    opt = torch.optim.Adam(model.parameters(), lr=0.001)
-    while n_updates < total_updates:
-        print("starting epoch")
-        for minibatch in ddl:
-            #minibatch = minibatch.to(gpu_id)
-            print(minibatch["obs"]["vector"].shape)
-            preds = model(minibatch["obs"]["vector"])
-            loss = loss_function(preds, minibatch)
-            loss.backward()
-
-            opt.step()
-            print("model update")
-            n_updates += 1
-
+import torch.distributed.rpc as rpc
+from gia.distributed_data_loader import DistributedDataLoader
+from gia.environment_worker import WORKER_NAME
+from gia.learner_worker import LearnerWorker
+from gia.mocks.mock_distributed_data_loader import MockDistributedDataLoader
+from torch.distributed import init_process_group, destroy_process_group
+from torch.distributed.rpc import RRef
 
 
 if __name__ == "__main__":
-    train()
+    rank = int(os.environ["RANK"])
+    local_rank = int(os.environ["LOCAL_RANK"])
+    world_size = int(os.environ["WORLD_SIZE"])
+
+    print(f"launching distributed training {rank=} {local_rank=} {world_size=}")
+    world_size = 4
+    init_process_group(backend="nccl")
+    if rank == 0:
+        learner = LearnerWorker(rank=0, world_size=4, worker_ranks=[1, 2, 3])
+        learner.train()
+        destroy_process_group()
+    else:
+        rpc.init_rpc(WORKER_NAME.format(rank), rank=rank, world_size=world_size)
+    rpc.shutdown()
