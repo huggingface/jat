@@ -64,7 +64,7 @@ REQUIRED_PKGS = [
     "torch",
     "huggingface_hub>=0.10",  # For sharing objects, environments & trained RL policies
     "gym==0.26.2",  # For RL action spaces and API
-    "hydra",  # For RL action spaces and API
+    "hydra-core",  # For RL action spaces and API
 ]
 
 
