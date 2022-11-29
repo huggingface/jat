@@ -15,25 +15,24 @@ from typing import Dict
 import torch
 from torch import nn
 
-from gia.utils.constants import EPS
+from gia.utils.constants import EPSILON
 from gia.utils.dicts import copy_dict_structure, iter_dicts_recursively
-from gia.utils.running_mean_std import (RunningMeanStdDictInPlace,
-                                        running_mean_std_summaries)
+from gia.utils.running_mean_std import RunningMeanStdDictInPlace, running_mean_std_summaries
 
 
 class ObservationNormalizer(nn.Module):
     def __init__(self, obs_space, config):
         super().__init__()
 
-        self.sub_mean = config.obs_subtract_mean
-        self.scale = config.obs_scale
+        self.sub_mean = config.obs.subtract_mean
+        self.scale = config.obs.scale
 
         self.running_mean_std = None
-        if config.normalize_input:
-            self.running_mean_std = RunningMeanStdDictInPlace(obs_space, config.normalize_input_keys)
+        if config.obs.normalize_input:
+            self.running_mean_std = RunningMeanStdDictInPlace(obs_space, config.obs.normalize_input_keys)
 
-        self.should_sub_mean = abs(self.sub_mean) > EPS
-        self.should_scale = abs(self.scale - 1.0) > EPS
+        self.should_sub_mean = abs(self.sub_mean) > EPSILON
+        self.should_scale = abs(self.scale - 1.0) > EPSILON
         self.should_normalize = self.should_sub_mean or self.should_scale or self.running_mean_std is not None
 
     @staticmethod

@@ -1,5 +1,8 @@
+from typing import List
 import numpy as np
 import torch
+
+from gia.utils.dicts import list_of_dicts_to_dict_of_lists, iterate_recursively
 
 
 class TensorDict(dict):
@@ -53,3 +56,23 @@ class TensorDict(dict):
                     raise ValueError(f"Type {type(new_data)} not supported in set_data_func")
 
                 x[index] = n
+
+
+def cat_tensordicts(lst: List[TensorDict]) -> TensorDict:
+    """
+    Concatenates a list of tensordicts.
+    """
+    if not lst:
+        return TensorDict()
+
+    res = list_of_dicts_to_dict_of_lists(lst)
+    # iterate res recursively and concatenate tensors
+    for d, k, v in iterate_recursively(res):
+        if isinstance(v[0], torch.Tensor):
+            d[k] = torch.cat(v)
+        elif isinstance(v[0], np.ndarray):
+            d[k] = np.concatenate(v)
+        else:
+            raise ValueError(f"Type {type(v[0])} not supported in cat_tensordicts")
+
+    return TensorDict(res)
