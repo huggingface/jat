@@ -60,15 +60,15 @@ from setuptools import find_packages
 __version__ = "0.0.1.dev0"  # expected format is one of x.y.z.dev0, or x.y.z.rc1 or x.y.z (no to dashes, yes to dots)
 
 REQUIRED_PKGS = [
-    "numpy",  
+    "numpy",
     "torch",
     "huggingface_hub>=0.10",  # For sharing objects, environments & trained RL policies
     "gym==0.26.2",  # For RL action spaces and API
+    "hydra",  # For RL action spaces and API
 ]
 
 
-DEV_REQUIRE = [
-]
+DEV_REQUIRE = []
 
 TESTS_REQUIRE = [
     "pytest",
