@@ -3,7 +3,7 @@ from typing import Optional, Union
 
 import numpy as np
 from gym import Env, Space
-from gym.spaces import Box, Dict, Discrete, MultiBinary, MultiDiscrete
+from gym import spaces
 
 from gia.utils.utils import dol_to_lod, lod_to_dol
 
@@ -61,7 +61,6 @@ class MockBatchedEnv:
         obss = lod_to_dol(obss)
         for k, v in obss.items():
             obss[k] = np.array(v)
-
         return obss
 
 
@@ -83,16 +82,18 @@ class MockImageEnv(Env):
         screen_width: int = 84,
         n_channels: int = 1,
         discrete: bool = True,
-        channel_first: bool = False,
+        channel_first: bool = True,
     ):
         self.observation_space = (screen_height, screen_width, n_channels)
         if channel_first:
             self.observation_space = (n_channels, screen_height, screen_width)
-        self.observation_space = Dict(vec=Box(low=0, high=255, shape=self.observation_space, dtype=np.uint8))
+        self.observation_space = spaces.Dict(
+            vec=spaces.Box(low=0, high=255, shape=self.observation_space, dtype=np.uint8)
+        )
         if discrete:
-            self.action_space = Dict(action=Discrete(action_dim))
+            self.action_space = spaces.Dict(action=spaces.Discrete(action_dim))
         else:
-            self.action_space = Dict(action=Box(low=-1, high=1, shape=(5,), dtype=np.float32))
+            self.action_space = spaces.Dict(action=spaces.Box(low=-1, high=1, shape=(5,), dtype=np.float32))
         self.ep_length = 10
         self.current_step = 0
 
