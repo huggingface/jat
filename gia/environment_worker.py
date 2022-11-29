@@ -1,6 +1,9 @@
+from dataclasses import dataclass
 import torch
 import torch.distributed.rpc as rpc
 from torch.distributed.rpc import RRef, remote, rpc_async, rpc_sync
+
+from gym import spaces
 
 from gia.mocks.mock_config import MockConfig
 from gia.mocks.mock_env import MockBatchedEnv, MockImageEnv
@@ -9,6 +12,12 @@ from gia.replay_buffer import ReplayBuffer
 from gia.utils.utils import _call_remote_method
 
 WORKER_NAME = "ENV_WORKER_{}"
+
+
+@dataclass
+class EnvInfo:
+    observation_space: spaces.Dict
+    action_space: spaces.Dict
 
 
 class EnvironmentWorker:
@@ -57,7 +66,7 @@ class EnvironmentWorker:
         return buffer
 
     def get_env_info(self):
-        return self.env.observation_space, self.env.action_space
+        return EnvInfo(self.env.observation_space, self.env.action_space)
 
     def update_model_weights(self):
         print("updating weight not implemented in ", self.__class__)
@@ -70,8 +79,7 @@ class DistributedEnvironmentWorker(EnvironmentWorker):
         self.model_server_rref = model_server_rref
 
     def update_model_weights(self):
-        from gia.learner_worker import \
-            LearnerWorker  # here because of circular import
+        from gia.learner_worker import LearnerWorker  # here because of circular import
 
         print("requesting updated model weights")
         try:  # this can throw an exception when training ends

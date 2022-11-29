@@ -1,29 +1,23 @@
 import torch.distributed.rpc as rpc
 from torch.distributed.rpc import RRef, remote, rpc_async, rpc_sync
 
-from gia.environment_worker import (WORKER_NAME, DistributedEnvironmentWorker,
-                                    EnvironmentWorker)
+from gia.environment_worker import WORKER_NAME, DistributedEnvironmentWorker, EnvInfo, EnvironmentWorker
 from gia.utils.utils import _call_remote_method
+from gia.config.config import Config
 
 
 class DistributedDataLoader:
     def __init__(
         self,
+        config: Config,
         env_worker_ranks,
         model_server,
-        n_agents=8,
-        rollout_length=16,
-        n_epochs=4,
-        mini_batch_size=4,
     ) -> None:
-        assert mini_batch_size <= n_agents
-        assert n_agents % mini_batch_size == 0
+        assert config.hyp.mini_batch_size <= config.hyp.n_agents
+        assert config.hyp.n_agents % config.hyp.mini_batch_size == 0
 
-        self.iters_per_epoch = n_agents // mini_batch_size
-        self.n_agents = n_agents
-        self.rollout_length = rollout_length
-        self.n_epochs = n_epochs
-        self.minibatch_size = mini_batch_size
+        self.config = config
+        self.iters_per_epoch = config.hyp.n_agents // config.hyp.mini_batch_size
 
         self.worker_rrefs = []
         self.futures = []
@@ -32,7 +26,7 @@ class DistributedDataLoader:
             worker_info = rpc.get_worker_info(WORKER_NAME.format(worker_rank))
             self.worker_rrefs.append(remote(worker_info, DistributedEnvironmentWorker, (RRef(model_server),)))
 
-        self.env_info = rpc_sync(
+        self.env_info: EnvInfo = rpc_sync(
             self.worker_rrefs[0].owner(),
             _call_remote_method,
             args=(DistributedEnvironmentWorker.get_env_info, self.worker_rrefs[0]),
@@ -51,7 +45,7 @@ class DistributedDataLoader:
             self.futures.append(future)
 
     def __iter__(self):
-        for epoch in range(self.n_epochs):
+        for epoch in range(self.config.hyp.n_epochs):
             for j in range(self.iters_per_epoch):
                 waiting_for_exp = True
                 buffer = None
