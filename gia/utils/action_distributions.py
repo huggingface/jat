@@ -8,19 +8,22 @@ from torch import Tensor
 from torch.distributions import Independent, Normal
 from torch.nn import functional
 
-ActionSpace = Union[Dict, Discrete, Box]
+ActionSpace = Union[Dict, Tuple, Discrete, Box]
 
 
-def calc_num_actions(action_space):
+def calc_num_actions(action_space: ActionSpace):
     if isinstance(action_space, Discrete):
         return 1
     elif isinstance(action_space, Tuple):
         return sum([calc_num_actions(a) for a in action_space])
+    elif isinstance(action_space, Dict):
+        return sum([calc_num_actions(v) for _, v in action_space.items()])
     elif isinstance(action_space, Box):
         if len(action_space.shape) != 1:
             raise Exception("Non-trivial shape Box action spaces not currently supported. Try to flatten the space.")
 
         return action_space.shape[0]
+
     else:
         raise NotImplementedError(f"Action space type {type(action_space)} not supported!")
 
@@ -31,6 +34,8 @@ def calc_num_action_parameters(action_space: ActionSpace) -> int:
         return action_space.n
     elif isinstance(action_space, Tuple):
         return sum([calc_num_action_parameters(a) for a in action_space])
+    elif isinstance(action_space, Dict):
+        return sum([calc_num_action_parameters(v) for _, v in action_space.items()])
     elif isinstance(action_space, Box):
         # one mean and one standard deviation for every action
         return np.prod(action_space.shape) * 2
@@ -42,7 +47,7 @@ def is_continuous_action_space(action_space: ActionSpace) -> bool:
     return isinstance(action_space, Box)
 
 
-def get_action_distribution(action_space, raw_logits):
+def get_action_distribution(action_space: ActionSpace, raw_logits):
     """
     Create the distribution object based on provided action space and unprocessed logits.
     :param action_space: Gym action space object
@@ -236,9 +241,7 @@ class TupleActionDistribution:
         return entropy
 
     def kl_divergence(self, other):
-        kls = [
-            d.kl_divergence(other_d).unsqueeze(dim=1) for d, other_d in zip(self.distributions, other.distributions)
-        ]
+        kls = [d.kl_divergence(other_d).unsqueeze(dim=1) for d, other_d in zip(self.distributions, other.distributions)]
 
         kls = torch.cat(kls, dim=1)
         kl = kls.sum(dim=1)

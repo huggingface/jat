@@ -3,15 +3,18 @@ import math
 import torch
 from torch import Tensor, nn
 
-from gia.utils.action_distributions import (calc_num_action_parameters,
-                                            get_action_distribution,
-                                            is_continuous_action_space)
+from gia.utils.action_distributions import (
+    calc_num_action_parameters,
+    get_action_distribution,
+    is_continuous_action_space,
+)
+from gia.config.config import Config
 
 
 class ActionsParameterization(nn.Module):
-    def __init__(self, cfg, action_space):
+    def __init__(self, config, action_space):
         super().__init__()
-        self.cfg = cfg
+        self.config = config
         self.action_space = action_space
 
 
@@ -22,8 +25,8 @@ class ActionParameterizationDefault(ActionsParameterization):
 
     """
 
-    def __init__(self, cfg, core_out_size, action_space):
-        super().__init__(cfg, action_space)
+    def __init__(self, config: Config, core_out_size, action_space):
+        super().__init__(config, action_space)
 
         num_action_outputs = calc_num_action_parameters(action_space)
         self.distribution_linear = nn.Linear(core_out_size, num_action_outputs)
@@ -38,10 +41,10 @@ class ActionParameterizationDefault(ActionsParameterization):
 class ActionParameterizationContinuousNonAdaptiveStddev(ActionsParameterization):
     """Use a single learned parameter for action stddevs."""
 
-    def __init__(self, cfg, core_out_size, action_space):
-        super().__init__(cfg, action_space)
+    def __init__(self, config: Config, core_out_size, action_space):
+        super().__init__(config, action_space)
 
-        assert not cfg.adaptive_stddev
+        assert not config.adaptive_stddev
         assert is_continuous_action_space(
             self.action_space
         ), "Non-adaptive stddev makes sense only for continuous action spaces"
@@ -50,11 +53,11 @@ class ActionParameterizationContinuousNonAdaptiveStddev(ActionsParameterization)
 
         # calculate only action means using the policy neural network
         self.distribution_linear = nn.Linear(core_out_size, num_action_outputs // 2)
-        self.tanh_scale: float = cfg.continuous_tanh_scale
+        self.tanh_scale: float = config.continuous_tanh_scale
 
         # stddev is a single learned parameter
         initial_stddev = torch.empty([num_action_outputs // 2])
-        initial_stddev.fill_(math.log(self.cfg.initial_stddev))
+        initial_stddev.fill_(math.log(self.config.initial_stddev))
         self.learned_stddev = nn.Parameter(initial_stddev, requires_grad=True)
 
     def forward(self, actor_core_output: Tensor):
