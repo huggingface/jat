@@ -6,12 +6,15 @@ from torch import nn
 from torch.distributed import destroy_process_group, init_process_group
 from torch.distributed.rpc import RRef
 
-from gia.distributed_data_loader import DistributedDataLoader
+import hydra
+
 from gia.environment_worker import WORKER_NAME
 from gia.learner_worker import LearnerWorker
-from gia.mocks.mock_distributed_data_loader import MockDistributedDataLoader
+from gia.config.config import Config
 
-if __name__ == "__main__":
+
+@hydra.main(version_base=None, config_path="config", config_name="config.yaml")
+def train(config: Config):
     rank = int(os.environ["RANK"])
     local_rank = int(os.environ["LOCAL_RANK"])
     world_size = int(os.environ["WORLD_SIZE"])
@@ -20,9 +23,13 @@ if __name__ == "__main__":
     world_size = 4
     init_process_group(backend="nccl")
     if rank == 0:
-        learner = LearnerWorker(rank=0, world_size=4, worker_ranks=[1, 2, 3])
+        learner = LearnerWorker(config, rank=0, world_size=4, worker_ranks=[1, 2, 3])
         learner.train()
         destroy_process_group()
     else:
         rpc.init_rpc(WORKER_NAME.format(rank), rank=rank, world_size=world_size)
     rpc.shutdown()
+
+
+if __name__ == "__main__":
+    train()
