@@ -5,13 +5,12 @@ from gym import spaces
 from gym.spaces import Box, Dict
 from torch import Tensor, nn
 
-from gia.model.model_utils import (ModelModule, calc_num_elements, create_mlp,
-                                   model_device, nonlinearity)
-
+from gia.model.model_utils import ModelModule, calc_num_elements, create_mlp, model_device, nonlinearity
+from gia.config.config import Config
 
 # noinspection PyMethodMayBeStatic,PyUnusedLocal
 class Encoder(ModelModule):
-    def __init__(self, config):
+    def __init__(self, config: Config):
         super().__init__(config)
 
     def get_out_size(self) -> int:
@@ -29,7 +28,7 @@ class Encoder(ModelModule):
 
 
 class MultiInputEncoder(Encoder):
-    def __init__(self, config, obs_space: Dict):
+    def __init__(self, config: Config, obs_space: Dict):
         super().__init__(config)
         self.obs_keys = list(sorted(obs_space.keys()))  # always the same order
         self.encoders = nn.ModuleDict()
@@ -68,10 +67,10 @@ class MultiInputEncoder(Encoder):
 
 
 class MlpEncoder(Encoder):
-    def __init__(self, config, obs_space: Box):
+    def __init__(self, config: Config, obs_space: Box):
         super().__init__(config)
 
-        mlp_layers: List[int] = config.encoder_mlp_layers
+        mlp_layers: List[int] = config.model.encoder_mlp_layers
         self.mlp_head = create_mlp(mlp_layers, obs_space.shape[0], nonlinearity(config))
         if len(mlp_layers) > 0:
             self.mlp_head = torch.jit.script(self.mlp_head)
@@ -118,21 +117,21 @@ class ConvEncoderImpl(nn.Module):
 
 
 class ConvEncoder(Encoder):
-    def __init__(self, config, obs_space: Box):
+    def __init__(self, config: Config, obs_space: Box):
         super().__init__(config)
 
         input_channels = obs_space.shape[0]
-        if config.encoder_conv_architecture == "convnet_simple":
+        if config.model.encoder_conv_architecture == "convnet_simple":
             conv_filters = [[input_channels, 32, 8, 4], [32, 64, 4, 2], [64, 128, 3, 2]]
-        elif config.encoder_conv_architecture == "convnet_impala":
+        elif config.model.encoder_conv_architecture == "convnet_impala":
             conv_filters = [[input_channels, 16, 8, 4], [16, 32, 4, 2]]
-        elif config.encoder_conv_architecture == "convnet_atari":
+        elif config.model.encoder_conv_architecture == "convnet_atari":
             conv_filters = [[input_channels, 32, 8, 4], [32, 64, 4, 2], [64, 64, 3, 1]]
         else:
-            raise NotImplementedError(f"Unknown encoder architecture {config.encoder_conv_architecture}")
+            raise NotImplementedError(f"Unknown encoder architecture {config.model.encoder_conv_architecture}")
 
         activation = nonlinearity(self.config)
-        extra_mlp_layers: List[int] = config.encoder_conv_mlp_layers
+        extra_mlp_layers: List[int] = config.model.encoder_conv_mlp_layers
         enc = ConvEncoderImpl(obs_space.shape, conv_filters, extra_mlp_layers, activation)
         self.enc = torch.jit.script(enc)
 
@@ -146,7 +145,7 @@ class ConvEncoder(Encoder):
 
 
 class ResBlock(nn.Module):
-    def __init__(self, config, input_ch, output_ch):
+    def __init__(self, config: Config, input_ch, output_ch):
         super().__init__()
 
         layers = [
@@ -166,7 +165,7 @@ class ResBlock(nn.Module):
 
 
 class ResnetEncoder(Encoder):
-    def __init__(self, config, obs_space):
+    def __init__(self, config: Config, obs_space):
         super().__init__(config)
 
         input_ch = obs_space.shape[0]
@@ -213,17 +212,17 @@ class ResnetEncoder(Encoder):
         return self.encoder_out_size
 
 
-def make_img_encoder(config, obs_space: Box) -> Encoder:
+def make_img_encoder(config: Config, obs_space: Box) -> Encoder:
     """Make (most likely convolutional) encoder for image-based observations."""
-    if config.encoder_conv_architecture.startswith("convnet"):
+    if config.model.encoder_conv_architecture.startswith("convnet"):
         return ConvEncoder(config, obs_space)
-    elif config.encoder_conv_architecture.startswith("resnet"):
+    elif config.model.encoder_conv_architecture.startswith("resnet"):
         return ResnetEncoder(config, obs_space)
     else:
-        raise NotImplementedError(f"Unknown convolutional architecture {config.encoder_conv_architecture}")
+        raise NotImplementedError(f"Unknown convolutional architecture {config.model.encoder_conv_architecture}")
 
 
-def default_make_encoder_func(config, obs_space: Dict) -> Encoder:
+def default_make_encoder_func(config: Config, obs_space: Dict) -> Encoder:
     """
     Analyze the observation space and create either a convolutional or an MLP encoder depending on
     whether this is an image-based environment or environment with vector observations.

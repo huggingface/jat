@@ -4,8 +4,7 @@ from typing import List
 import torch
 
 from gia.config.config import Config
-from gia.model.model_utils import (ModelModule, calc_num_elements, create_mlp,
-                                   nonlinearity)
+from gia.model.model_utils import ModelModule, calc_num_elements, create_mlp, nonlinearity
 
 
 class Decoder(ModelModule, ABC):
@@ -16,7 +15,7 @@ class MlpDecoder(Decoder):
     def __init__(self, config: Config, decoder_input_size: int):
         super().__init__(config)
         self.core_input_size = decoder_input_size
-        decoder_layers: List[int] = config.decoder_mlp_layers
+        decoder_layers: List[int] = config.model.decoder_mlp_layers
         activation = nonlinearity(config)
         self.mlp = create_mlp(decoder_layers, decoder_input_size, activation)
         if len(decoder_layers) > 0:

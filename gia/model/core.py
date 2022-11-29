@@ -78,7 +78,7 @@ class ModelCoreIdentity(ModelCore):
 
 
 def default_make_core_func(config: Config, core_input_size: int) -> ModelCore:
-    if config.use_rnn:
+    if config.model.use_rnn:
         core = ModelCoreRNN(config, core_input_size)
     else:
         core = ModelCoreIdentity(config, core_input_size)

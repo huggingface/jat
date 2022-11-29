@@ -4,7 +4,7 @@ import torch
 from torch import nn
 from torch.nn.utils import spectral_norm
 
-from gia.config.configurable import Configurable
+from gia.config.configurable import Configurable, Config
 
 
 def calc_num_elements(module, module_input_shape):
@@ -14,7 +14,7 @@ def calc_num_elements(module, module_input_shape):
     return num_elements
 
 
-def get_rnn_size(config):
+def get_rnn_size(config: Config):
     if config.use_rnn:
         size = config.rnn_size * config.rnn_num_layers
     else:
@@ -30,12 +30,12 @@ def get_rnn_size(config):
     return size
 
 
-def nonlinearity(config) -> nn.Module:
-    if config.nonlinearity == "elu":
+def nonlinearity(config: Config) -> nn.Module:
+    if config.model.nonlinearity == "elu":
         return nn.ELU(inplace=True)
-    elif config.nonlinearity == "relu":
+    elif config.model.nonlinearity == "relu":
         return nn.ReLU(inplace=True)
-    elif config.nonlinearity == "tanh":
+    elif config.model.nonlinearity == "tanh":
         return nn.Tanh()
     else:
         raise Exception("Unknown nonlinearity")
@@ -63,7 +63,7 @@ def create_mlp(layer_sizes: List[int], input_size: int, activation: nn.Module) -
 
 
 class ModelModule(nn.Module, Configurable):
-    def __init__(self, config):
+    def __init__(self, config: Config):
         nn.Module.__init__(self)
         Configurable.__init__(self, config)
 

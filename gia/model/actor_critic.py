@@ -1,25 +1,24 @@
-from typing import Optional
+from typing import Optional, Dict
 
 import torch
-from gym.spaces import Dict as Dict
+from gym import spaces
 from torch import Tensor, nn
 
 from gia.config.config import Config
 from gia.config.configurable import Configurable
 from gia.model.action_parameterization import (
     ActionParameterizationContinuousNonAdaptiveStddev,
-    ActionParameterizationDefault)
+    ActionParameterizationDefault,
+)
 from gia.model.model_utils import model_device
-from gia.utils.action_distributions import (is_continuous_action_space,
-                                            sample_actions_log_probs)
+from gia.utils.action_distributions import is_continuous_action_space, sample_actions_log_probs
 from gia.utils.normalize import ObservationNormalizer
-from gia.utils.running_mean_std import (RunningMeanStdInPlace,
-                                        running_mean_std_summaries)
+from gia.utils.running_mean_std import RunningMeanStdInPlace, running_mean_std_summaries
 from gia.utils.tensor_dict import TensorDict
 
 
 class ActorCritic(nn.Module, Configurable):
-    def __init__(self, obs_space: Dict, action_space: Dict, config: Config):
+    def __init__(self, obs_space: spaces.Dict, action_space: spaces.Dict, config: Config):
         nn.Module.__init__(self)
         Configurable.__init__(self, config)
         self.action_space = action_space
@@ -30,7 +29,7 @@ class ActorCritic(nn.Module, Configurable):
         self.obs_normalizer: ObservationNormalizer = ObservationNormalizer(obs_space, config)
 
         self.returns_normalizer: Optional[RunningMeanStdInPlace] = None
-        if config.normalize_returns:
+        if config.rl.normalize_returns:
             returns_shape = (1,)  # it's actually a single scalar but we use 1D shape for the normalizer
             self.returns_normalizer = RunningMeanStdInPlace(returns_shape)
             # comment this out for debugging (i.e. to be able to step through normalizer code)
@@ -39,14 +38,14 @@ class ActorCritic(nn.Module, Configurable):
         self.last_action_distribution = None  # to be populated after each forward step
 
     def get_action_parameterization(self, decoder_output_size: int):
-        if not self.cfg.adaptive_stddev and is_continuous_action_space(self.action_space):
+        if not self.config.model.adaptive_stddev and is_continuous_action_space(self.action_space):
             action_parameterization = ActionParameterizationContinuousNonAdaptiveStddev(
-                self.cfg,
+                self.config,
                 decoder_output_size,
                 self.action_space,
             )
         else:
-            action_parameterization = ActionParameterizationDefault(self.cfg, decoder_output_size, self.action_space)
+            action_parameterization = ActionParameterizationDefault(self.config, decoder_output_size, self.action_space)
 
         return action_parameterization
 
@@ -70,12 +69,12 @@ class ActorCritic(nn.Module, Configurable):
 
     def initialize_weights(self, layer):
         # gain = nn.init.calculate_gain(self.cfg.nonlinearity)
-        gain = self.cfg.policy_init_gain
+        gain = self.config.model.policy_init_gain
 
         if hasattr(layer, "bias") and isinstance(layer.bias, torch.nn.parameter.Parameter):
             layer.bias.data.fill_(0)
 
-        if self.cfg.policy_initialization == "orthogonal":
+        if self.config.model.policy_initialization == "orthogonal":
             if type(layer) == nn.Conv2d or type(layer) == nn.Linear:
                 nn.init.orthogonal_(layer.weight.data, gain=gain)
             else:
@@ -84,12 +83,12 @@ class ActorCritic(nn.Module, Configurable):
                 # I never noticed much difference between different initialization schemes, and here it seems safer to
                 # go with default initialization,
                 pass
-        elif self.cfg.policy_initialization == "xavier_uniform":
+        elif self.config.model.policy_initialization == "xavier_uniform":
             if type(layer) == nn.Conv2d or type(layer) == nn.Linear:
                 nn.init.xavier_uniform_(layer.weight.data, gain=gain)
             else:
                 pass
-        elif self.cfg.policy_initialization == "torch_default":
+        elif self.config.model.policy_initialization == "torch_default":
             # do nothing
             pass
 
@@ -131,19 +130,19 @@ class ActorCriticSharedWeights(ActorCritic):
     def __init__(
         self,
         model_factory,
-        obs_space: Dict,
-        action_space: Dict,
-        cfg: Config,
+        obs_space: spaces.Dict,
+        action_space: spaces.Dict,
+        config: Config,
     ):
-        super().__init__(obs_space, action_space, cfg)
+        super().__init__(obs_space, action_space, config)
 
         # in case of shared weights we're using only a single encoder and a single core
-        self.encoder = model_factory.make_model_encoder_func(cfg, obs_space)
+        self.encoder = model_factory.make_model_encoder_func(config, obs_space)
         self.encoders = [self.encoder]  # a single shared encoder
 
-        self.core = model_factory.make_model_core_func(cfg, self.encoder.get_out_size())
+        self.core = model_factory.make_model_core_func(config, self.encoder.get_out_size())
 
-        self.decoder = model_factory.make_model_decoder_func(cfg, self.core.get_out_size())
+        self.decoder = model_factory.make_model_decoder_func(config, self.core.get_out_size())
         decoder_out_size: int = self.decoder.get_out_size()
 
         self.critic_linear = nn.Linear(decoder_out_size, 1)
@@ -187,25 +186,25 @@ class ActorCriticSeparateWeights(ActorCritic):
     def __init__(
         self,
         model_factory,
-        obs_space: Dict,
-        action_space: Dict,
-        cfg: Config,
+        obs_space: spaces.Dict,
+        action_space: spaces.Dict,
+        config: Config,
     ):
-        super().__init__(obs_space, action_space, cfg)
+        super().__init__(obs_space, action_space, config)
 
-        self.actor_encoder = model_factory.make_model_encoder_func(cfg, obs_space)
-        self.actor_core = model_factory.make_model_core_func(cfg, self.actor_encoder.get_out_size())
+        self.actor_encoder = model_factory.make_model_encoder_func(config, obs_space)
+        self.actor_core = model_factory.make_model_core_func(config, self.actor_encoder.get_out_size())
 
-        self.critic_encoder = model_factory.make_model_encoder_func(cfg, obs_space)
-        self.critic_core = model_factory.make_model_core_func(cfg, self.critic_encoder.get_out_size())
+        self.critic_encoder = model_factory.make_model_encoder_func(config, obs_space)
+        self.critic_core = model_factory.make_model_core_func(config, self.critic_encoder.get_out_size())
 
         self.encoders = [self.actor_encoder, self.critic_encoder]
         self.cores = [self.actor_core, self.critic_core]
 
         self.core_func = self._core_rnn if self.cfg.use_rnn else self._core_empty
 
-        self.actor_decoder = model_factory.make_model_decoder_func(cfg, self.actor_core.get_out_size())
-        self.critic_decoder = model_factory.make_model_decoder_func(cfg, self.critic_core.get_out_size())
+        self.actor_decoder = model_factory.make_model_decoder_func(config, self.actor_core.get_out_size())
+        self.critic_decoder = model_factory.make_model_decoder_func(config, self.critic_core.get_out_size())
         self.decoders = [self.actor_decoder, self.critic_decoder]
 
         self.critic_linear = nn.Linear(self.critic_decoder.get_out_size(), 1)
@@ -277,20 +276,20 @@ class ActorCriticSeparateWeights(ActorCritic):
         return result
 
 
-def default_make_actor_critic_func(config: Config, obs_space: Dict, action_space: Dict) -> ActorCritic:
-    from gia.config.globals import GLOBAL_CONTEXT
+def default_make_actor_critic_func(config: Config, obs_space: spaces.Dict, action_space: spaces.Dict) -> ActorCritic:
+    from gia.config.globals import global_context
 
-    model_factory = GLOBAL_CONTEXT.model_factory
+    model_factory = global_context().model_factory
 
-    if config.actor_critic_share_weights:
+    if config.model.actor_critic_share_weights:
         return ActorCriticSharedWeights(model_factory, obs_space, action_space, config)
     else:
         return ActorCriticSeparateWeights(model_factory, obs_space, action_space, config)
 
 
-def create_actor_critic(config: Config, obs_space: Dict, action_space: Dict) -> ActorCritic:
+def create_actor_critic(config: Config, obs_space: spaces.Dict, action_space: spaces.Dict) -> ActorCritic:
     # check if user specified custom actor/critic creation function
-    from gia.config.globals import GLOBAL_CONTEXT
+    from gia.config.globals import global_context
 
-    make_actor_critic_func = GLOBAL_CONTEXT.model_factory.make_actor_critic_func
+    make_actor_critic_func = global_context().model_factory.make_actor_critic_func
     return make_actor_critic_func(config, obs_space, action_space)
