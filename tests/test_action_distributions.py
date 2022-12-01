@@ -6,10 +6,12 @@ import pytest
 import torch
 from torch.distributions import Categorical
 
-from gia.utils.action_distributions import (calc_num_action_parameters,
-                                            calc_num_actions,
-                                            get_action_distribution,
-                                            sample_actions_log_probs)
+from gia.utils.action_distributions import (
+    calc_num_action_parameters,
+    calc_num_actions,
+    get_action_distribution,
+    sample_actions_log_probs,
+)
 
 
 @pytest.mark.parametrize("gym_space", [gym.spaces.Discrete(3)])
@@ -139,6 +141,59 @@ def test_tuple_action_distribution(spaces, sizes):
             num_logits += size * 2
 
     action_space = gym.spaces.Tuple(_action_spaces)
+
+    assert calc_num_actions(action_space) == num_actions
+    assert calc_num_action_parameters(action_space) == num_logits
+
+    logits = torch.randn(BATCH_SIZE, num_logits)
+    action_dist = get_action_distribution(action_space, logits)
+
+    actions = action_dist.sample()
+    assert actions.size() == (BATCH_SIZE, num_actions)
+
+    action_log_probs = action_dist.log_prob(actions)
+    assert action_log_probs.size() == (BATCH_SIZE,)
+
+    entropy = action_dist.entropy()
+    assert entropy.size() == (BATCH_SIZE,)
+
+    actions, action_log_probs = action_dist.sample_actions_log_probs()
+
+    assert actions.size() == (BATCH_SIZE, num_actions)
+    assert action_log_probs.size() == (BATCH_SIZE,)
+
+
+@pytest.mark.parametrize(
+    "spaces",
+    [
+        [gym.spaces.Discrete, gym.spaces.Discrete],
+        [gym.spaces.Discrete, gym.spaces.Box],
+        [gym.spaces.Box, gym.spaces.Box],
+    ],
+)
+@pytest.mark.parametrize("sizes", [[1, 1], [2, 1], [1, 2], [2, 3]])
+def test_dict_action_distribution(spaces, sizes):
+    # I like to use prime numbers for tests as it can flag problems hidden by automatic broadcasting etc
+    BATCH_SIZE = 31
+
+    assert len(spaces) > 0
+    assert len(spaces) == len(sizes)
+
+    num_actions = 0
+    num_logits = 0
+
+    _action_spaces = {}
+    for i, (space, size) in enumerate(zip(spaces, sizes)):
+        if space is gym.spaces.Discrete:
+            _action_spaces[f"action_{i}"] = space(size)
+            num_actions += 1
+            num_logits += size
+        else:
+            _action_spaces[f"action_{i}"] = gym.spaces.Box(low=-1, high=1, shape=(size,), dtype=np.float32)
+            num_actions += size
+            num_logits += size * 2
+
+    action_space = gym.spaces.Dict(_action_spaces)
 
     assert calc_num_actions(action_space) == num_actions
     assert calc_num_action_parameters(action_space) == num_logits

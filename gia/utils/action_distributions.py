@@ -17,7 +17,7 @@ def calc_num_actions(action_space: ActionSpace):
     elif isinstance(action_space, Tuple):
         return sum([calc_num_actions(a) for a in action_space])
     elif isinstance(action_space, Dict):
-        return sum([calc_num_actions(v) for _, v in action_space.items()])
+        return sum([calc_num_actions(v) for _, v in action_space.spaces.items()])
     elif isinstance(action_space, Box):
         if len(action_space.shape) != 1:
             raise Exception("Non-trivial shape Box action spaces not currently supported. Try to flatten the space.")
@@ -35,7 +35,7 @@ def calc_num_action_parameters(action_space: ActionSpace) -> int:
     elif isinstance(action_space, Tuple):
         return sum([calc_num_action_parameters(a) for a in action_space])
     elif isinstance(action_space, Dict):
-        return sum([calc_num_action_parameters(v) for _, v in action_space.items()])
+        return sum([calc_num_action_parameters(v) for _, v in action_space.spaces.items()])
     elif isinstance(action_space, Box):
         # one mean and one standard deviation for every action
         return np.prod(action_space.shape) * 2
@@ -60,6 +60,8 @@ def get_action_distribution(action_space: ActionSpace, raw_logits):
         return CategoricalActionDistribution(raw_logits)
     elif isinstance(action_space, Tuple):
         return TupleActionDistribution(action_space, logits_flat=raw_logits)
+    elif isinstance(action_space, Dict):
+        return DictActionDistribution(action_space, logits_flat=raw_logits)
     elif isinstance(action_space, Box):
         return ContinuousActionDistribution(params=raw_logits)
     else:
@@ -69,6 +71,8 @@ def get_action_distribution(action_space: ActionSpace, raw_logits):
 def sample_actions_log_probs(distribution):
     if isinstance(distribution, TupleActionDistribution):
         return distribution.sample_actions_log_probs()
+    elif isinstance(distribution, DictActionDistribution):
+        return distribution.sample_actions_log_probs()
     else:
         actions = distribution.sample()
         log_prob_actions = distribution.log_prob(actions)
@@ -77,6 +81,8 @@ def sample_actions_log_probs(distribution):
 
 def argmax_actions(distribution):
     if isinstance(distribution, TupleActionDistribution):
+        return distribution.argmax()
+    elif isinstance(distribution, DictActionDistribution):
         return distribution.argmax()
     elif hasattr(distribution, "probs"):
         return torch.argmax(distribution.probs, dim=-1)
@@ -241,7 +247,101 @@ class TupleActionDistribution:
         return entropy
 
     def kl_divergence(self, other):
-        kls = [d.kl_divergence(other_d).unsqueeze(dim=1) for d, other_d in zip(self.distributions, other.distributions)]
+        kls = [
+            d.kl_divergence(other_d).unsqueeze(dim=1) for d, other_d in zip(self.distributions, other.distributions)
+        ]
+
+        kls = torch.cat(kls, dim=1)
+        kl = kls.sum(dim=1)
+        return kl
+
+    def symmetric_kl_with_uniform_prior(self):
+        sym_kls = [d.symmetric_kl_with_uniform_prior().unsqueeze(dim=1) for d in self.distributions]
+        sym_kls = torch.cat(sym_kls, dim=1)
+        sym_kl = sym_kls.sum(dim=1)
+        return sym_kl
+
+    def dbg_print(self):
+        for d in self.distributions:
+            d.dbg_print()
+
+
+class DictActionDistribution:
+    """
+    Basically, a tuple of independent action distributions.
+    Useful when the environment requires multiple independent action heads, e.g.:
+     - moving in the environment
+     - selecting a weapon
+     - jumping
+     - strafing
+
+    Empirically, it seems to be better to represent such an action distribution as a tuple/dict of independent action
+    distributions, rather than a one-hot over potentially big cartesian product of all action spaces, like it's
+    usually done in Atari.
+
+    Entropy of such a distribution is just a sum of entropies of individual distributions.
+
+    """
+
+    def __init__(self, action_space, logits_flat):
+        self.logit_lengths = [calc_num_action_parameters(s) for k, s in action_space.spaces.items()]
+        self.split_logits = torch.split(logits_flat, self.logit_lengths, dim=1)
+        self.action_lengths = [calc_num_actions(s) for k, s in action_space.spaces.items()]
+
+        assert len(self.split_logits) == len(action_space.spaces)
+
+        self.distributions = []
+        for i, (space_name, space) in enumerate(action_space.spaces.items()):
+            self.distributions.append(get_action_distribution(space, self.split_logits[i]))
+
+    @staticmethod
+    def _flatten_actions(list_of_action_batches):
+        batch_of_action_tuples = torch.cat(list_of_action_batches, 1)
+        return batch_of_action_tuples
+
+    def _calc_log_probs(self, list_of_action_batches):
+        # calculate batched log probs for every distribution
+        log_probs = [d.log_prob(a) for d, a in zip(self.distributions, list_of_action_batches)]
+        log_probs = [lp.unsqueeze(dim=1) for lp in log_probs]
+
+        # concatenate and calculate sum of individual log-probs
+        # this is valid under the assumption that action distributions are independent
+        log_probs = torch.cat(log_probs, dim=1)
+        log_probs = log_probs.sum(dim=1)
+
+        return log_probs
+
+    def sample_actions_log_probs(self):
+        list_of_action_batches = [d.sample() for d in self.distributions]
+        batch_of_action_tuples = self._flatten_actions(list_of_action_batches)
+        log_probs = self._calc_log_probs(list_of_action_batches)
+        return batch_of_action_tuples, log_probs
+
+    def sample(self):
+        list_of_action_batches = [d.sample() for d in self.distributions]
+        return self._flatten_actions(list_of_action_batches)
+
+    def argmax(self):
+        list_of_action_batches = [argmax_actions(d) for d in self.distributions]
+        return torch.cat(list_of_action_batches).unsqueeze(0)
+
+    def log_prob(self, actions):
+        # split into batches of actions from individual distributions
+        list_of_action_batches = torch.split(actions, self.action_lengths, dim=1)
+
+        log_probs = self._calc_log_probs(list_of_action_batches)
+        return log_probs
+
+    def entropy(self):
+        entropies = [d.entropy().unsqueeze(dim=1) for d in self.distributions]
+        entropies = torch.cat(entropies, dim=1)
+        entropy = entropies.sum(dim=1)
+        return entropy
+
+    def kl_divergence(self, other):
+        kls = [
+            d.kl_divergence(other_d).unsqueeze(dim=1) for d, other_d in zip(self.distributions, other.distributions)
+        ]
 
         kls = torch.cat(kls, dim=1)
         kl = kls.sum(dim=1)
