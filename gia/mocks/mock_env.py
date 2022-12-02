@@ -31,7 +31,9 @@ class MockBatchedEnv:
         return actions
 
     def step(self, actions):
+
         actions = dol_to_lod(actions)
+        assert len(actions) == len(self.envs)
         obss = []
         rewards = []
         dones = []
@@ -50,7 +52,7 @@ class MockBatchedEnv:
         rewards = np.array(rewards)
         dones = np.array(dones)
 
-        return obs, rewards, dones, infos
+        return obss, rewards, dones, infos
 
     def reset(self):
         obss = []
@@ -64,7 +66,7 @@ class MockBatchedEnv:
         return obss
 
 
-class MockImageEnv(Env):
+class MockEnv(Env):
     """
     Mock image environment for testing purposes, it mimics Atari games.
     :param action_dim: Number of discrete actions
@@ -77,23 +79,11 @@ class MockImageEnv(Env):
 
     def __init__(
         self,
-        action_dim: int = 6,
-        screen_height: int = 84,
-        screen_width: int = 84,
-        n_channels: int = 1,
-        discrete: bool = True,
-        channel_first: bool = True,
+        observation_space,
+        action_space,
     ):
-        self.observation_space = (screen_height, screen_width, n_channels)
-        if channel_first:
-            self.observation_space = (n_channels, screen_height, screen_width)
-        self.observation_space = spaces.Dict(
-            vec=spaces.Box(low=0, high=255, shape=self.observation_space, dtype=np.uint8)
-        )
-        if discrete:
-            self.action_space = spaces.Dict(action=spaces.Discrete(action_dim))
-        else:
-            self.action_space = spaces.Dict(action=spaces.Box(low=-1, high=1, shape=(5,), dtype=np.float32))
+        self.observation_space = observation_space
+        self.action_space = action_space
         self.ep_length = 10
         self.current_step = 0
 
