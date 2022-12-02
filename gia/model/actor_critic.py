@@ -111,7 +111,7 @@ class ActorCritic(nn.Module, Configurable):
             # for non-trivial action spaces it is faster to do these together
             actions, result["log_prob_actions"] = sample_actions_log_probs(self.last_action_distribution)
             assert actions.dim() == 2  # TODO: remove this once we test everything
-            result["actions"] = actions.squeeze(dim=1)
+            result["actions"] = actions  # .squeeze(dim=1)
 
     def forward_head(self, normalized_obs_dict: Dict[str, Tensor]) -> Tensor:
         raise NotImplementedError()
