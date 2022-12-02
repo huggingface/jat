@@ -11,6 +11,29 @@ from torch.nn import functional
 ActionSpace = Union[Dict, Tuple, Discrete, Box]
 
 
+def to_action_space(action_tensor: torch.Tensor, action_space: Dict):
+    # maps from tensor of B, n to dict
+    # "action0" : Tensor(B, k0)
+    # "action1" : Tensor(B, k1)
+    # "action2" : Tensor(B, k2)
+    # ...
+    # when n == k0 + k1 + k2
+
+    action_lengths = [calc_num_actions(s) for k, s in action_space.spaces.items()]
+    actions_split = torch.split(action_tensor, action_lengths, dim=1)
+
+    result = {}
+    for (k, v), action in zip(action_space.spaces.items(), actions_split):
+        if isinstance(v, Discrete):
+            result[k] = action.long().numpy()
+        elif isinstance(v, Box):
+            result[k] = action.numpy()
+        else:
+            raise NotImplementedError(f"Action space type {type(v)} not supported!")
+
+    return result
+
+
 def calc_num_actions(action_space: ActionSpace):
     if isinstance(action_space, Discrete):
         return 1
@@ -247,9 +270,7 @@ class TupleActionDistribution:
         return entropy
 
     def kl_divergence(self, other):
-        kls = [
-            d.kl_divergence(other_d).unsqueeze(dim=1) for d, other_d in zip(self.distributions, other.distributions)
-        ]
+        kls = [d.kl_divergence(other_d).unsqueeze(dim=1) for d, other_d in zip(self.distributions, other.distributions)]
 
         kls = torch.cat(kls, dim=1)
         kl = kls.sum(dim=1)
@@ -268,7 +289,7 @@ class TupleActionDistribution:
 
 class DictActionDistribution:
     """
-    Basically, a tuple of independent action distributions.
+    Basically, a dict of independent action distributions.
     Useful when the environment requires multiple independent action heads, e.g.:
      - moving in the environment
      - selecting a weapon
@@ -339,9 +360,7 @@ class DictActionDistribution:
         return entropy
 
     def kl_divergence(self, other):
-        kls = [
-            d.kl_divergence(other_d).unsqueeze(dim=1) for d, other_d in zip(self.distributions, other.distributions)
-        ]
+        kls = [d.kl_divergence(other_d).unsqueeze(dim=1) for d, other_d in zip(self.distributions, other.distributions)]
 
         kls = torch.cat(kls, dim=1)
         kl = kls.sum(dim=1)

@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 from gym.spaces import Box, Dict, Discrete
+from gia.utils.action_distributions import calc_num_actions
 
 # numpy_to_torch_dtype_dict = {
 #     np.bool       : torch.bool,
