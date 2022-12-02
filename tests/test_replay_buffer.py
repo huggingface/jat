@@ -5,6 +5,7 @@ from gym.spaces import Box, Dict, Discrete
 
 from gia.replay_buffer import ReplayBuffer
 from gia.utils.utils import to_torch_dtype
+from gia.config.config import Config, get_config
 
 
 @pytest.mark.parametrize(
@@ -12,7 +13,9 @@ from gia.utils.utils import to_torch_dtype
 )
 @pytest.mark.parametrize("action_space", [Dict(cont=Box(0, 1, shape=(17,), dtype=np.float32), discrete=Discrete(3))])
 def test_replay_buffer(obs_space, action_space):
-    buffer = ReplayBuffer(obs_space, action_space, 7, 11)
+    config: Config = get_config()
+    config.hyp.n_agents = 7
+    buffer = ReplayBuffer(config, obs_space, action_space)
 
     subset = buffer[:2]
 

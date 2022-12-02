@@ -7,11 +7,13 @@ import torch
 from torch.distributions import Categorical
 
 from gia.utils.action_distributions import (
+    to_action_space,
     calc_num_action_parameters,
     calc_num_actions,
     get_action_distribution,
     sample_actions_log_probs,
 )
+from gia.utils.utils import lod_to_dol
 
 
 @pytest.mark.parametrize("gym_space", [gym.spaces.Discrete(3)])
@@ -214,3 +216,47 @@ def test_dict_action_distribution(spaces, sizes):
 
     assert actions.size() == (BATCH_SIZE, num_actions)
     assert action_log_probs.size() == (BATCH_SIZE,)
+
+
+@pytest.mark.parametrize(
+    "spaces",
+    [
+        [gym.spaces.Discrete, gym.spaces.Discrete],
+        [gym.spaces.Discrete, gym.spaces.Box],
+        [gym.spaces.Box, gym.spaces.Box],
+    ],
+)
+@pytest.mark.parametrize("sizes", [[1, 1], [2, 1], [1, 2], [2, 3]])
+def test_to_action_space(spaces, sizes):
+    # I like to use prime numbers for tests as it can flag problems hidden by automatic broadcasting etc
+    BATCH_SIZE = 31
+
+    assert len(spaces) > 0
+    assert len(spaces) == len(sizes)
+
+    num_actions = 0
+
+    _action_spaces = {}
+    for i, (space, size) in enumerate(zip(spaces, sizes)):
+        if space is gym.spaces.Discrete:
+            _action_spaces[f"action_{i}"] = space(size)
+            num_actions += 1
+        else:
+            _action_spaces[f"action_{i}"] = gym.spaces.Box(low=-1, high=1, shape=(size,), dtype=np.float32)
+            num_actions += size
+
+    action_space = gym.spaces.Dict(_action_spaces)
+    action_tensor = torch.rand(BATCH_SIZE, num_actions)
+
+    actions = to_action_space(action_tensor, action_space)
+    example_actions = [action_space.sample() for _ in range(BATCH_SIZE)]
+    example_actions = lod_to_dol(example_actions)
+    for k, v in example_actions.items():
+        example_actions[k] = np.array(v).reshape(BATCH_SIZE, -1)
+
+    assert set([k for k, _ in actions.items()]) == set([k for k, _ in example_actions.items()])
+
+    for k, v in example_actions.items():
+        assert actions[k].shape[0] == 31
+        assert len(actions[k].shape) == 2
+        assert actions[k].shape[-1] == v.shape[-1]  # ignore checking the batch dim
