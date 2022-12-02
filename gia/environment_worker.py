@@ -5,11 +5,13 @@ from torch.distributed.rpc import RRef, remote, rpc_async, rpc_sync
 
 from gym import spaces
 
-from gia.mocks.mock_config import MockConfig
-from gia.mocks.mock_env import MockBatchedEnv, MockImageEnv
-from gia.mocks.mock_model import MockModel
+from gia.mocks.mock_env import MockBatchedEnv, MockEnv
+from gia.model.actor_critic import ActorCritic
 from gia.replay_buffer import ReplayBuffer
+from gia.utils.action_distributions import to_action_space
 from gia.utils.utils import _call_remote_method
+from gia.config.config import Config
+from gia.config.globals import global_context
 
 WORKER_NAME = "ENV_WORKER_{}"
 
@@ -21,33 +23,34 @@ class EnvInfo:
 
 
 class EnvironmentWorker:
-    def __init__(self, config=None, model=None):
+    def __init__(self, config: Config, env_func):
 
-        if config is None:
-            self.config = MockConfig()
-        else:
-            self.config = config
+        self.config = config
 
-        # use an env registry
-        self.env = MockBatchedEnv(MockImageEnv, num_parallel=self.config.n_parallel_agents)
-
-        if model is None:
-            self.model = MockModel(config, self.env.observation_space, self.env.action_space)
-        else:
-            self.model = model
+        # TODO: use an env registry
+        self.env = env_func()
+        self.model: ActorCritic = global_context().model_factory.make_actor_critic_func(
+            config, self.env.observation_space, self.env.action_space
+        )
         self._prev_obs = self.env.reset()
 
     def sample_trajectory(self) -> ReplayBuffer:
         buffer = ReplayBuffer(
+            self.config,
             self.env.observation_space,
             self.env.action_space,
-            n_agents=self.config.n_parallel_agents,
-            rollout_length=self.config.rollout_length,
         )
 
-        for i in range(self.config.rollout_length):
-            _action = self.model(self._prev_obs)
-            action = self.env.sample_actions()
+        for i in range(self.config.hyp.rollout_length):
+            prev_obs = {}  # TODO: wrapper so all envss produce torch tensors
+            for k, v in self._prev_obs.items():
+                prev_obs[k] = torch.from_numpy(v)
+            normalized_obs = self.model.normalize_obs(prev_obs)
+            result = self.model(normalized_obs, None)
+            action = to_action_space(result["actions"], self.env.action_space)
+
+            # action = self.env.sample_actions()
+
             next_obs, reward, done, info = self.env.step(action)
 
             for k, v in action.items():
@@ -73,8 +76,8 @@ class EnvironmentWorker:
 
 
 class DistributedEnvironmentWorker(EnvironmentWorker):
-    def __init__(self, model_server_rref: RRef, config=None, model=None):
-        super().__init__(config, model)
+    def __init__(self, model_server_rref: RRef, config: Config):
+        super().__init__(config)
         self.id = rpc.get_worker_info().id
         self.model_server_rref = model_server_rref
 
