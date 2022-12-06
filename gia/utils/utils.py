@@ -44,3 +44,7 @@ def lod_to_dol(lod):
 
 def dol_to_lod(dol):
     return [dict(zip(dol, t)) for t in zip(*dol.values())]
+
+
+def dol_to_donp(dol):
+    return {k: np.array(v) for k, v in dol.items()}

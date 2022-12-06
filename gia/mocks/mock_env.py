@@ -36,34 +36,40 @@ class MockBatchedEnv:
         assert len(actions) == len(self.envs)
         obss = []
         rewards = []
-        dones = []
+        terms = []
+        truncs = []
         infos = []
 
         for action, env in zip(actions, self.envs):
-            obs, reward, done, info = env.step(action)
+            obs, reward, term, trunc, info = env.step(action)
             obss.append(obs)
             rewards.append(reward)
-            dones.append(done)
+            terms.append(term)
+            truncs.append(trunc)
             infos.append(info)
 
         obss = lod_to_dol(obss)
         for k, v in obss.items():
             obss[k] = np.array(v)
         rewards = np.array(rewards)
-        dones = np.array(dones)
+        terms = np.array(terms)
+        truncs = np.array(truncs)
 
-        return obss, rewards, dones, infos
+        return obss, rewards, terms, truncs, infos
 
     def reset(self):
         obss = []
+        infos = []
         for env in self.envs:
-            obs = env.reset()
+            obs, info = env.reset()
+
             obss.append(obs)
+            infos.append(info)
 
         obss = lod_to_dol(obss)
         for k, v in obss.items():
             obss[k] = np.array(v)
-        return obss
+        return obss, infos
 
 
 class MockEnv(Env):
@@ -89,13 +95,13 @@ class MockEnv(Env):
 
     def reset(self) -> np.ndarray:
         self.current_step = 0
-        return self.observation_space.sample()
+        return self.observation_space.sample(), {}
 
     def step(self, action: Union[np.ndarray, int]):
         reward = 0.0
         self.current_step += 1
         done = self.current_step >= self.ep_length
-        return self.observation_space.sample(), reward, done, {}
+        return self.observation_space.sample(), reward, done, done, {}
 
     def render(self, mode: str = "human") -> None:
         pass

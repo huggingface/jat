@@ -13,7 +13,8 @@ class ReplayBuffer:
         self.hyp = config.hyp
 
         self.buffer = TensorDict(
-            dones=torch.ones(self.hyp.rollout_length, self.hyp.n_agents, dtype=torch.bool),
+            terms=torch.ones(self.hyp.rollout_length, self.hyp.n_agents, dtype=torch.bool),
+            truncs=torch.ones(self.hyp.rollout_length, self.hyp.n_agents, dtype=torch.bool),
             rewards=torch.ones(self.hyp.rollout_length, self.hyp.n_agents, dtype=torch.float32),
             values=torch.ones(self.hyp.rollout_length, self.hyp.n_agents, dtype=torch.float32),
         )

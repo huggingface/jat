@@ -48,7 +48,7 @@ class BatchedRecordEpisodeStatistics(gym.Wrapper):
         return observations, rewards, terminated, truncated, infos
 
 
-class BatchedDictObservationsWrapper(gym.Wrapper):
+class DictObservationsWrapper(gym.Wrapper):
     """Guarantees that the environment returns observations as dictionaries of lists (batches)."""
 
     def __init__(self, env):
@@ -64,17 +64,38 @@ class BatchedDictObservationsWrapper(gym.Wrapper):
         return dict(obs=obs), rew, terminated, truncated, info
 
 
+class DictActionsWrapper(gym.Wrapper):
+    """Guarantees that the environment accepts actions as dictionaries of lists (batches)."""
+
+    def __init__(self, env):
+        super().__init__(env)
+        self.action_space: gym.spaces.Dict = gym.spaces.Dict(dict(actions=self.action_space))
+
+    def reset(self, **kwargs):
+        obs, info = self.env.reset(**kwargs)
+        return obs, info
+
+    def step(self, action):
+        obs, rew, terminated, truncated, info = self.env.step(action["actions"])
+        return obs, rew, terminated, truncated, info
+
+
 def autowrap(env):
     # adds wrappers to an env so if complies with the lib
     # final envs should have:
     # - Flat Dict Observation space - DONE
-    # - Flat Dict Action space
+    # - Flat Dict Action space - DONE
     # - Return Torch Tensors for observations
     # - Be in batch mode by default
 
     if isinstance(env.observation_space, (gym.spaces.Box, gym.spaces.Discrete)):
-        env = BatchedDictObservationsWrapper(env)
+        env = DictObservationsWrapper(env)
     elif isinstance(env.observation_space, gym.spaces.Tuple):
+        raise NotImplementedError
+
+    if isinstance(env.action_space, (gym.spaces.Box, gym.spaces.Discrete)):
+        env = DictActionsWrapper(env)
+    elif isinstance(env.action_space, gym.spaces.Tuple):
         raise NotImplementedError
 
     return env

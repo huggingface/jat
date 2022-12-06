@@ -4,6 +4,7 @@ import numpy as np
 from gia.config.config import Config
 from gia.envs.atari import make_atari_env
 from gia.envs.wrappers import autowrap
+from gia.utils.utils import dol_to_donp, lod_to_dol
 
 
 @pytest.mark.parametrize(
@@ -24,7 +25,9 @@ def test_autowrap(env_name):
     assert obs["obs"].shape == (config.envs.agents_per_env, 4, 84, 84)
     assert env.num_envs == config.envs.agents_per_env
     for i in range(10):
-        actions = np.array([env.action_space.sample() for _ in range(config.envs.agents_per_env)])
+        actions = actions = np.array([env.action_space.sample() for _ in range(config.envs.agents_per_env)])
+        actions = lod_to_dol(actions)
+        actions = dol_to_donp(actions)
         obs, reward, term, trunc, info = env.step(actions)
         assert obs["obs"].shape == (config.envs.agents_per_env, 4, 84, 84)
         assert reward.shape == (config.envs.agents_per_env,)

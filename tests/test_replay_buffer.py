@@ -19,8 +19,10 @@ def test_replay_buffer(obs_space, action_space):
 
     subset = buffer[:2]
 
-    assert subset["dones"].shape == (2, 7)
-    assert subset["dones"].dtype == torch.bool
+    assert subset["terms"].shape == (2, 7)
+    assert subset["terms"].dtype == torch.bool
+    assert subset["truncs"].shape == (2, 7)
+    assert subset["truncs"].dtype == torch.bool
     assert subset["rewards"].shape == (2, 7)
     assert subset["rewards"].dtype == torch.float32
     assert subset["values"].shape == (2, 7)
