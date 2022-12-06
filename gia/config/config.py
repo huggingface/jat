@@ -23,6 +23,11 @@ class RL:
     normalize_returns: bool = True
 
 
+class Envs:
+    agents_per_env: int = 64
+    frameskip: int = 4
+
+
 @dataclass
 class Paths:
     output_dir: str = "outputs/default"
@@ -56,18 +61,19 @@ class Config:
     dist: Dist
     hyp: Hyp
     rl: RL
+    envs: Envs
     paths: Paths
     model: Model
     obs: Obs
 
+    # useful for testing
+    @staticmethod
+    def build() -> "Config":
+        with initialize(version_base=None, config_path="../config"):
+            config = compose(
+                config_name="config",
+            )
+            return config
 
-# useful for testing
-def get_config() -> Config:
-    with initialize(version_base=None, config_path="../config"):
-        config = compose(
-            config_name="config",
-        )
-        return config
 
-
-print(get_config())
+print(Config.build())

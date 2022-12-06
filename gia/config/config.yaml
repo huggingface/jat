@@ -15,6 +15,10 @@ hyp:
 rl:
   normalize_returns : true
 
+envs:
+  agents_per_env : 64
+  frameskip: 4
+
 paths:
   output_dir: "outputs/default"
 
