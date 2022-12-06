@@ -3,7 +3,7 @@ import pytest
 
 from gym.spaces import Dict, Box, Discrete
 from gia.environment_worker import EnvironmentWorker
-from gia.config.config import Config, get_config
+from gia.config.config import Config
 from gia.mocks.mock_env import MockBatchedEnv, MockEnv
 
 
@@ -28,7 +28,7 @@ from gia.mocks.mock_env import MockBatchedEnv, MockEnv
     ],
 )
 def test_environment_worker(obs_space, action_space):
-    config: Config = get_config()
+    config = Config.build()
     env_fn = partial(
         MockBatchedEnv,
         partial(MockEnv, obs_space, action_space),

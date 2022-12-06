@@ -3,7 +3,7 @@ import pytest
 import torch
 from gym.spaces import Box, Dict, Discrete
 
-from gia.config.config import get_config
+from gia.config.config import Config
 from gia.model.encoder import default_make_encoder_func
 from gia.model.actor_critic import create_actor_critic
 
@@ -48,7 +48,7 @@ from gia.model.actor_critic import create_actor_critic
     ],
 )
 def test_default_make_encoder_func(obs_space):
-    config = get_config()
+    config = Config.build()
     encoder = default_make_encoder_func(config, obs_space)
     obs = obs_space.sample()
     for k in obs.keys():
@@ -84,5 +84,5 @@ def test_default_make_encoder_func(obs_space):
     ],
 )
 def test_model_builder(obs_space, action_space):
-    config = get_config()
+    config = Config.build()
     actor_critic = create_actor_critic(config, obs_space, action_space)
