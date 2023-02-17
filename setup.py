@@ -65,6 +65,7 @@ REQUIRED_PKGS = [
     "huggingface_hub>=0.10",  # For sharing objects, environments & trained RL policies
     "gym==0.26.2",  # For RL action spaces and API
     "hydra-core",
+    "envpool",
 ]
 
 
