@@ -131,3 +131,4 @@ dmypy.json
 .vscode/
 
 outputs/
+data/envs/atari/train_dir/
