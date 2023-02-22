@@ -1,6 +1,8 @@
 from dataclasses import dataclass, field
-from typing import List, Tuple
-from hydra import initialize, compose
+from typing import List
+
+from hydra import compose, initialize
+
 
 # The contents of this file should make gia/config/config.yaml
 @dataclass
