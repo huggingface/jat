@@ -1,7 +1,4 @@
-import pytest
-import hydra
-from hydra import initialize, compose
-from gia.config.config import Config
+from hydra import compose, initialize
 
 
 def test_load_config():
