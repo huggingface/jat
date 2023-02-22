@@ -19,7 +19,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Set up Python
-      uses: actions/setup-python@v3
+      uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
     - name: Add conda to system path
@@ -29,12 +29,11 @@ jobs:
     - name: Install conda env & dependencies
       run: |
        conda install python=${{ matrix.python-version }}
-       pip install -e '.[dev]'
+       pip install -e '.[dev,test]'
        conda list
-    - name: Install test dependencies
-      run: |
-        pip install pytest
     - name: Run tests
       run: |
-        # run all tests
-        pytest -s
+        make test
+    - name: Check quality
+      run: |
+        make quality
