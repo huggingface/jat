@@ -1,6 +1,9 @@
+from typing import Dict
+
 import numpy as np
 import torch
 from gym.spaces import Box, Dict, Discrete
+from torch import Tensor
 
 # numpy_to_torch_dtype_dict = {
 #     np.bool       : torch.bool,
@@ -47,3 +50,33 @@ def dol_to_lod(dol):
 
 def dol_to_donp(dol):
     return {k: np.array(v) for k, v in dol.items()}
+
+
+def mu_law(x: Tensor, mu: float = 100, M: float = 256) -> Tensor:
+    """
+    μ-law companding.
+
+    Args:
+        x (Tensor): Input tensor
+        mu (float, optional): μ parameter. Defaults to 100.
+        M (float, optional): M parameter. Defaults to 256.
+
+    Returns:
+        Tensor: Normalized tensor
+    """
+    return torch.sign(x) * torch.log(torch.abs(x) * mu + 1.0) / torch.log(torch.tensor(M * mu + 1.0))
+
+
+def discretize(x: Tensor, nb_bins: int = 1024) -> Tensor:
+    """
+    Discretize tensor.
+
+    Args:
+        x (Tensor): Input tensor, in the range [-1, 1]
+        nb_bins (int, optional): Number of bins. Defaults to 1024.
+
+    Returns:
+        Tensor: Discretized tensor
+    """
+    x = (x + 1.0) / 2 * nb_bins  # [-1, 1] to [0, nb_bins]
+    return torch.floor(x).long()
