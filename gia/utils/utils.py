@@ -1,8 +1,6 @@
-from typing import Dict
-
 import numpy as np
 import torch
-from gym.spaces import Box, Dict, Discrete
+from gym import spaces
 from torch import Tensor
 
 # numpy_to_torch_dtype_dict = {
@@ -28,9 +26,9 @@ def to_torch_dtype(numpy_dtype):
     return t.dtype
 
 
-def check_space_is_flat_dict(space: Dict):
+def check_space_is_flat_dict(space: spaces.Dict):
     for k, v in space.items():
-        assert isinstance(v, (Box, Discrete)), "An instance the thie space {space} is not flat {v}"
+        assert isinstance(v, (spaces.Box, spaces.Discrete)), "An instance the thie space {space} is not flat {v}"
 
 
 def _call_remote_method(method, rref, *args, **kwargs):
