@@ -16,8 +16,8 @@ def mujoco_tokenization_fn(
     """
     Tokenize episodes from MuJoCo environment.
 
-    First, each floating point element of tensors in the observation sequence is mu-law companded as in WaveNet (Oord et al., 2016).
-    Then, the tensors are discretized into integers in the range [0, nb_bins-1].
+    First, each floating point element of tensors in the observation sequence is mu-law companded as
+    in WaveNet (Oord et al., 2016). Then, the tensors are discretized into integers in the range [0, nb_bins-1].
     Finally, the tensors are concatenated and shifted by token_shift. Tensors and actions are separated by SEP.
 
     Args:
@@ -33,7 +33,7 @@ def mujoco_tokenization_fn(
     """
     num_timesteps = observations.shape[0]
 
-    # Each floating point element of tensors in the observation sequence is mu-law companded as in WaveNet (Oord et al., 2016):
+    # Each floating point element of tensors in the observation sequence is mu-law companded.
     normalized_tensor_tokens = mu_law(observations, mu=mu, M=M)
 
     # No need to normalize actions, since they are already in the range [-1, 1]
