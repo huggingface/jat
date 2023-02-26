@@ -17,7 +17,7 @@ def mujoco_tokenization_fn(
     Tokenize episodes from MuJoCo environment.
 
     First, each floating point element of tensors in the observation sequence is mu-law companded as in WaveNet (Oord et al., 2016).
-    Then, the tensors are discretized into integers in the range [0, nb_bins].
+    Then, the tensors are discretized into integers in the range [0, nb_bins-1].
     Finally, the tensors are concatenated and shifted by token_shift. Tensors and actions are separated by SEP.
 
     Args:
