@@ -76,5 +76,9 @@ def discretize(x: Tensor, nb_bins: int = 1024) -> Tensor:
     Returns:
         Tensor: Discretized tensor
     """
+    if torch.any(x < -1.0) or torch.any(x > 1.0):
+        raise ValueError("Input tensor must be in the range [-1, 1]")
     x = (x + 1.0) / 2 * nb_bins  # [-1, 1] to [0, nb_bins]
-    return torch.floor(x).long()
+    discretized = torch.floor(x).long()
+    discretized[discretized == nb_bins] = nb_bins - 1  # Handle the case where x == 1.0
+    return discretized
