@@ -31,7 +31,7 @@ def mujoco_tokenization_fn(
     Returns:
         Tensor: Tokenized episodes
     """
-    num_episodes = observations.shape[0]
+    num_timesteps = observations.shape[0]
 
     # Each floating point element of tensors in the observation sequence is mu-law companded as in WaveNet (Oord et al., 2016):
     normalized_tensor_tokens = mu_law(observations, mu=mu, M=M)
@@ -44,7 +44,7 @@ def mujoco_tokenization_fn(
     discretized_action_tokens = discretize(normalized_action_tokens, nb_bins=nb_bins)
 
     # Concatenate
-    separators = torch.ones(num_episodes, 1, dtype=torch.int64) * SEP
+    separators = torch.ones(num_timesteps, 1, dtype=torch.int64) * SEP
     episode_tokens = torch.cat((discretized_tensor_tokens, separators, discretized_action_tokens), dim=1)
 
     # Shift tokens
