@@ -11,7 +11,7 @@ def mujoco_tokenization_fn(
     mu: float = 100,
     M: float = 256,
     nb_bins: int = 1024,
-    token_shift: int = 32000,
+    token_shift: int = 32_000,
 ):
     """
     Tokenize episodes from MuJoCo environment.
