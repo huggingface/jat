@@ -4,7 +4,7 @@
 quality:
 	black --check --line-length 119 --target-version py38 tests gia 
 	isort --check-only --profile black tests gia 
-	flake8 --max-line-length 119 tests gia
+	flake8 --max-line-length 119 tests gia --ignore=E203
 
 # Format source code automatically
 style:
