@@ -69,6 +69,11 @@ def discretize(x: Tensor, nb_bins: int = 1024) -> Tensor:
     """
     Discretize tensor.
 
+    Example:
+        >>> x = tensor([-1.0, -0.1, 0.3, 0.4, 1.0])
+        >>> discretize(x, nb_bins=6)
+        tensor([0, 2, 3, 4, 5])
+
     Args:
         x (Tensor): Input tensor, in the range [-1, 1]
         nb_bins (int, optional): Number of bins. Defaults to 1024.
