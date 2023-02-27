@@ -89,9 +89,11 @@ class Tokenizer(nn.Module):
         tokens = []
         if texts is not None:
             raise NotImplementedError("Texts are not implemented yet.")
+            text_tokens = ...
             tokens.append(text_tokens)
         if images is not None:
             raise NotImplementedError("Images are not implemented yet.")
+            image_tokens = ...
             tokens.append(image_tokens)
         if tensors is not None:
             tensor_tokens = tokenize_continuous(tensors, mu_law_compand=compand_tensors)
