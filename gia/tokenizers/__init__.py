@@ -72,7 +72,7 @@ class Tokenizer(nn.Module):
         texts: Optional[List[str]] = None,
         images: Optional[Tensor] = None,
         tensors: Optional[Tensor] = None,
-        actions: Optional[torch.Tensor] = None,
+        actions: Optional[Tensor] = None,
         compand_tensors: bool = True,
         compand_actions: bool = True,
     ) -> Tensor:

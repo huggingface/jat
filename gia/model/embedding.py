@@ -1,5 +1,5 @@
 import torch
-from torch import nn
+from torch import Tensor, nn
 
 
 class Embeddings(nn.Module):
@@ -36,7 +36,7 @@ class Embeddings(nn.Module):
         self.positional_emb = nn.Embedding(num_embeddings=max_nb_observation_tokens + 1, embedding_dim=embedding_dim)
         self.action_positional_emb_idx = torch.tensor(max_nb_observation_tokens, dtype=torch.long)
 
-    def forward(self, tokens: torch.Tensor) -> torch.Tensor:
+    def forward(self, tokens: Tensor) -> Tensor:
         sequence_length = tokens.shape[0]
 
         # Check that the separator token is present in all sequences and that it has a constant position
