@@ -14,18 +14,20 @@ Steps:
 
 More details to come!
 
-## Tokenizer
+## Usage
 
-Example script to use the tokenizer.
+Example script to use the tokenizer and embedding layer.
 
 ```python
 import numpy as np
 import torch
 
+from gia.model.embedding import Embeddings
 from gia.model.tokenization import Tokenizer
 
 # Define tokenizer and embedding layer
 tokenizer = Tokenizer()
+embedding_layer = Embeddings(embedding_dim=32)
 
 # Load dataset (100k samples)
 # First, clone it with `git clone https://huggingface.co/datasets/edbeeching/prj_gia_dataset_mujoco_ant_1111/`
@@ -36,7 +38,9 @@ dataset = dataset.item()
 observations = torch.from_numpy(dataset["observations"])
 actions = torch.from_numpy(dataset["actions"]).clamp(-1, 1)  # TODO: remove clamp when clamping is done in the dataset
 
-# Tokenize
+# Tokenize and embed
 tokens = tokenizer(tensors=observations, actions=actions)
 print(tokens.shape)  # torch.Size([100000, 36])
+embeddings = embedding_layer(tokens)
+print(embeddings.shape)  # torch.Size([100000, 36, 32])
 ```
