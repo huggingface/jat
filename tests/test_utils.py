@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from gia.utils.utils import discretize, mu_law
+from gia.utils.utils import discretize, inverse_mu_law, mu_law
 
 
 def test_mu_law_positive_input():
@@ -57,3 +57,17 @@ def test_input_bounds():
     x = torch.tensor([-1.5, -0.5, 0.0, 0.5, 1.5])
     with pytest.raises(ValueError):
         discretize(x)
+
+
+def test_inverse_mu_law():
+    x = torch.linspace(-5.0, 5.0, 50)
+    y = mu_law(x)
+    z = inverse_mu_law(y)
+    assert torch.allclose(x, z, atol=1e-04)
+
+
+def test_inverse_mu_law2():
+    x = torch.linspace(-1.0, 1.0, 50)
+    y = inverse_mu_law(x)
+    z = mu_law(y)
+    assert torch.allclose(x, z, atol=1e-04)
