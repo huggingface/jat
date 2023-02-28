@@ -1,5 +1,6 @@
 import hydra
 
+from gia.model.gia_model import GiaModel
 from gia.config.config import Config
 
 
@@ -7,6 +8,7 @@ from gia.config.config import Config
 def train(config: Config):
     print(config)
     # training goes here
+    model = GiaModel(config)
 
 
 if __name__ == "__main__":

@@ -37,17 +37,7 @@ class Paths:
 
 @dataclass
 class Model:
-    encoder_conv_architecture: str = "convnet_simple"
-    nonlinearity: str = "relu"
-    encoder_conv_mlp_layers: List[int] = field(default_factory=lambda: [512])
-    encoder_mlp_layers: List[int] = field(default_factory=lambda: [512, 512])
-
-    actor_critic_share_weights: bool = True
-    use_rnn: bool = False
-    decoder_mlp_layers: List[int] = field(default_factory=lambda: [])
-    adaptive_stddev: bool = True
-    policy_init_gain: float = 1.0
-    policy_initialization: str = "orthogonal"
+    model_name = "facebook/opt-125m"
 
 
 @dataclass
@@ -78,4 +68,4 @@ class Config:
             return config
 
 
-print(Config.build())
+# print(Config.build())

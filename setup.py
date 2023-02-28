@@ -63,6 +63,7 @@ REQUIRED_PKGS = [
     "numpy",
     "torch",
     "huggingface_hub>=0.10",  # For sharing objects, environments & trained RL policies
+    "transformers",
     "gym==0.26.2",  # For RL action spaces and API
     "hydra-core",
     "envpool",
