@@ -3,7 +3,7 @@ from typing import List, Optional
 import torch
 from torch import Tensor, nn
 
-from gia.utils.utils import discretize, mu_law
+from gia.utils.utils import discretize, inverse_mu_law, mu_law
 
 
 def tokenize_continuous(x: Tensor, mu_law_compand: bool = True, mu: float = 100, M: float = 256, nb_bins: int = 1024):
@@ -32,6 +32,36 @@ def tokenize_continuous(x: Tensor, mu_law_compand: bool = True, mu: float = 100,
 
     # Discretize tensors
     return discretize(x, nb_bins=nb_bins)
+
+
+def inverse_tokenize_continuous(
+    tokens: Tensor, mu_law_companded: bool = True, mu: float = 100, M: float = 256, nb_bins: int = 1024
+):
+    """
+    Inverse tokenize continous.
+
+    First, each integer element of input tensor is mapped to the center of the corresponding bin.
+    Then, the tensor is de-mu-law companded if needed.
+
+    Args:
+        tokens (Tensor): Tokens
+        mu_law_companded (bool, optional): Whether inputs are mu-law companded. Defaults to True.
+        mu (float, optional): μ parameter. Defaults to 100.
+        M (float, optional): M parameter. Defaults to 256.
+        nb_bins (int, optional): Number of bins for the discretization. Defaults to 1024.
+
+    Returns:
+        Tensor: Reconstructed tensor
+    """
+    # Maps tokens from [0, nb_bins-1] to [-1, 1]
+    # We map the bin number to the center of the bin
+    x = (2 * tokens + 1) / nb_bins - 1
+
+    # De-mu-law compand tensors
+    if mu_law_companded:
+        x = inverse_mu_law(x, mu=mu, M=M)
+
+    return x
 
 
 class Tokenizer(nn.Module):
