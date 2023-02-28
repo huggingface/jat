@@ -1,6 +1,6 @@
 import torch
 
-from gia.tokenizers import Tokenizer
+from gia.model.tokenization import Tokenizer
 
 
 def test_continuous_tokenizer():
