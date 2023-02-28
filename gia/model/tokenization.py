@@ -126,13 +126,23 @@ class Tokenizer(nn.Module):
             image_tokens = ...
             tokens.append(image_tokens)
         if tensors is not None:
-            tensor_tokens = tokenize_continuous(tensors, mu_law_compand=compand_tensors)
+            if tensors.dtype == torch.int64: # If tensors are discrete, the tokens are simply the tensors
+                tensor_tokens = tensors
+            elif tensors.dtype == torch.float32:
+                tensor_tokens = tokenize_continuous(tensors, mu_law_compand=compand_tensors)
+            else:
+                raise ValueError(f"Invalid tensors dtype: {tensors.dtype}, expected torch.int64 or torch.float32.")
             tensor_tokens = tensor_tokens + self.token_shift
             tokens.append(tensor_tokens)
         separator_tokens = self.separator_token.repeat(sequence_length, 1)
         tokens.append(separator_tokens)
         if actions is not None:
-            action_tokens = tokenize_continuous(actions, mu_law_compand=compand_actions)
+            if actions.dtype == torch.int64: # If actions are discrete, the tokens are simply the actions
+                action_tokens = actions
+            elif actions.dtype == torch.float32:
+                action_tokens = tokenize_continuous(actions, mu_law_compand=compand_actions)
+            else:
+                raise ValueError(f"Invalid actions dtype: {actions.dtype}, expected torch.int64 or torch.float32.")
             action_tokens = action_tokens + self.token_shift
             tokens.append(action_tokens)
         return torch.concat(tokens, dim=1)
