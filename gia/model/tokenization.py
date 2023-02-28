@@ -95,7 +95,7 @@ class Tokenizer(nn.Module):
         self.nb_bins = nb_bins
         self.token_shift = token_shift
         # Token for separating observations and actions
-        self.separator_token = torch.tensor(self.nb_bins + token_shift, dtype=torch.long)
+        self.separator_token = torch.tensor(self.nb_bins + token_shift, dtype=torch.int64)
 
     def forward(
         self,
