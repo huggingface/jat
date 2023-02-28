@@ -34,7 +34,7 @@ class Embeddings(nn.Module):
         # TODO: It's not clear whether we should add postional embeddings for the separator token.
         # For now, we don't add it.
         self.positional_emb = nn.Embedding(num_embeddings=max_nb_observation_tokens + 1, embedding_dim=embedding_dim)
-        self.action_positional_emb_idx = torch.tensor(max_nb_observation_tokens, dtype=torch.long)
+        self.action_positional_emb_idx = torch.tensor(max_nb_observation_tokens, dtype=torch.int64)
 
     def forward(self, tokens: Tensor) -> Tensor:
         sequence_length = tokens.shape[0]
