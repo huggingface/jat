@@ -1,10 +1,10 @@
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Union
 
 from hydra import compose, initialize
 
 
-# The contents of this file should make gia/config/config.yaml
+# The contents of this file should match gia/config/config.yaml
 @dataclass
 class Dist:
     n_learners: int = 1
@@ -14,11 +14,13 @@ class Dist:
 
 @dataclass
 class Hyp:
-    n_epochs: int = 4
-    n_agents: int = 8
-    mini_batch_size: int = 4
-    rollout_length: int = 16
-    lr: float = 1e-4
+    train_batch_size: int = 8
+    seed: int = 0
+    # n_epochs: int = 4
+    # n_agents: int = 8
+    # mini_batch_size: int = 4
+    # rollout_length: int = 16
+    # lr: float = 1e-4
 
 
 class RL:
@@ -32,12 +34,13 @@ class Envs:
 
 @dataclass
 class Paths:
-    output_dir: str = "outputs/default"
+    save_dir: str = "outputs/default"
 
 
 @dataclass
 class Model:
-    model_name = "facebook/opt-125m"
+    model_name: str = "facebook/opt-125m"
+    model_ckpt: Union[str, None] = None
 
 
 @dataclass

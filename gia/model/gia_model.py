@@ -1,11 +1,11 @@
 from torch import nn
 from transformers import AutoModelForCausalLM, AutoConfig
 
-from gia.config.config import Config
+from gia.config import Arguments
 
 
 class PatchedFeatureExtractor(nn.Module):
-    def __init__(self, config: Config):
+    def __init__(self, args):
         # create the model etc
         pass
 
@@ -16,11 +16,11 @@ class PatchedFeatureExtractor(nn.Module):
 
 
 class GiaModel(nn.Module):
-    def __init__(self, config: Config):
-        model_config = AutoConfig.from_pretrained("bert-base-uncased")
+    def __init__(self, args: Arguments):
+        model_config = AutoConfig.from_pretrained(args.model_name)
 
         self.decoder = AutoModelForCausalLM.from_config(model_config)
-        self.image_patch_model = PatchedFeatureExtractor(config)
+        self.image_patch_model = PatchedFeatureExtractor(args)
 
     def forward(self, batch):
         batch = self.image_patch_model(batch)

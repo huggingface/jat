@@ -67,6 +67,7 @@ REQUIRED_PKGS = [
     "gym==0.26.2",  # For RL action spaces and API
     "hydra-core",
     "envpool",
+    "accelerate",
 ]
 
 
