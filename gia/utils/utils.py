@@ -87,3 +87,18 @@ def discretize(x: Tensor, nb_bins: int = 1024) -> Tensor:
     discretized = torch.floor(x).long()
     discretized[discretized == nb_bins] = nb_bins - 1  # Handle the case where x == 1.0
     return discretized
+
+
+def inverse_mu_law(x: Tensor, mu: float = 100, M: float = 256) -> Tensor:
+    """
+    Inverse μ-law companding.
+
+    Args:
+        x (Tensor): Input tensor
+        mu (float, optional): μ parameter. Defaults to 100.
+        M (float, optional): M parameter. Defaults to 256.
+
+    Returns:
+        Tensor: Unnormalized tensor
+    """
+    return torch.sign(x) * (torch.exp(torch.abs(x) * torch.log(torch.tensor(M * mu + 1.0))) - 1.0) / mu
