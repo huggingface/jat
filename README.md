@@ -23,7 +23,7 @@ import numpy as np
 import torch
 
 from gia.model.embedding import Embeddings
-from gia.model.tokenization import MultiModalTokenizer
+from gia.tokenizers.multimodal_tokenizer import MultiModalTokenizer
 
 # Define tokenizer and embedding layer
 tokenizer = MultiModalTokenizer()
