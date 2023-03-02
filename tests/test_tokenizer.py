@@ -1,12 +1,12 @@
 import torch
 
-from gia.model.tokenization import Tokenizer
+from gia.model.tokenization import MultiModalTokenizer
 
 
 def test_continuous_tokenizer():
     nb_bins = 16
     token_shift = 256
-    tokenizer = Tokenizer(nb_bins=nb_bins, token_shift=token_shift)
+    tokenizer = MultiModalTokenizer(nb_bins=nb_bins, token_shift=token_shift)
     seprator_token = nb_bins + token_shift
     tensors = torch.rand(10, 9) * 20 - 10  # Random tensors in [-10, 10]
     actions = torch.rand(10, 3) * 20 - 10  # Random actions in [-10, 10]
@@ -22,7 +22,7 @@ def test_continuous_tokenizer():
 def test_discrete_tokenizer():
     nb_bins = 16
     token_shift = 256
-    tokenizer = Tokenizer(nb_bins=nb_bins, token_shift=token_shift)
+    tokenizer = MultiModalTokenizer(nb_bins=nb_bins, token_shift=token_shift)
     seprator_token = nb_bins + token_shift
     tensors = torch.randint(0, 10, (10, 9))  # Random tensors in [0, 10[
     actions = torch.randint(0, 10, (10, 3))  # Random actions in [0, 10[

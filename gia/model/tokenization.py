@@ -64,13 +64,13 @@ def inverse_tokenize_continuous(
     return x
 
 
-class Tokenizer(nn.Module):
+class MultiModalTokenizer(nn.Module):
     """
-    Tokenizer.
+    Multi-modal tokenizer.
 
     Example:
         >>> import torch
-        >>> tokenizer = Tokenizer()
+        >>> tokenizer = MultiModalTokenizer()
         >>> tensors = torch.tensor([[-0.6285, -5.1349,  3.9317, -3.5854],
         ...                         [ 3.9263, -1.8975,  7.3103, -7.3467],
         ...                         [-6.9724, -2.9982,  9.1740,  0.1002]])

@@ -23,10 +23,10 @@ import numpy as np
 import torch
 
 from gia.model.embedding import Embeddings
-from gia.model.tokenization import Tokenizer
+from gia.model.tokenization import MultiModalTokenizer
 
 # Define tokenizer and embedding layer
-tokenizer = Tokenizer()
+tokenizer = MultiModalTokenizer()
 embedding_layer = Embeddings(embedding_dim=32)
 
 # Load dataset (100k samples)
