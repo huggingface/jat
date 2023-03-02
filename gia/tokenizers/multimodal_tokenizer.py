@@ -3,65 +3,7 @@ from typing import List, Optional
 import torch
 from torch import Tensor, nn
 
-from gia.utils.utils import discretize, inverse_mu_law, mu_law
-
-
-def tokenize_continuous(x: Tensor, mu_law_compand: bool = True, mu: float = 100, M: float = 256, nb_bins: int = 1024):
-    """
-    Tokenize continous.
-
-    First, each floating point element of input tensor is mu-law companded as in WaveNet (Oord et al., 2016).
-    Then, the tensor is discretized into integers in the range [0, nb_bins-1].
-
-    Args:
-        x (Tensor): Input tensor
-        mu_law_encoding (bool, optional): Whether to use mu-law compading. Defaults to True.
-        mu (float, optional): μ parameter. Defaults to 100.
-        M (float, optional): M parameter. Defaults to 256.
-        nb_bins (int, optional): Number of bins for the discretization. Defaults to 1024.
-
-    Returns:
-        Tensor: Tokens
-    """
-    # Normalize tensors
-    if mu_law_compand:
-        x = mu_law(x, mu=mu, M=M)
-
-    # Clip to the range [-1, 1]
-    x = torch.clamp(x, -1.0, 1.0)
-
-    # Discretize tensors
-    return discretize(x, nb_bins=nb_bins)
-
-
-def inverse_tokenize_continuous(
-    tokens: Tensor, mu_law_companded: bool = True, mu: float = 100, M: float = 256, nb_bins: int = 1024
-):
-    """
-    Inverse tokenize continous.
-
-    First, each integer element of input tensor is mapped to the center of the corresponding bin.
-    Then, the tensor is de-mu-law companded if needed.
-
-    Args:
-        tokens (Tensor): Tokens
-        mu_law_companded (bool, optional): Whether inputs are mu-law companded. Defaults to True.
-        mu (float, optional): μ parameter. Defaults to 100.
-        M (float, optional): M parameter. Defaults to 256.
-        nb_bins (int, optional): Number of bins for the discretization. Defaults to 1024.
-
-    Returns:
-        Tensor: Reconstructed tensor
-    """
-    # Maps tokens from [0, nb_bins-1] to [-1, 1]
-    # We map the bin number to the center of the bin
-    x = (2 * tokens + 1) / nb_bins - 1
-
-    # De-mu-law compand tensors
-    if mu_law_companded:
-        x = inverse_mu_law(x, mu=mu, M=M)
-
-    return x
+from gia.tokenizers.continuous_tokenizer import ContinuousTokenizer
 
 
 class MultiModalTokenizer(nn.Module):
@@ -90,12 +32,12 @@ class MultiModalTokenizer(nn.Module):
 
     def __init__(self, mu: float = 100, M: float = 256, nb_bins: int = 1024, token_shift: int = 32_000):
         super().__init__()
-        self.mu = mu
-        self.M = M
-        self.nb_bins = nb_bins
         self.token_shift = token_shift
         # Token for separating observations and actions
-        self.separator_token = torch.tensor(self.nb_bins + token_shift, dtype=torch.int64)
+        self.separator_token = torch.tensor(nb_bins + token_shift, dtype=torch.int64)
+        self.text_tokenizer = ...  # TODO:
+        self.image_tokenizer = ...  # TODO:
+        self.continuous_tokenizer = ContinuousTokenizer(mu=mu, M=M, nb_bins=nb_bins)
 
     def forward(
         self,
@@ -103,8 +45,6 @@ class MultiModalTokenizer(nn.Module):
         images: Optional[Tensor] = None,
         tensors: Optional[Tensor] = None,
         actions: Optional[Tensor] = None,
-        compand_tensors: bool = True,
-        compand_actions: bool = True,
     ) -> Tensor:
         # Get the sequence length
         for x in [texts, images, tensors, actions]:
@@ -117,32 +57,38 @@ class MultiModalTokenizer(nn.Module):
         # Tokenize observations and actions and concatenate them following the order:
         # [text_tokens, image_tokens, tensor_tokens, separator_token, action_tokens]
         tokens = []
+
         if texts is not None:
-            raise NotImplementedError("Texts are not implemented yet.")
-            text_tokens = ...
+            raise NotImplementedError("Texts tokenisation is not implemented yet.")
+            text_tokens = self.text_tokenizer(texts)
             tokens.append(text_tokens)
+
         if images is not None:
-            raise NotImplementedError("Images are not implemented yet.")
-            image_tokens = ...
+            raise NotImplementedError("Images tokenisation is not implemented yet.")
+            image_tokens = self.image_tokenizer(iamges)
             tokens.append(image_tokens)
+
         if tensors is not None:
             if tensors.dtype == torch.int64:  # If tensors are discrete, the tokens are simply the tensors
                 tensor_tokens = tensors
             elif tensors.dtype == torch.float32:
-                tensor_tokens = tokenize_continuous(tensors, mu_law_compand=compand_tensors)
+                tensor_tokens = self.continuous_tokenizer(tensors)
             else:
                 raise ValueError(f"Invalid tensors dtype: {tensors.dtype}, expected torch.int64 or torch.float32.")
             tensor_tokens = tensor_tokens + self.token_shift
             tokens.append(tensor_tokens)
+
         separator_tokens = self.separator_token.repeat(sequence_length, 1)
         tokens.append(separator_tokens)
+
         if actions is not None:
             if actions.dtype == torch.int64:  # If actions are discrete, the tokens are simply the actions
                 action_tokens = actions
             elif actions.dtype == torch.float32:
-                action_tokens = tokenize_continuous(actions, mu_law_compand=compand_actions)
+                action_tokens = self.continuous_tokenizer(actions)
             else:
                 raise ValueError(f"Invalid actions dtype: {actions.dtype}, expected torch.int64 or torch.float32.")
             action_tokens = action_tokens + self.token_shift
             tokens.append(action_tokens)
+
         return torch.concat(tokens, dim=1)
