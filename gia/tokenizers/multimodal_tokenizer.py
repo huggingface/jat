@@ -65,7 +65,7 @@ class MultiModalTokenizer(nn.Module):
 
         if images is not None:
             raise NotImplementedError("Images tokenisation is not implemented yet.")
-            image_tokens = self.image_tokenizer(iamges)
+            image_tokens = self.image_tokenizer(images)
             tokens.append(image_tokens)
 
         if tensors is not None:
