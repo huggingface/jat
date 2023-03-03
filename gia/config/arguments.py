@@ -55,9 +55,16 @@ class TrainingArguments:
 
 @dataclass
 class ModelArguments:
-    mdoel_name: str
+    model_name: Optional[str] = field(default=None, metadata={"help": "The name of the model"})
 
 
 @dataclass
-class Arguments(TrainingArguments, ModelArguments):
+class DatasetArguments:
+    tasks: List[str] = field(
+        default_factory=lambda: ["mujoco"], metadata={"help": "A list of tasks/envs to load in the GiaDataset"}
+    )
+
+
+@dataclass
+class Arguments(TrainingArguments, ModelArguments, DatasetArguments):
     pass

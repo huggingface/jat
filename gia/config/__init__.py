@@ -1,2 +1,2 @@
 from .arguments import Arguments
-from config import Config
+from .config import Config
