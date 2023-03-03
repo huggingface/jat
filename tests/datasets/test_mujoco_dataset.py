@@ -4,7 +4,7 @@ from gia.datasets import MujocoDataset, MujocoTaskDataset
 from gia.datasets.utils import mu_law_np
 
 
-def test_pack():
+def test_mujoco_pack():
     # tests the packing of episodes of obs, done and actions into tokenized sequences
 
     obs_eps = [

@@ -9,16 +9,16 @@ from pathlib import Path
 
 import datasets
 import torch
+from torch.utils.data.dataloader import DataLoader
 from accelerate import Accelerator, DistributedType
 
 from huggingface_hub import Repository
 from torch.optim import AdamW
-
 import transformers
 from transformers import HfArgumentParser, get_scheduler, set_seed
 
 from gia.model import GiaModel
-from gia.datasets import MujocoDataset
+from gia.datasets import GiaDataset
 from gia.config import Arguments
 
 
@@ -50,7 +50,9 @@ def setup_logging(args: Arguments, accelerator):
 
 def create_dataloaders(args: Arguments):
     # TODO
-    train_dataloader = None
+    train_dataset = GiaDataset(args)
+
+    train_dataloader = DataLoader(train_dataset)
     eval_dataloader = None
     return train_dataloader, eval_dataloader
 
@@ -93,25 +95,25 @@ def log_metrics(step, metrics, logger, accelerator):
 #     return tflops
 
 
-def evaluate(args: Arguments, model: GiaModel, eval_dataloader, accelerator):
-    # we will have two evals, one on a held out subset of the training data and one by running evaluated in the
-    # actual environment
-    model.eval()
-    losses = []
-    for step, batch in enumerate(eval_dataloader):
-        with torch.no_grad():
-            outputs = model(batch, labels=batch)
-        loss = outputs.loss.repeat(args.valid_batch_size)
-        losses.append(accelerator.gather(loss))
-        if args.max_eval_steps > 0 and step >= args.max_eval_steps:
-            break
-    losses = torch.cat(losses)
-    loss = losses[: eval_dataloader.dataset.current_size].mean()
-    try:  # TODO: improve metrics
-        perplexity = torch.exp(loss)
-    except OverflowError:
-        perplexity = float("inf")
-    return loss.item(), perplexity.item()
+# def evaluate(args: Arguments, model: GiaModel, eval_dataloader, accelerator):
+#     # we will have two evals, one on a held out subset of the training data and one by running evaluated in the
+#     # actual environment
+#     model.eval()
+#     losses = []
+#     for step, batch in enumerate(eval_dataloader):
+#         with torch.no_grad():
+#             outputs = model(batch, labels=batch)
+#         loss = outputs.loss.repeat(args.valid_batch_size)
+#         losses.append(accelerator.gather(loss))
+#         if args.max_eval_steps > 0 and step >= args.max_eval_steps:
+#             break
+#     losses = torch.cat(losses)
+#     loss = losses[: eval_dataloader.dataset.current_size].mean()
+#     try:  # TODO: improve metrics
+#         perplexity = torch.exp(loss)
+#     except OverflowError:
+#         perplexity = float("inf")
+#     return loss.item(), perplexity.item()
 
 
 def main():
@@ -236,14 +238,14 @@ def main():
             loss_tracking = 0
             completed_steps += 1
         if step % args.save_checkpoint_steps == 0:
-            logger.info("Evaluating and saving model checkpoint")
-            eval_loss, perplexity = evaluate(args)
-            log_metrics(
-                step,
-                {"loss/eval": eval_loss, "perplexity": perplexity},
-                logger,
-                accelerator,
-            )
+            # logger.info("Evaluating and saving model checkpoint")
+            # eval_loss, perplexity = evaluate(args)
+            # log_metrics(
+            #     step,
+            #     {"loss/eval": eval_loss, "perplexity": perplexity},
+            #     logger,
+            #     accelerator,
+            # )
             accelerator.wait_for_everyone()
             save_dir = os.path.join(args.save_dir, f"step_{step}")
             accelerator.save_state(save_dir)
@@ -254,14 +256,14 @@ def main():
             break
 
     # Evaluate and save the last checkpoint
-    logger.info("Evaluating and saving model after training")
-    eval_loss, perplexity = evaluate(args)
-    log_metrics(
-        step,
-        {"loss/eval": eval_loss, "perplexity": perplexity},
-        logger,
-        accelerator,
-    )
+    # logger.info("Evaluating and saving model after training")
+    # eval_loss, perplexity = evaluate(args)
+    # log_metrics(
+    #     step,
+    #     {"loss/eval": eval_loss, "perplexity": perplexity},
+    #     logger,
+    #     accelerator,
+    # )
     accelerator.wait_for_everyone()
     unwrapped_model = accelerator.unwrap_model(model)
     unwrapped_model.save_pretrained(args.save_dir, save_function=accelerator.save)
