@@ -72,6 +72,6 @@ def discretize_np(x: np.ndarray, nb_bins: int = 1024) -> Tensor:
 
 
 def tokenize_np(x: np.ndarray, mu: float = 100, M: float = 256, nb_bins: int = 1024):
-    x = mu_law_np(x)
+    x = mu_law_np(x, mu=mu, M=M)
     x = np.clip(x, -1.0, 1.0)
-    return discretize_np(x)
+    return discretize_np(x, nb_bins=nb_bins)

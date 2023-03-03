@@ -8,18 +8,12 @@ class TrainingArguments:
     Configuration for training model.
     """
 
-    model_ckpt: Optional[str] = field(
-        default="codeparrot/codeparrot", metadata={"help": "Model name or path of model to be trained."}
-    )
+    model_ckpt: Optional[str] = field(default="", metadata={"help": "Model name or path of model to be trained."})
     save_dir: Optional[str] = field(
         default="./", metadata={"help": "Save dir where model repo is cloned and models updates are saved to."}
     )
-    dataset_name_train: Optional[str] = field(
-        default="codeparrot/codeparrot-clean-train", metadata={"help": "Name or path of training dataset."}
-    )
-    dataset_name_valid: Optional[str] = field(
-        default="codeparrot/codeparrot-clean-valid", metadata={"help": "Name or path of validation dataset."}
-    )
+    dataset_name_train: Optional[str] = field(default="", metadata={"help": "Name or path of training dataset."})
+    dataset_name_valid: Optional[str] = field(default="", metadata={"help": "Name or path of validation dataset."})
     train_batch_size: Optional[int] = field(default=2, metadata={"help": "Batch size for training."})
     valid_batch_size: Optional[int] = field(default=2, metadata={"help": "Batch size for evaluation."})
     weight_decay: Optional[float] = field(default=0.1, metadata={"help": "Value of weight decay."})

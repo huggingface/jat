@@ -52,7 +52,6 @@ class MujocoTaskDataset(TaskDataset):
         attn_packs = []  # packed sequences of indices of where the model can attend to
         position_packs = []  # packed sequences of local positions
 
-        # masks = []
         obs_len = len(obs_eps[0][0])
         act_len = len(action_eps[0][0])
         obs_act_size = obs_len + act_len
