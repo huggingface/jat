@@ -15,6 +15,7 @@ from gia.config import Arguments
 
 class MujocoDataset(MultiTaskDataset):
     def __init__(self, task: str, args: Arguments):
+        super().__init__()
         self.task = task
         dataset_dirs = DATASET_FILE_MAPPING[task]
         self.task_datasets = [MujocoTaskDataset(dataset_dir, args.seq_length) for dataset_dir in dataset_dirs]
@@ -23,6 +24,7 @@ class MujocoDataset(MultiTaskDataset):
 
 class MujocoTaskDataset(TaskDataset):
     def __init__(self, dataset_dir: str, seq_len: int, use_separator: bool = False) -> None:
+        super().__init__()
         self.dataset_dir = dataset_dir
         self.seq_len = seq_len
 
@@ -118,7 +120,7 @@ class MujocoTaskDataset(TaskDataset):
         if torch.is_tensor(idx):
             idx = idx.tolist()
         return {
-            "dataset_name": self.dataset_dir,
+            "task": self.dataset_dir,
             "tokens": self.packed_tokens[idx],
             "attn_ids": self.packed_attn[idx],
             "local_position_ids": self.packed_positions[idx],

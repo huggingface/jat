@@ -1,21 +1,21 @@
 import pytest
 
 from gia.datasets import GiaDataset
+from gia.config import Arguments
 
 
-@pytest.mark.parametrize("seq_len", [128])
-def test_gia_dataset(seq_len):
-    class Args:
-        pass
+@pytest.mark.parametrize("seq_length", [128])
+def test_gia_dataset(seq_length):
 
-    args = Args()
+    args = Arguments()
     args.tasks = ["mujoco"]
-    args.seq_len = seq_len
+    args.seq_length = seq_length
 
     dataset = GiaDataset(args)
 
-    for sample in dataset:
-        assert sample["tokens"].shape == (seq_len,)
-        assert sample["attn_ids"].shape == (seq_len,)
-        assert sample["local_position_ids"].shape == (seq_len,)
-        assert type(sample["dataset_name"]) == str
+    for i in range(len(dataset)):
+        sample = dataset[i]
+        assert sample["task"] == "mujoco"
+        assert sample["tokens"].shape == (seq_length,)
+        assert sample["attn_ids"].shape == (seq_length, 2)
+        assert sample["local_position_ids"].shape == (seq_length,)
