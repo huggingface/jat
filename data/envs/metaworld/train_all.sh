@@ -1,51 +1,52 @@
-python train.py --env assembly-v2 --experiment assembly-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
-python train.py --env basketball-v2 --experiment basketball-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
-python train.py --env bin-picking-v2 --experiment bin-picking-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
-python train.py --env box-close-v2 --experiment box-close-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
-python train.py --env button-press-topdown-v2 --experiment button-press-topdown-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
-python train.py --env button-press-topdown-wall-v2 --experiment button-press-topdown-wall-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
-python train.py --env button-press-v2 --experiment button-press-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
-python train.py --env button-press-wall-v2 --experiment button-press-wall-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
-python train.py --env coffee-button-v2 --experiment coffee-button-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
-python train.py --env coffee-pull-v2 --experiment coffee-pull-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
-python train.py --env coffee-push-v2 --experiment coffee-push-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
-python train.py --env dial-turn-v2 --experiment dial-turn-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
-python train.py --env disassemble-v2 --experiment disassemble-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
-python train.py --env door-close-v2 --experiment door-close-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
-python train.py --env door-lock-v2 --experiment door-lock-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
-python train.py --env door-open-v2 --experiment door-open-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
-python train.py --env door-unlock-v2 --experiment door-unlock-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
-python train.py --env drawer-close-v2 --experiment drawer-close-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
-python train.py --env drawer-open-v2 --experiment drawer-open-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
-python train.py --env faucet-close-v2 --experiment faucet-close-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
-python train.py --env faucet-open-v2 --experiment faucet-open-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
-python train.py --env hammer-v2 --experiment hammer-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
-python train.py --env hand-insert-v2 --experiment hand-insert-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
-python train.py --env handle-press-side-v2 --experiment handle-press-side-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
-python train.py --env handle-press-v2 --experiment handle-press-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
-python train.py --env handle-pull-side-v2 --experiment handle-pull-side-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
-python train.py --env handle-pull-v2 --experiment handle-pull-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
-python train.py --env lever-pull-v2 --experiment lever-pull-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
-python train.py --env peg-insert-side-v2 --experiment peg-insert-side-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
-python train.py --env peg-unplug-side-v2 --experiment peg-unplug-side-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
-python train.py --env pick-out-of-hole-v2 --experiment pick-out-of-hole-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
-python train.py --env pick-place-v2 --experiment pick-place-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
-python train.py --env pick-place-wall-v2 --experiment pick-place-wall-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
-python train.py --env plate-slide-back-side-v2 --experiment plate-slide-back-side-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
-python train.py --env plate-slide-back-v2 --experiment plate-slide-back-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
-python train.py --env plate-slide-side-v2 --experiment plate-slide-side-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
-python train.py --env plate-slide-v2 --experiment plate-slide-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
-python train.py --env push-back-v2 --experiment push-back-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
-python train.py --env push-v2 --experiment push-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
-python train.py --env push-wall-v2 --experiment push-wall-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
-python train.py --env reach-v2 --experiment reach-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
-python train.py --env reach-wall-v2 --experiment reach-wall-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
-python train.py --env shelf-place-v2 --experiment shelf-place-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
-python train.py --env soccer-v2 --experiment soccer-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
-python train.py --env stick-pull-v2 --experiment stick-pull-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
-python train.py --env stick-push-v2 --experiment stick-push-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
-python train.py --env sweep-into-v2 --experiment sweep-into-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
-python train.py --env sweep-v2 --experiment sweep-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
-python train.py --env window-close-v2 --experiment window-close-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
-python train.py --env window-open-v2 --experiment window-open-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000
+
+python train.py --env assembly-v2 --experiment assembly-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
+python train.py --env basketball-v2 --experiment basketball-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
+python train.py --env bin-picking-v2 --experiment bin-picking-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
+python train.py --env box-close-v2 --experiment box-close-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
+python train.py --env button-press-topdown-v2 --experiment button-press-topdown-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
+python train.py --env button-press-topdown-wall-v2 --experiment button-press-topdown-wall-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
+python train.py --env button-press-v2 --experiment button-press-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
+python train.py --env button-press-wall-v2 --experiment button-press-wall-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
+python train.py --env coffee-button-v2 --experiment coffee-button-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
+python train.py --env coffee-pull-v2 --experiment coffee-pull-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
+python train.py --env coffee-push-v2 --experiment coffee-push-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
+python train.py --env dial-turn-v2 --experiment dial-turn-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
+python train.py --env disassemble-v2 --experiment disassemble-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
+python train.py --env door-close-v2 --experiment door-close-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
+python train.py --env door-lock-v2 --experiment door-lock-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
+python train.py --env door-open-v2 --experiment door-open-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
+python train.py --env door-unlock-v2 --experiment door-unlock-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
+python train.py --env drawer-close-v2 --experiment drawer-close-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
+python train.py --env drawer-open-v2 --experiment drawer-open-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
+python train.py --env faucet-close-v2 --experiment faucet-close-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
+python train.py --env faucet-open-v2 --experiment faucet-open-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
+python train.py --env hammer-v2 --experiment hammer-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
+python train.py --env hand-insert-v2 --experiment hand-insert-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
+python train.py --env handle-press-side-v2 --experiment handle-press-side-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
+python train.py --env handle-press-v2 --experiment handle-press-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
+python train.py --env handle-pull-side-v2 --experiment handle-pull-side-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
+python train.py --env handle-pull-v2 --experiment handle-pull-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
+python train.py --env lever-pull-v2 --experiment lever-pull-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
+python train.py --env peg-insert-side-v2 --experiment peg-insert-side-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
+python train.py --env peg-unplug-side-v2 --experiment peg-unplug-side-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
+python train.py --env pick-out-of-hole-v2 --experiment pick-out-of-hole-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
+python train.py --env pick-place-v2 --experiment pick-place-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
+python train.py --env pick-place-wall-v2 --experiment pick-place-wall-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
+python train.py --env plate-slide-back-side-v2 --experiment plate-slide-back-side-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
+python train.py --env plate-slide-back-v2 --experiment plate-slide-back-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
+python train.py --env plate-slide-side-v2 --experiment plate-slide-side-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
+python train.py --env plate-slide-v2 --experiment plate-slide-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
+python train.py --env push-back-v2 --experiment push-back-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
+python train.py --env push-v2 --experiment push-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
+python train.py --env push-wall-v2 --experiment push-wall-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
+python train.py --env reach-v2 --experiment reach-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
+python train.py --env reach-wall-v2 --experiment reach-wall-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
+python train.py --env shelf-place-v2 --experiment shelf-place-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
+python train.py --env soccer-v2 --experiment soccer-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
+python train.py --env stick-pull-v2 --experiment stick-pull-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
+python train.py --env stick-push-v2 --experiment stick-push-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
+python train.py --env sweep-into-v2 --experiment sweep-into-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
+python train.py --env sweep-v2 --experiment sweep-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
+python train.py --env window-close-v2 --experiment window-close-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
+python train.py --env window-open-v2 --experiment window-open-v2 --with_wandb True --wandb_user qgallouedec --wandb_project sample_facotry_metaworld --train_for_env_steps 100000000 --reward_scale 0.01
 ]
