@@ -1,2 +1,2 @@
 sample-factory
-git+https://github.com/qgallouedec/Metaworld@master#egg=gym2.6_register
+git+https://github.com/qgallouedec/Metaworld@gym2.6_register
