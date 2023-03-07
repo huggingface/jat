@@ -134,8 +134,8 @@ def create_mujoco_dataset(cfg: Config):
 
     class AtariEnvDataset:
         def __init__(self, num_frames):
-            self.observations = np.zeros((num_frames, *obs["obs"].shape), dtype=np.uint8)  # uint8
-            self.actions = np.zeros((num_frames, env.action_space.shape[0]))  # uint8
+            self.observations = np.zeros((num_frames, *obs["obs"].shape), dtype=np.float32)
+            self.actions = np.zeros((num_frames, env.action_space.shape[0]))
             self.dones = np.zeros((num_frames, 1))  # bool
             self.rewards = np.zeros((num_frames, 1))  # float32
 
