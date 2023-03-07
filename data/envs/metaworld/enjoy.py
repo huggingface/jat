@@ -1,5 +1,5 @@
 import sys
-from typing import Optional, Dict
+from typing import Dict, Optional
 
 import gym
 import metaworld
@@ -62,7 +62,10 @@ ENV_NAMES = [
 
 
 def make_custom_env(
-    full_env_name: str, cfg: Optional[Dict] = None, env_config: Optional[Dict] = None, render_mode: Optional[str] = None
+    full_env_name: str,
+    cfg: Optional[Dict] = None,
+    env_config: Optional[Dict] = None,
+    render_mode: Optional[str] = None,
 ) -> gym.Env:
     return gym.make(full_env_name, render_mode=render_mode)
 
