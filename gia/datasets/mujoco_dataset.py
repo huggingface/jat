@@ -18,18 +18,27 @@ class MujocoDataset(MultiTaskDataset):
         super().__init__()
         self.task = task
         dataset_dirs = DATASET_FILE_MAPPING[task]
-        self.task_datasets = [MujocoTaskDataset(dataset_dir, args.seq_length) for dataset_dir in dataset_dirs]
+        self.task_datasets = [MujocoTaskDataset(args, dataset_dir) for dataset_dir in dataset_dirs]
         self.dataset_len = sum(len(d) for d in self.task_datasets)
 
 
 class MujocoTaskDataset(TaskDataset):
-    def __init__(self, dataset_dir: str, seq_len: int, use_separator: bool = False) -> None:
+    def __init__(self, args: Arguments, dataset_dir: str, use_separator: bool = False) -> None:
         super().__init__()
         self.dataset_dir = dataset_dir
-        self.seq_len = seq_len
+        self.seq_len = args.seq_length
 
         if use_separator:
             raise NotImplementedError
+
+        if args.use_cache and os.path.exists(
+            f"debug_cache/{dataset_dir}/cache.npy",
+        ):
+            cache = np.load(f"debug_cache/{dataset_dir}/cache.npy", allow_pickle=True).item()
+            self.packed_tokens = cache["packed_tokens"]
+            self.packed_attn = cache["packed_attn"]
+            self.packed_positions = cache["packed_attn"]
+            return
 
         assert os.path.exists(dataset_dir)
         dataset = np.load(f"{dataset_dir}/dataset.npy", allow_pickle=True).item()
@@ -44,6 +53,16 @@ class MujocoTaskDataset(TaskDataset):
 
         print(f"Packing sequences for: {self.dataset_dir}")
         self.packed_tokens, self.packed_attn, self.packed_positions = self.pack(obs_eps, actions_eps, self.seq_len)
+
+        if args.use_cache:
+            cache = {
+                "packed_tokens": self.packed_tokens,
+                "packed_attn": self.packed_attn,
+                "packed_attn": self.packed_positions,
+            }
+            os.makedirs(f"debug_cache/{dataset_dir}", exist_ok=True)
+            with open(f"debug_cache/{dataset_dir}/cache.npy", "wb") as f:
+                np.save(f, cache)
 
     @staticmethod
     def pack(obs_eps, action_eps, seq_len):
@@ -80,8 +99,8 @@ class MujocoTaskDataset(TaskDataset):
                     assert len(cur_obs_pack) == len(cur_attn_pack) == len(cur_pos_pack)
                     # extend with zeros
                     cur_obs_pack.extend([0] * (seq_len - len(cur_obs_pack)))
-                    cur_attn_pack.extend([[-1, -1]] * (seq_len - len(cur_attn_pack)))
-                    cur_pos_pack.extend([-1] * (seq_len - len(cur_pos_pack)))
+                    cur_attn_pack.extend([[0, 0]] * (seq_len - len(cur_attn_pack)))
+                    cur_pos_pack.extend([0] * (seq_len - len(cur_pos_pack)))
 
                     obs_packs.append(cur_obs_pack)
                     attn_packs.append(cur_attn_pack)

@@ -49,13 +49,22 @@ class TrainingArguments:
 
 @dataclass
 class ModelArguments:
-    model_name: Optional[str] = field(default=None, metadata={"help": "The name of the model"})
+    model_name: Optional[str] = field(default="EleutherAI/gpt-neo-125M", metadata={"help": "The name of the model"})
+    vocab_size: Optional[int] = field(
+        default=1024, metadata={"help": "The size of the model vocabulary, including the tokenization of observations"}
+    )
+    max_position_embeddings: Optional[int] = field(
+        default=32, metadata={"help": "The size of the model vocabulary, including the tokenization of observations"}
+    )
 
 
 @dataclass
 class DatasetArguments:
     tasks: List[str] = field(
         default_factory=lambda: ["mujoco"], metadata={"help": "A list of tasks/envs to load in the GiaDataset"}
+    )
+    use_cache: Optional[bool] = field(
+        default=True, metadata={"help": "Whether to use a temporary cache to store the tokenized datasets"}
     )
 
 
