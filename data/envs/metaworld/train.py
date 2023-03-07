@@ -87,7 +87,7 @@ def override_defaults(parser: argparse.ArgumentParser) -> argparse.ArgumentParse
         use_rnn=False,
         adaptive_stddev=False,
         policy_initialization="torch_default",
-        reward_scale=0.01,
+        reward_scale=0.1,
         rollout=64,
         max_grad_norm=3.5,
         num_epochs=2,
