@@ -47,7 +47,7 @@ def push_to_hf(dir_path: str, repo_name: str):
     )
 
 
-def create_babyai_dataset(name_env, hf_repo_name, n_episodes=100000, push_to_hub=False):
+def create_babyai_dataset(name_env, hf_repo_name, max_num_frames=100000, push_to_hub=False):
 
     env = gym.make(name_env)
     env = AddRGBImgPartialObsWrapper(env) # add rgb image to obs
@@ -88,19 +88,21 @@ def create_babyai_dataset(name_env, hf_repo_name, n_episodes=100000, push_to_hub
 
     dataset = BabyAIEnvDataset()
 
-    num_frame = 0
-    for i in range(n_episodes):
+    def reset_env_and_policy(env):
         obs, _ = env.reset()
         policy = Bot(env.env)
-        done = False
-        while not done:
-            dataset.add_observation(obs)
-            action = policy.replan()
-            dataset.actions.append(action)
-            obs, r, done, _, i = env.step(action)
-            dataset.rewards.append(r)
-            dataset.dones.append(done)
-            num_frame += 1
+        return obs, policy
+
+    obs, policy = reset_env_and_policy(env)
+    for i in range(max_num_frames):
+        dataset.add_observation(obs)
+        action = policy.replan()
+        dataset.actions.append(action)
+        obs, r, done, _, i = env.step(action)
+        dataset.rewards.append(r)
+        dataset.dones.append(done)
+        if done:
+            obs, policy = reset_env_and_policy(env)
 
     env.close()
 
@@ -118,7 +120,7 @@ def create_babyai_dataset(name_env, hf_repo_name, n_episodes=100000, push_to_hub
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--name_env", type=str)
-    parser.add_argument("--n_episodes", default=100000, type=int)
+    parser.add_argument("--max_num_frames", default=100000, type=int)
     parser.add_argument("--push_to_hub", action='store_true')
     parser.add_argument("--hf_repo_name", type=str)
     args = parser.parse_args()
