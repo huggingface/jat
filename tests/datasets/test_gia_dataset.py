@@ -1,7 +1,7 @@
 import pytest
 
-from gia.datasets import GiaDataset
 from gia.config import Arguments
+from gia.datasets import GiaDataset
 
 
 @pytest.mark.parametrize("seq_length", [128])

@@ -3,6 +3,7 @@ from typing import List, Union
 
 from hydra import compose, initialize
 
+
 # TODO: DELETE OR REFACTOR
 # The contents of this file should match gia/config/config.yaml
 @dataclass

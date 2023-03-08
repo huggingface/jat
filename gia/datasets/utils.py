@@ -1,6 +1,6 @@
+import numpy as np
 import torch
 from torch import Tensor
-import numpy as np
 
 
 def mu_law(x: Tensor, mu: float = 100, M: float = 256) -> Tensor:

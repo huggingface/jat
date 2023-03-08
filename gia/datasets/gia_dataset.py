@@ -1,6 +1,5 @@
-from gia.datasets.core import MultiTaskDataset
 from gia.config import Arguments
-
+from gia.datasets.core import MultiTaskDataset
 from gia.datasets.mujoco_dataset import MujocoDataset
 
 DATASET_CLASS_MAPPING = {

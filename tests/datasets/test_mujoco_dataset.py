@@ -1,5 +1,6 @@
-import pytest
 import numpy as np
+import pytest
+
 from gia.datasets import MujocoDataset, MujocoTaskDataset
 from gia.datasets.utils import mu_law_np
 

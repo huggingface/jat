@@ -1,7 +1,7 @@
 from torch import nn
-
-from transformers import AutoModelForCausalLM, AutoConfig
 from torch.utils.data.dataloader import DataLoader
+from transformers import AutoConfig, AutoModelForCausalLM
+
 from gia.config import Arguments
 from gia.datasets import GiaDataset
 

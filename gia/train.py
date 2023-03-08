@@ -1,25 +1,24 @@
 # script from: https://github.com/huggingface/transformers/blob/main/examples/research_projects/codeparrot/scripts/codeparrot_training.py
 
-import sys
 import logging
 import os
+import sys
 import time
 from argparse import Namespace
 from pathlib import Path
 
 import datasets
 import torch
-from torch.utils.data.dataloader import DataLoader
+import transformers
 from accelerate import Accelerator, DistributedType
-
 from huggingface_hub import Repository
 from torch.optim import AdamW
-import transformers
+from torch.utils.data.dataloader import DataLoader
 from transformers import HfArgumentParser, get_scheduler, set_seed
 
-from gia.model import GiaModel
-from gia.datasets import GiaDataset
 from gia.config import Arguments
+from gia.datasets import GiaDataset
+from gia.model import GiaModel
 
 
 def setup_logging(args: Arguments, accelerator):

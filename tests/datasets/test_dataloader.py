@@ -1,6 +1,7 @@
+from torch.utils.data.dataloader import DataLoader
+
 from gia.config import Arguments
 from gia.datasets import GiaDataset
-from torch.utils.data.dataloader import DataLoader
 
 
 def test_dataloader():

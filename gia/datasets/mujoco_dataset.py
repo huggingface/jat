@@ -2,15 +2,15 @@ import os
 from typing import List
 
 import numpy as np
-
 import torch
-from torch.utils.data import Dataset
 from torch import Tensor
+from torch.utils.data import Dataset
 from tqdm import tqdm
-from gia.datasets.utils import tokenize_np
+
+from gia.config import Arguments
 from gia.datasets.core import MultiTaskDataset, TaskDataset
 from gia.datasets.mappings import DATASET_FILE_MAPPING
-from gia.config import Arguments
+from gia.datasets.utils import tokenize_np
 
 
 class MujocoDataset(MultiTaskDataset):
