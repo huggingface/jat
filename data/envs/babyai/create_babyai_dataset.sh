@@ -7,5 +7,5 @@ ENVS=(
 
 for ENV in "${ENVS[@]}"; do
     echo $ENV
-    python create_babyai_dataset.py --env=${ENV} --push_to_hub --hf_repository=ClementRomac/prj_gia_dataset_${ENV} --n_episodes=100000
+    python create_babyai_dataset.py --env=${ENV} --push_to_hub --hf_repository=ClementRomac/prj_gia_dataset_${ENV} --max_num_frames=100000
 done

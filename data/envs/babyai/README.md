@@ -4,7 +4,7 @@
 1. Install the gia lib from the root dir `pip install .[dev]`
 2. Install Minigrid:
 ```shell
-pip install -f requirements.txt
+pip install -r requirements.txt
 ```
 
 ## Launch
