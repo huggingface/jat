@@ -64,7 +64,7 @@ class DatasetArguments:
         default_factory=lambda: ["mujoco"], metadata={"help": "A list of tasks/envs to load in the GiaDataset"}
     )
     use_cache: Optional[bool] = field(
-        default=True, metadata={"help": "Whether to use a temporary cache to store the tokenized datasets"}
+        default=False, metadata={"help": "Whether to use a temporary cache to store the tokenized datasets"}
     )
 
 
