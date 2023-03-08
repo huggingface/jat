@@ -1,10 +1,7 @@
 import os
-from typing import List
 
 import numpy as np
 import torch
-from torch import Tensor
-from torch.utils.data import Dataset
 from tqdm import tqdm
 
 from gia.config import Arguments
@@ -37,14 +34,14 @@ class MujocoTaskDataset(TaskDataset):
             cache = np.load(f"debug_cache/{dataset_dir}/cache.npy", allow_pickle=True).item()
             self.packed_tokens = cache["packed_tokens"]
             self.packed_attn = cache["packed_attn"]
-            self.packed_positions = cache["packed_attn"]
+            self.packed_positions = cache["packed_positions"]
             return
 
         assert os.path.exists(dataset_dir)
         dataset = np.load(f"{dataset_dir}/dataset.npy", allow_pickle=True).item()
         obs = dataset["observations"]
         dones = dataset["dones"]
-        rewards = dataset["rewards"]  # unused, for now
+        # rewards = dataset["rewards"]  # unused, for now
         actions = dataset["actions"]
 
         episode_ends = np.nonzero(dones)[0]
@@ -58,7 +55,7 @@ class MujocoTaskDataset(TaskDataset):
             cache = {
                 "packed_tokens": self.packed_tokens,
                 "packed_attn": self.packed_attn,
-                "packed_attn": self.packed_positions,
+                "packed_positions": self.packed_positions,
             }
             os.makedirs(f"debug_cache/{dataset_dir}", exist_ok=True)
             with open(f"debug_cache/{dataset_dir}/cache.npy", "wb") as f:

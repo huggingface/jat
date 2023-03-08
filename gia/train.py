@@ -1,4 +1,5 @@
-# script from: https://github.com/huggingface/transformers/blob/main/examples/research_projects/codeparrot/scripts/codeparrot_training.py
+# script from:
+# github.com/huggingface/transformers/blob/main/examples/research_projects/codeparrot/scripts/codeparrot_training.py
 
 import logging
 import os
@@ -8,7 +9,6 @@ from argparse import Namespace
 from pathlib import Path
 
 import datasets
-import torch
 import transformers
 from accelerate import Accelerator, DistributedType
 from huggingface_hub import Repository

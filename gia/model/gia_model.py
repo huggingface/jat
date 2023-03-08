@@ -20,11 +20,11 @@ class CustomEmbeddingModule(nn.Module):
     def __init__(self, args: Arguments, model_config):
         super().__init__()
         self.wte = nn.Embedding(model_config.vocab_size, model_config.embed_dim)
-        # self.wpe = nn.Embedding(model_config.max_position_embeddings, model_config.embed_dim) # see comment in forward
+        # self.wpe = nn.Embedding(model_config.max_position_embeddings, model_config.embed_dim)
 
     def forward(self, batch):
         # TODO: spliting based on image patches etc
-        # for more flexibility we may want to use our own position ids and zero and freeze the base models position embeddings
+        # for more flexibility we may want to use our own position ids and zero & freeze the base models position embs
         x = self.wte(batch["tokens"])  # + self.wpe(batch["local_position_ids"])
         return x
 

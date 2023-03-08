@@ -1,5 +1,5 @@
-from dataclasses import dataclass, field
-from typing import List, Union
+from dataclasses import dataclass
+from typing import Union
 
 from hydra import compose, initialize
 

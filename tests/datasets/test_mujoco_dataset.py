@@ -1,8 +1,6 @@
 import numpy as np
-import pytest
 
-from gia.datasets import MujocoDataset, MujocoTaskDataset
-from gia.datasets.utils import mu_law_np
+from gia.datasets import MujocoTaskDataset
 
 
 def test_mujoco_pack():
@@ -63,7 +61,3 @@ def test_mujoco_pack():
     assert np.all(packed_tokens == expected_tokens)
     assert np.all(packed_positions == expected_positions)
     assert np.all(packed_attn == expected_attn)
-
-
-if __name__ == "__main__":
-    test_pack()
