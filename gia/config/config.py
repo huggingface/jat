@@ -1,10 +1,11 @@
-from dataclasses import dataclass, field
-from typing import List
+from dataclasses import dataclass
+from typing import Union
 
 from hydra import compose, initialize
 
 
-# The contents of this file should make gia/config/config.yaml
+# TODO: DELETE OR REFACTOR
+# The contents of this file should match gia/config/config.yaml
 @dataclass
 class Dist:
     n_learners: int = 1
@@ -14,11 +15,13 @@ class Dist:
 
 @dataclass
 class Hyp:
-    n_epochs: int = 4
-    n_agents: int = 8
-    mini_batch_size: int = 4
-    rollout_length: int = 16
-    lr: float = 1e-4
+    train_batch_size: int = 8
+    seed: int = 0
+    # n_epochs: int = 4
+    # n_agents: int = 8
+    # mini_batch_size: int = 4
+    # rollout_length: int = 16
+    # lr: float = 1e-4
 
 
 class RL:
@@ -32,22 +35,13 @@ class Envs:
 
 @dataclass
 class Paths:
-    output_dir: str = "outputs/default"
+    save_dir: str = "outputs/default"
 
 
 @dataclass
 class Model:
-    encoder_conv_architecture: str = "convnet_simple"
-    nonlinearity: str = "relu"
-    encoder_conv_mlp_layers: List[int] = field(default_factory=lambda: [512])
-    encoder_mlp_layers: List[int] = field(default_factory=lambda: [512, 512])
-
-    actor_critic_share_weights: bool = True
-    use_rnn: bool = False
-    decoder_mlp_layers: List[int] = field(default_factory=lambda: [])
-    adaptive_stddev: bool = True
-    policy_init_gain: float = 1.0
-    policy_initialization: str = "orthogonal"
+    model_name: str = "facebook/opt-125m"
+    model_ckpt: Union[str, None] = None
 
 
 @dataclass
@@ -78,4 +72,4 @@ class Config:
             return config
 
 
-print(Config.build())
+# print(Config.build())
