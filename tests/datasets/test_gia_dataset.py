@@ -19,3 +19,4 @@ def test_gia_dataset(seq_length):
         assert sample["tokens"].shape == (seq_length,)
         assert sample["attn_ids"].shape == (seq_length, 2)
         assert sample["local_position_ids"].shape == (seq_length,)
+        assert sample["loss_masks"].shape == (seq_length,)

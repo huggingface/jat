@@ -16,3 +16,4 @@ def test_dataloader():
         assert batch["tokens"].shape == (args.train_batch_size, args.seq_length)
         assert batch["attn_ids"].shape == (args.train_batch_size, args.seq_length, 2)
         assert batch["local_position_ids"].shape == (args.train_batch_size, args.seq_length)
+        assert batch["loss_masks"].shape == (args.train_batch_size, args.seq_length)

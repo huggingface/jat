@@ -44,19 +44,26 @@ class GiaModel(nn.Module):
         embeds = self.emb(batch)
         # the model requires us to provide position ids, otherwise it will generate them
         out = self.model(inputs_embeds=embeds, position_ids=batch["local_position_ids"])
-
+        out.loss = self.loss(out.logits, batch["tokens"], batch["loss_masks"])
         return out
+
+    def loss(self, logits, tokens, masks):
+        loss_fn = nn.CrossEntropyLoss(reduction="none")
+        loss = loss_fn(logits, tokens) * masks.float()
+        loss = loss.sum() / masks.float().sum()
+
+        return loss
 
 
 if __name__ == "__main__":
-    from tqdm import tqdm
-
     args = Arguments()
     args.tasks = ["mujoco"]
+    args.use_cache = True
 
     dataset = GiaDataset(args)
-    dataloader = DataLoader(dataset)
+    dataloader = DataLoader(dataset, batch_size=2)
     model = GiaModel(args)
 
-    for i, batch in enumerate(tqdm(dataloader)):
-        model(batch)
+    batch = next(iter(dataloader))
+    out = model(batch)
+    print(out)

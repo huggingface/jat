@@ -35,6 +35,7 @@ class MujocoTaskDataset(TaskDataset):
             self.packed_tokens = cache["packed_tokens"]
             self.packed_attn = cache["packed_attn"]
             self.packed_positions = cache["packed_positions"]
+            self.packed_loss_masks = cache["packed_loss_masks"]
             return
 
         assert os.path.exists(dataset_dir)
@@ -49,13 +50,19 @@ class MujocoTaskDataset(TaskDataset):
         actions_eps = self.extract_episodes(actions, episode_ends, dones)
 
         print(f"Packing sequences for: {self.dataset_dir}")
-        self.packed_tokens, self.packed_attn, self.packed_positions = self.pack(obs_eps, actions_eps, self.seq_len)
+        (
+            self.packed_tokens,
+            self.packed_attn,
+            self.packed_positions,
+            self.packed_loss_masks,
+        ) = self.pack(obs_eps, actions_eps, self.seq_len)
 
         if args.use_cache:
             cache = {
                 "packed_tokens": self.packed_tokens,
                 "packed_attn": self.packed_attn,
                 "packed_positions": self.packed_positions,
+                "packed_loss_masks": self.packed_loss_masks,
             }
             os.makedirs(f"debug_cache/{dataset_dir}", exist_ok=True)
             with open(f"debug_cache/{dataset_dir}/cache.npy", "wb") as f:
@@ -67,6 +74,7 @@ class MujocoTaskDataset(TaskDataset):
         obs_packs = []  # packed sequences of observations & actions
         attn_packs = []  # packed sequences of indices of where the model can attend to
         position_packs = []  # packed sequences of local positions
+        loss_mask_packs = []  # packed sequences of where to mask the loss, only actions should be used in the loss
 
         obs_len = len(obs_eps[0][0])
         act_len = len(action_eps[0][0])
@@ -80,16 +88,19 @@ class MujocoTaskDataset(TaskDataset):
         cur_obs_pack = []
         cur_attn_pack = []
         cur_pos_pack = []
+        cur_loss_mask_pack = []
         for obs_ep, action_ep in tqdm(zip(obs_eps, action_eps)):
             attn_start = cur_index
-            attn_end = min(attn_start + len(obs_ep) * obs_act_size, seq_len - seq_len % obs_act_size) - 1
+            # attn_end = min(attn_start + len(obs_ep) * obs_act_size, seq_len - seq_len % obs_act_size) - 1
 
             for i, (obs, act) in enumerate(zip(obs_ep, action_ep)):
                 cur_obs_pack.extend(tokenize_np(obs))
                 cur_obs_pack.extend(tokenize_np(act))  # do actions undertake the same tokenization scheme?
                 cur_pos_pack.extend(obs_local_tokens)
                 cur_pos_pack.extend(action_local_tokens)
-                cur_attn_pack.extend([[attn_start, attn_end]] * obs_act_size)
+                cur_attn_pack.extend([[attn_start, cur_index + obs_len]] * obs_act_size)
+                cur_loss_mask_pack.extend([0] * obs_len)
+                cur_loss_mask_pack.extend([1] * act_len)
                 cur_index += obs_act_size
 
                 if len(cur_obs_pack) > (seq_len - obs_act_size):
@@ -98,23 +109,27 @@ class MujocoTaskDataset(TaskDataset):
                     cur_obs_pack.extend([0] * (seq_len - len(cur_obs_pack)))
                     cur_attn_pack.extend([[0, 0]] * (seq_len - len(cur_attn_pack)))
                     cur_pos_pack.extend([0] * (seq_len - len(cur_pos_pack)))
+                    cur_loss_mask_pack.extend([0] * (seq_len - len(cur_loss_mask_pack)))
 
                     obs_packs.append(cur_obs_pack)
                     attn_packs.append(cur_attn_pack)
                     position_packs.append(cur_pos_pack)
+                    loss_mask_packs.append(cur_loss_mask_pack)
 
                     cur_obs_pack = []
                     cur_attn_pack = []
                     cur_pos_pack = []
+                    cur_loss_mask_pack = []
                     cur_index = 0
                     attn_start = 0
 
-                    attn_end = min((len(obs_ep) - i - 1) * obs_act_size, seq_len - (seq_len % obs_act_size)) - 1
+                    # attn_end = min((len(obs_ep) - i - 1) * obs_act_size, seq_len - (seq_len % obs_act_size)) - 1
 
         return (
             np.array(obs_packs),
             np.array(attn_packs),
             np.array(position_packs),
+            np.array(loss_mask_packs),
         )
 
     @staticmethod
@@ -139,4 +154,5 @@ class MujocoTaskDataset(TaskDataset):
             "tokens": self.packed_tokens[idx],
             "attn_ids": self.packed_attn[idx],
             "local_position_ids": self.packed_positions[idx],
+            "loss_masks": self.packed_loss_masks[idx],
         }

@@ -195,7 +195,7 @@ def main():
     for step, batch in enumerate(train_dataloader, start=1):
         if args.resume_from_checkpoint and step < resume_step:
             continue  # we need to skip steps until we reach the resumed step
-        loss = model(batch, labels=batch, use_cache=False).loss
+        loss = model(batch).loss
         avg_loss = accelerator.gather(loss.repeat(args.train_batch_size)).mean()
         loss_tracking += avg_loss.item() / args.gradient_accumulation_steps
         log_metrics(
@@ -270,3 +270,7 @@ def main():
     accelerator.save_state(save_dir)
     if accelerator.is_main_process:
         hf_repo.push_to_hub(commit_message="final model")
+
+
+if __name__ == "__main__":
+    main()

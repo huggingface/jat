@@ -44,8 +44,8 @@ def test_mujoco_pack():
     )
     expected_attn = np.array(
         [
-            [[0, 7], [0, 7], [0, 7], [0, 7], [0, 7], [0, 7], [0, 7], [0, 7], [0, 0]],
-            [[0, 3], [0, 3], [0, 3], [0, 3], [4, 7], [4, 7], [4, 7], [4, 7], [0, 0]],
+            [[0, 2], [0, 2], [0, 2], [0, 2], [0, 6], [0, 6], [0, 6], [0, 6], [0, 0]],
+            [[0, 2], [0, 2], [0, 2], [0, 2], [4, 6], [4, 6], [4, 6], [4, 6], [0, 0]],
         ]
     )
     expected_positions = np.array(
@@ -54,10 +54,17 @@ def test_mujoco_pack():
             [0, 1, 0, 1, 0, 1, 0, 1, 0],
         ]
     )
+    expected_loss_mask = np.array(
+        [
+            [0, 0, 1, 1, 0, 0, 1, 1, 0],
+            [0, 0, 1, 1, 0, 0, 1, 1, 0],
+        ]
+    )
 
-    packed_tokens, packed_attn, packed_positions = MujocoTaskDataset.pack(obs_eps, act_eps, seq_len=9)
+    packed_tokens, packed_attn, packed_positions, loss_mask = MujocoTaskDataset.pack(obs_eps, act_eps, seq_len=9)
 
     assert packed_tokens.shape == packed_attn.shape[:-1] == packed_positions.shape
     assert np.all(packed_tokens == expected_tokens)
     assert np.all(packed_positions == expected_positions)
     assert np.all(packed_attn == expected_attn)
+    assert np.all(loss_mask == expected_loss_mask)
