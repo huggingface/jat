@@ -82,7 +82,7 @@ class MujocoTaskDataset(TaskDataset):
         obs_local_tokens = np.array(list(range(obs_len)))
         action_local_tokens = np.array(list(range(act_len)))
         attn_start = 0
-        attn_end = -1
+
         cur_index = 0
         # TODO find out shape of masks in masked self attn
         cur_obs_pack = []
@@ -91,7 +91,6 @@ class MujocoTaskDataset(TaskDataset):
         cur_loss_mask_pack = []
         for obs_ep, action_ep in tqdm(zip(obs_eps, action_eps)):
             attn_start = cur_index
-            # attn_end = min(attn_start + len(obs_ep) * obs_act_size, seq_len - seq_len % obs_act_size) - 1
 
             for i, (obs, act) in enumerate(zip(obs_ep, action_ep)):
                 cur_obs_pack.extend(tokenize_np(obs))
@@ -122,8 +121,6 @@ class MujocoTaskDataset(TaskDataset):
                     cur_loss_mask_pack = []
                     cur_index = 0
                     attn_start = 0
-
-                    # attn_end = min((len(obs_ep) - i - 1) * obs_act_size, seq_len - (seq_len % obs_act_size)) - 1
 
         return (
             np.array(obs_packs),

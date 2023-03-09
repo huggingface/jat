@@ -15,3 +15,4 @@ def test_gia_model():
 
     batch = next(iter(dataloader))
     out = model(batch)
+    assert out.loss.item() > 0.0
