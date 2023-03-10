@@ -1,4 +1,5 @@
 import os
+import random
 
 import numpy as np
 import torch
@@ -8,6 +9,10 @@ from gia.config import Arguments
 from gia.datasets.core import MultiTaskDataset, TaskDataset
 from gia.datasets.mappings import DATASET_FILE_MAPPING
 from gia.datasets.utils import tokenize_np
+
+
+PAD_TOKEN = 10000
+END_OF_PROMPT_TOKEN = 10001
 
 
 class MujocoDataset(MultiTaskDataset):
@@ -24,6 +29,21 @@ class MujocoTaskDataset(TaskDataset):
         super().__init__()
         self.dataset_dir = dataset_dir
         self.seq_len = args.seq_length
+
+        assert os.path.exists(dataset_dir)
+        dataset = np.load(f"{dataset_dir}/dataset.npy", allow_pickle=True).item()
+        obs = dataset["observations"]
+        dones = dataset["dones"]
+        # rewards = dataset["rewards"]  # unused, for now
+        actions = dataset["actions"]
+
+        episode_ends = np.nonzero(dones)[0]
+        obs_eps = self.extract_episodes(obs, episode_ends, dones)
+        actions_eps = self.extract_episodes(actions, episode_ends, dones)
+
+        self.pack_with_prompting(obs_eps, actions_eps, args.seq_length)
+
+        return
 
         if use_separator:
             raise NotImplementedError
@@ -148,10 +168,68 @@ class MujocoTaskDataset(TaskDataset):
         )
 
     @staticmethod
+    def sample(p):
+        return random.random() < p
+
+    @staticmethod
+    def pack_with_prompting(obs_eps, action_eps, seq_len, p_prompt=0.25, p_end=0.5):
+        obs_len = len(obs_eps[0][0])
+        act_len = len(action_eps[0][0])
+        obs_act_size = obs_len + act_len
+        assert obs_act_size * 2 + 1 <= seq_len  # we require at least two obs_acts in the sequence + prompt token
+
+        # tokenize all the episodes
+        tokenized_episodes = []
+        for obs_ep, action_ep in tqdm(zip(obs_eps, action_eps)):
+            cur_ep_tokens = []
+            for obs, act in zip(obs_ep, action_ep):
+                cur_ep_tokens.extend(tokenize_np(obs))
+                cur_ep_tokens.extend(tokenize_np(act))
+            tokenized_episodes.append(cur_ep_tokens)
+
+        packed_tokens = []
+        for tokenized_episode in tokenized_episodes:
+            i = 0
+            while i < len(tokenized_episode):
+                tokens = []
+                required_tokens = (seq_len // obs_act_size) * obs_act_size
+                if random.random() < p_prompt:
+                    # we are sampling a prompt from a random episode and prepending it
+                    episode_index = random.randrange(0, len(tokenized_episodes))
+                    random_episode = tokenized_episodes[episode_index]
+                    n_tokens = random.randrange(obs_act_size, min(required_tokens, len(random_episode)), obs_act_size)
+                    required_tokens -= n_tokens
+                    if random.random() < p_end:
+                        # the prompt is taken from the end of a random episode
+                        tokens.extend(random_episode[-n_tokens:])  # n tokens from the end of the episode
+                    else:
+                        # the prompt is uniformly taken somewhere in the episode
+                        start = random.randrange(0, len(random_episode) - n_tokens, obs_act_size)
+                        # n_tokens uniformly sampled from ep
+                        tokens.extend(random_episode[start : start + n_tokens])
+                    tokens.append(END_OF_PROMPT_TOKEN)
+
+                # take all the required tokens, or whatever is left in the episode
+                m = min(required_tokens, len(tokenized_episode[i:]))
+                assert m % obs_act_size == 0
+                # you can take just required_tokens, as the overflow is truncated
+                tokens.extend(tokenized_episode[i : i + m])
+                i += m
+
+                # pad the takens
+                tokens.extend([PAD_TOKEN] * (seq_len - len(tokens)))
+                assert len(tokens) == seq_len
+                packed_tokens.append(tokens)
+
+            assert i == len(tokenized_episode)  # we should have appended all tokens
+
+        # print(packed_tokens)
+
+    @staticmethod
     def extract_episodes(data, episode_ends, dones):
         episodes = []
         index = 0
-        for end in episode_ends:
+        for end in episode_ends[:20]:
             episodes.append(data[index:end])
             index = end
             assert dones[end] == 1
@@ -164,6 +242,8 @@ class MujocoTaskDataset(TaskDataset):
     def __getitem__(self, idx):
         if torch.is_tensor(idx):
             idx = idx.tolist()
+        #
+
         return {
             "task": self.dataset_dir,
             "tokens": self.packed_tokens[idx],
@@ -171,3 +251,12 @@ class MujocoTaskDataset(TaskDataset):
             "local_position_ids": self.packed_positions[idx],
             "loss_masks": self.packed_loss_masks[idx],
         }
+
+
+if __name__ == "__main__":
+
+    for sl in [75, 100, 150, 200, 171]:
+
+        args = Arguments()
+        args.seq_length = sl
+        dataset = MujocoTaskDataset(args, "data/imitation/mujoco/prj_gia_dataset_mujoco_ant_1111")
