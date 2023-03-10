@@ -69,7 +69,7 @@ class MujocoTaskDataset(TaskDataset):
                 np.save(f, cache)
 
     @staticmethod
-    def pack(obs_eps, action_eps, seq_len):
+    def pack(obs_eps, action_eps, seq_len, overlap=True):
         # TODO: move to utils as this will be used elsewhere
         obs_packs = []  # packed sequences of observations & actions
         attn_packs = []  # packed sequences of indices of where the model can attend to
@@ -103,7 +103,7 @@ class MujocoTaskDataset(TaskDataset):
                 cur_index += obs_act_size
 
                 if len(cur_obs_pack) > (seq_len - obs_act_size):
-                    assert len(cur_obs_pack) == len(cur_attn_pack) == len(cur_pos_pack)
+                    assert len(cur_obs_pack) == len(cur_attn_pack) == len(cur_pos_pack) == len(cur_pos_pack)
                     # extend with zeros
                     cur_obs_pack.extend([0] * (seq_len - len(cur_obs_pack)))
                     cur_attn_pack.extend([[0, 0]] * (seq_len - len(cur_attn_pack)))
@@ -121,6 +121,24 @@ class MujocoTaskDataset(TaskDataset):
                     cur_loss_mask_pack = []
                     cur_index = 0
                     attn_start = 0
+
+            if not overlap and len(cur_obs_pack) > 0:  # we dont want overlaps and we didn't just start a new sequence:
+                cur_obs_pack.extend([0] * (seq_len - len(cur_obs_pack)))
+                cur_attn_pack.extend([[0, 0]] * (seq_len - len(cur_attn_pack)))
+                cur_pos_pack.extend([0] * (seq_len - len(cur_pos_pack)))
+                cur_loss_mask_pack.extend([0] * (seq_len - len(cur_loss_mask_pack)))
+
+                obs_packs.append(cur_obs_pack)
+                attn_packs.append(cur_attn_pack)
+                position_packs.append(cur_pos_pack)
+                loss_mask_packs.append(cur_loss_mask_pack)
+
+                cur_obs_pack = []
+                cur_attn_pack = []
+                cur_pos_pack = []
+                cur_loss_mask_pack = []
+                cur_index = 0
+                attn_start = 0
 
         return (
             np.array(obs_packs),
