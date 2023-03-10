@@ -1,6 +1,6 @@
 # script from:
 # github.com/huggingface/transformers/blob/main/examples/research_projects/codeparrot/scripts/codeparrot_training.py
-
+from gia.model import GiaModel
 import logging
 import os
 import sys
@@ -8,24 +8,27 @@ import time
 from argparse import Namespace
 from pathlib import Path
 
-import datasets
-import transformers
-from accelerate import Accelerator, DistributedType
+
 from huggingface_hub import Repository
 from torch.optim import AdamW
 from torch.utils.data.dataloader import DataLoader
-from transformers import HfArgumentParser, get_scheduler, set_seed
+
 
 from gia.config import Arguments
 from gia.datasets import GiaDataset
-from gia.model import GiaModel
+
+import datasets
+
+import transformers
+from transformers import HfArgumentParser, get_scheduler, set_seed
+from accelerate import Accelerator, DistributedType
 
 
 def setup_logging(args: Arguments, accelerator):
     project_name = args.model_ckpt.split("/")[-1]
     logger = logging.getLogger(__name__)
     log_dir = Path(args.save_dir) / "log/"
-    log_dir.mkdir(exist_ok=True)
+    log_dir.mkdir(parents=True, exist_ok=True)
     filename = f"debug_{accelerator.process_index}.log"
     logging.basicConfig(
         format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
@@ -51,7 +54,12 @@ def create_dataloaders(args: Arguments):
     # TODO
     train_dataset = GiaDataset(args)
 
-    train_dataloader = DataLoader(train_dataset)
+    train_dataloader = DataLoader(
+        train_dataset,
+        batch_size=args.train_batch_size,
+        shuffle=True,
+        drop_last=True,
+    )
     eval_dataloader = None
     return train_dataloader, eval_dataloader
 
@@ -124,6 +132,8 @@ def main():
     else:
         args = parser.parse_args()
 
+    args.use_cache = True  # for debugging
+
     # Accelerator
     accelerator = Accelerator(log_with=["wandb", "tensorboard"], logging_dir=f"{args.save_dir}/log")
     acc_state = {str(k): str(v) for k, v in accelerator.state.__dict__.items()}
@@ -132,22 +142,23 @@ def main():
     samples_per_step = accelerator.state.num_processes * args.train_batch_size
     set_seed(args.seed)
 
-    # Clone model repository
-    if accelerator.is_main_process:
-        hf_repo = Repository(args.save_dir, clone_from=args.model_ckpt)
+    # # Clone model repository
+    # if accelerator.is_main_process:
+    #     hf_repo = Repository(args.save_dir, clone_from=args.model_ckpt)
 
     # Logging
-    logger, run_name = setup_logging(args)
+    logger, run_name = setup_logging(args, accelerator)
     logger.info(accelerator.state)
 
-    # Checkout new branch on repo
-    if accelerator.is_main_process:
-        hf_repo.git_checkout(run_name, create_branch_ok=True)
+    # # Checkout new branch on repo
+    # if accelerator.is_main_process:
+    #     hf_repo.git_checkout(run_name, create_branch_ok=True)
 
-    # Load model and tokenizer
+    # Load the model
     model = GiaModel(args)
 
     if args.gradient_checkpointing:
+        # TODO: add this to the gia model
         model.gradient_checkpointing_enable()
 
     # Load dataset and dataloader
@@ -248,8 +259,8 @@ def main():
             accelerator.wait_for_everyone()
             save_dir = os.path.join(args.save_dir, f"step_{step}")
             accelerator.save_state(save_dir)
-            if accelerator.is_main_process:
-                hf_repo.push_to_hub(commit_message=f"step {step}")
+            # if accelerator.is_main_process:
+            #     hf_repo.push_to_hub(commit_message=f"step {step}")
             model.train()
         if completed_steps >= args.max_train_steps:
             break
@@ -268,8 +279,8 @@ def main():
     unwrapped_model.save_pretrained(args.save_dir, save_function=accelerator.save)
     save_dir = os.path.join(args.save_dir, f"step_{step}")
     accelerator.save_state(save_dir)
-    if accelerator.is_main_process:
-        hf_repo.push_to_hub(commit_message="final model")
+    # if accelerator.is_main_process:
+    #     hf_repo.push_to_hub(commit_message="final model")
 
 
 if __name__ == "__main__":

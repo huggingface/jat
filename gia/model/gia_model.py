@@ -44,12 +44,23 @@ class GiaModel(nn.Module):
         embeds = self.emb(batch)
         # the model requires us to provide position ids, otherwise it will generate them
         out = self.model(inputs_embeds=embeds, position_ids=batch["local_position_ids"])
-        out.loss = self.loss(out.logits, batch["tokens"], batch["loss_masks"])
+        out.loss = self.loss(out.logits, batch["tokens"], batch["loss_mask"])
         return out
 
     def loss(self, logits, tokens, masks):
         loss_fn = nn.CrossEntropyLoss(reduction="none")
-        loss = loss_fn(logits, tokens) * masks.float()
+        truncated_logits = logits[..., :-1, :].contiguous()
+        shifted_tokens = tokens[..., 1:].contiguous()
+        truncated_masks = masks[..., 1:].contiguous()
+
+        loss = (
+            loss_fn(
+                truncated_logits.view(-1, truncated_logits.size(-1)),
+                shifted_tokens.view(-1),
+            )
+            * truncated_masks.view(-1).float()
+        )
+
         loss = loss.sum() / masks.float().sum()
 
         return loss
