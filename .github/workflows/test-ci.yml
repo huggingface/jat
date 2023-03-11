@@ -31,9 +31,16 @@ jobs:
        conda install python=${{ matrix.python-version }}
        pip install -e '.[dev,test]'
        conda list
-    - name: Run tests
-      run: |
-        make test
     - name: Check quality
       run: |
         make quality
+    - name: Download the imitation learning test datasets
+      run: |
+        chmod +x scripts/download_all_test_datasets.sh
+        chmod +x scripts/download_mujoco_datasets.sh
+        ./scripts/download_all_test_datasets.sh
+
+    - name: Run tests
+      run: |
+        make test
+
