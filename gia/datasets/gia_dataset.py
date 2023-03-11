@@ -22,7 +22,6 @@ class GiaDataset(MultiTaskDataset):
 
 
 if __name__ == "__main__":
-
     args = Arguments()
     dataset = GiaDataset(args)
 
