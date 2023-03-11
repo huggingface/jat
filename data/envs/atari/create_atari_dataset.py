@@ -31,7 +31,6 @@ def generate_dataset_card(
     experiment_name: str,
     repo_id: str,
 ):
-
     readme_path = os.path.join(dir_path, "README.md")
     readme = f"""
     An imitation learning environment for the {env} environment, sample for the policy {experiment_name} \n
@@ -66,7 +65,6 @@ def push_to_hf(dir_path: str, repo_name: str):
 
 # most of this function is redundant as it is copied from sample.enjoy.enjoy
 def create_atari_dataset(cfg: Config):
-
     verbose = False
 
     cfg = load_from_checkpoint(cfg)

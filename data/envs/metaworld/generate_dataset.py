@@ -111,7 +111,7 @@ print(dataset.keys())  # dict_keys(['observations', 'actions', 'dones', 'rewards
 ```
 
     """
-    
+
     with open(readme_path, "w", encoding="utf-8") as f:
         f.write(readme)
 
@@ -131,14 +131,18 @@ print(dataset.keys())  # dict_keys(['observations', 'actions', 'dones', 'rewards
 
 def push_to_hf(dir_path: str, repo_name: str) -> None:
     HfApi().create_repo(repo_id=repo_name, private=False, exist_ok=True, repo_type="dataset")
-    upload_folder(repo_id=repo_name, folder_path=dir_path, path_in_repo=".", ignore_patterns=[".git/*"], repo_type="dataset")
+    upload_folder(
+        repo_id=repo_name, folder_path=dir_path, path_in_repo=".", ignore_patterns=[".git/*"], repo_type="dataset"
+    )
 
 
 # most of this function is redundant as it is copied from sample.enjoy.enjoy
 def create_dataset(cfg: Config):
     cfg = load_from_checkpoint(cfg)
     eval_env_frameskip: int = cfg.env_frameskip if cfg.eval_env_frameskip is None else cfg.eval_env_frameskip
-    assert cfg.env_frameskip % eval_env_frameskip == 0, f"{cfg.env_frameskip=} must be divisible by {eval_env_frameskip=}"
+    assert (
+        cfg.env_frameskip % eval_env_frameskip == 0
+    ), f"{cfg.env_frameskip=} must be divisible by {eval_env_frameskip=}"
     cfg.env_frameskip = cfg.eval_env_frameskip = eval_env_frameskip
     cfg.num_envs = 1
 
