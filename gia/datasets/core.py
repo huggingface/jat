@@ -16,7 +16,6 @@ class MultiTaskDataset(Dataset):
         index_acc = 0
         for d in self.task_datasets:  # relatively quick for a small number of datasets
             if index_acc <= idx < len(d) + index_acc:  # can be rewriten just idx - index_acc < len(d)
-
                 sample = d[idx - index_acc]
                 if self.task is not None:
                     sample["task"] = self.task

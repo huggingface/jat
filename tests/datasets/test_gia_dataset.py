@@ -6,7 +6,6 @@ from gia.datasets import GiaDataset
 
 @pytest.mark.parametrize("seq_length", [128])
 def test_gia_dataset(seq_length):
-
     args = Arguments()
     args.tasks = ["mujoco"]
     args.seq_length = seq_length

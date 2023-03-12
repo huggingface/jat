@@ -7,7 +7,6 @@ import gym
 import numpy as np
 import torch
 from huggingface_hub import HfApi, Repository, repocard, upload_file, upload_folder
-
 from sample_factory.algo.learning.learner import Learner
 from sample_factory.algo.sampling.batched_sampling import preprocess_actions
 from sample_factory.algo.utils.action_distributions import argmax_actions
@@ -16,13 +15,13 @@ from sample_factory.algo.utils.make_env import make_env_func_batched
 from sample_factory.algo.utils.rl_utils import make_dones, prepare_and_normalize_obs
 from sample_factory.algo.utils.tensor_utils import unsqueeze_tensor
 from sample_factory.cfg.arguments import load_from_checkpoint
+from sample_factory.enjoy import render_frame, visualize_policy_inputs
 from sample_factory.model.actor_critic import create_actor_critic
 from sample_factory.model.model_utils import get_rnn_size
 from sample_factory.utils.attr_dict import AttrDict
 from sample_factory.utils.typing import Config
 from sample_factory.utils.utils import log
 from sf_examples.atari.train_atari import parse_atari_args, register_atari_components
-from sample_factory.enjoy import visualize_policy_inputs, render_frame
 
 
 def generate_dataset_card(
@@ -31,7 +30,6 @@ def generate_dataset_card(
     experiment_name: str,
     repo_id: str,
 ):
-
     readme_path = os.path.join(dir_path, "README.md")
     readme = f"""
     An imitation learning environment for the {env} environment, sample for the policy {experiment_name} \n
@@ -66,7 +64,6 @@ def push_to_hf(dir_path: str, repo_name: str):
 
 # most of this function is redundant as it is copied from sample.enjoy.enjoy
 def create_atari_dataset(cfg: Config):
-
     verbose = False
 
     cfg = load_from_checkpoint(cfg)
