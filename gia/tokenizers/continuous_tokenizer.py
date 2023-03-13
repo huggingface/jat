@@ -1,3 +1,5 @@
+from typing import Dict
+
 import torch
 from torch import Tensor, nn
 
@@ -29,14 +31,17 @@ class ContinuousTokenizer(nn.Module):
         nb_bins (int, optional): Number of bins for the discretization. Defaults to 1024.
     """
 
-    def __init__(self, mu_law_compand: bool = True, mu: float = 100, M: float = 256, nb_bins: int = 1024) -> None:
+    def __init__(
+        self, mu_law_compand: bool = True, mu: float = 100, M: float = 256, nb_bins: int = 1024, shift: int = 0
+    ) -> None:
         super().__init__()
         self.mu_law_compand = mu_law_compand
         self.mu = mu
         self.M = M
         self.nb_bins = nb_bins
+        self.shift = shift
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor) -> Dict[str, Tensor]:
         # Normalize tensors to the range [-1, 1]
         if self.mu_law_compand:
             x = mu_law(x, mu=self.mu, M=self.M)
@@ -45,7 +50,16 @@ class ContinuousTokenizer(nn.Module):
         x = torch.clamp(x, -1.0, 1.0)
 
         # Discretize tensors
-        return discretize(x, nb_bins=self.nb_bins)
+        x = discretize(x, nb_bins=self.nb_bins)
+
+        # Squeeze if needed
+        if x.dim() == 1:
+            x = x.unsqueeze(0)
+        input_ids = x + self.shift
+        return {
+            "input_ids": input_ids,
+            "attention_mask": torch.ones_like(input_ids),
+        }
 
     def inverse_tokenize_continuous(self, tokens: Tensor) -> Tensor:
         """
