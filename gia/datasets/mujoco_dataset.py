@@ -13,7 +13,7 @@ from gia.datasets.utils import tokenize_np
 # TODO: these should change depending on vocal size etc
 PAD_TOKEN = 1024
 END_OF_PROMPT_TOKEN = 1025
-END_OF_PROMPT_POSITION_TOKEN = 1026
+END_OF_PROMPT_POSITION_TOKEN = 30
 POSITION_PAD_TOKEN = 31
 
 
