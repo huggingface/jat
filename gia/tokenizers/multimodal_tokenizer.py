@@ -7,16 +7,40 @@ from transformers import AutoTokenizer
 from gia.tokenizers.continuous_tokenizer import ContinuousTokenizer
 
 
-def is_text(x: Any):
-    return isinstance(x, str)
+def is_text(x: Any) -> bool:
+    """
+    Check if input is text.
+
+    It checks if the input is a string or a list of strings.
+    """
+    return isinstance(x, str) or isinstance(x, List) and all(isinstance(s, str) for s in x)
 
 
-def is_image(x: Any):
-    return isinstance(x, torch.Tensor) and x.ndim == 3
+def is_image(x: Any) -> bool:
+    """
+    Check if input is an image.
+
+    Returns True if the input is a torch tensor with 3 or 4 dimensions.
+    """
+    return isinstance(x, Tensor) and x.dim() in [3, 4]
 
 
-def concat_dicts(dicts: List[Dict[str, Tensor]]) -> Dict[str, Tensor]:
-    return
+def is_continuous(x: Any) -> bool:
+    """
+    Check if input is continuous.
+
+    Returns True if the input is a torch tensor with dtype torch.float32.
+    """
+    return isinstance(x, Tensor) and x.dtype == torch.float32
+
+
+def is_discrete(x: Any) -> bool:
+    """
+    Check if input is discrete.
+
+    Returns True if the input is a torch tensor with dtype torch.int64.
+    """
+    return isinstance(x, Tensor) and x.dtype == torch.int64
 
 
 class DiscreteTokenizer(nn.Module):
@@ -42,7 +66,10 @@ class DiscreteTokenizer(nn.Module):
         self.shift = shift
 
     def forward(self, x: Tensor) -> Tensor:
-        input_ids = x.unsqueeze(1) + self.shift
+        # Unsqueeze if needed
+        if x.dim() == 1:
+            x = x.unsqueeze(0)
+        input_ids = x + self.shift
         return {
             "input_ids": input_ids,
             "attention_mask": torch.ones_like(input_ids),
@@ -61,8 +88,13 @@ class MultiModalTokenizer(nn.Module):
         ...     "images": torch.rand(2, 3, 84, 84),
         ...     "continuous": torch.rand(2),
         ...     "actions": torch.randint(0, 10, (2, 4)),
-        }
-        >>> tokenizer(inputs)
+        ... }
+        >>> encoding = tokenizer(inputs)
+        >>> encoding.keys()
+        dict_keys(['input_ids', 'attention_mask'])
+        >>> encoding["input_ids"]
+        tensor([[  101,  7592,  2088,   999,   102,  1012,  1012,  1012,  1012,  1012,
+
 
     Args:
         mu (float, optional): Mu-law companding parameter. Defaults to 100.
@@ -89,25 +121,24 @@ class MultiModalTokenizer(nn.Module):
         self.continuous_tokenizer = ContinuousTokenizer(mu=mu, M=M, nb_bins=nb_bins, shift=token_shift)
 
     def forward(self, inputs: Dict[str, Tensor]) -> Tensor:
+        # Get the observation keys
+        observation_keys = sorted([key for key in inputs.keys() if key not in ["actions", "dones", "rewards"]])
+
         tokens = []
-        # Remove dones and rewards from the keys
-        keys = sorted([key for key in inputs.keys() if key not in ["dones", "rewards"]])
 
         # Observation part
         # Detect the inputs corresponding to texts
-        text_keys = [key for key in keys if is_text(inputs[key][0])]
+        text_keys = [key for key in observation_keys if is_text(inputs[key])]
         for key in sorted(text_keys):
             texts = inputs[key]
             text_tokens = self.text_tokenizer(texts)
-            # convert to tensors # TODO: is there a better way?
-            text_tokens = {key: torch.tensor(text_tokens[key]) for key in ["input_ids", "attention_mask"]}
             tokens.append(text_tokens)
             # Here, tokens is a list dict, whose keys are input_ids, attention_mask
             # input_ids is a list of list of int
             # attention_mask is a list of list of int (1 for real tokens, 0 for padding)
 
         # Detect the inputs corresponding to images
-        image_keys = [key for key in keys if is_image(inputs[key][0])]
+        image_keys = [key for key in observation_keys if is_image(inputs)]
         for key in sorted(image_keys):
             images = inputs[key]
             continue
@@ -116,14 +147,14 @@ class MultiModalTokenizer(nn.Module):
             tokens.append(image_tokens)
 
         # Detect the inputs corresponding to dicrete tensors
-        discrete_tensor_keys = [key for key in keys if inputs[key].dtype == torch.int64 and key != "actions"]
+        discrete_tensor_keys = [key for key in observation_keys if is_discrete(inputs[key]) and key != "actions"]
         for key in sorted(discrete_tensor_keys):
             tensors = inputs[key]
             tensor_tokens = self.dicrete_tokenizer(tensors)
             tokens.append(tensor_tokens)
 
         # Detect the inputs corresponding to continuous tensors
-        continuous_tensor_keys = [key for key in keys if inputs[key].dtype == torch.float32 and key != "actions"]
+        continuous_tensor_keys = [key for key in observation_keys if is_continuous(inputs[key]) and key != "actions"]
         for key in sorted(continuous_tensor_keys):
             tensors = inputs[key]
             tensor_tokens = self.continuous_tokenizer(tensors)
@@ -142,7 +173,7 @@ class MultiModalTokenizer(nn.Module):
 
         # Action part
         if "actions" in inputs:
-            actions = inputs.pop("actions")
+            actions = inputs["actions"]
             # Detect the inputs corresponding to dicrete actions
             if actions.dtype == torch.int64:  # If actions are discrete, the tokens are simply the actions
                 tokens.append(self.dicrete_tokenizer(actions))
