@@ -52,13 +52,15 @@ class ContinuousTokenizer(nn.Module):
         # Discretize tensors
         x = discretize(x, nb_bins=self.nb_bins)
 
-        # Squeeze if needed
+        # Unsqueeze when the input is a vector
         if x.dim() == 1:
-            x = x.unsqueeze(0)
+            x = x.unsqueeze(1)
+
+        # Unsqueeze if needed
         input_ids = x + self.shift
         return {
-            "input_ids": input_ids,
-            "attention_mask": torch.ones_like(input_ids),
+            "input_ids": input_ids.tolist(),
+            "attention_mask": torch.ones_like(input_ids).tolist(),
         }
 
     def inverse_tokenize_continuous(self, tokens: Tensor) -> Tensor:

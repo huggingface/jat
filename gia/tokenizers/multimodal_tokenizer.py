@@ -1,4 +1,4 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, Iterable, List
 
 import torch
 from torch import Tensor, nn
@@ -11,18 +11,18 @@ def is_text(x: Any) -> bool:
     """
     Check if input is text.
 
-    It checks if the input is a string or a list of strings.
+    It checks if the input a list of strings.
     """
-    return isinstance(x, str) or isinstance(x, List) and all(isinstance(s, str) for s in x)
+    return isinstance(x, List) and all(isinstance(s, str) for s in x)
 
 
 def is_image(x: Any) -> bool:
     """
     Check if input is an image.
 
-    Returns True if the input is a torch tensor with 3 or 4 dimensions.
+    Returns True if the input is a torch tensor with 4 dimensions.
     """
-    return isinstance(x, Tensor) and x.dim() in [3, 4]
+    return isinstance(x, Tensor) and x.dim() == 4  # shape (batch_size, channels, height, width)
 
 
 def is_continuous(x: Any) -> bool:
@@ -43,6 +43,32 @@ def is_discrete(x: Any) -> bool:
     return isinstance(x, Tensor) and x.dtype == torch.int64
 
 
+def concat_multi_dim_iterables(l: List[List[Iterable]]) -> List[List]:
+    """
+    Concatenate a list of iterables from shape (M, N, X) to shape (N, X1 + X2 + ...).
+
+    Examples:
+        >>> concat_multi_dim_iterables([
+        ... [[1, 2], [3, 4, 5]],
+        ... [[6, 7, 8], [9]],
+        ... ])
+        [[1, 2, 6, 7, 8], [3, 4, 5, 9]]
+
+    Args:
+        l (List[List[Iterable]]): A list of iterables of shape (M, N, X) where X can vary for each element.
+
+    Returns:
+        List[List]: A list of iterables of shape (N, X1 + X2 + ...).
+    """
+    output = []
+    for idx in range(len(l[0])):
+        sub_list = []
+        for iterable in l:
+            sub_list.extend(iterable[idx])
+        output.append(sub_list)
+    return output
+
+
 class DiscreteTokenizer(nn.Module):
     """
     Discrete tokenizer.
@@ -50,15 +76,10 @@ class DiscreteTokenizer(nn.Module):
     Example:
         >>> import torch
         >>> tokenizer = DiscreteTokenizer()
-        >>> tensors = torch.tensor([[3, 2, 1, 0],
-        ...                         [0, 1, 2, 3],
-        ...                         [1, 2, 3, 0]])
+        >>> tensors = torch.tensor([[3, 2, 1],
+        ...                         [0, 1, 2]])
         >>> tokenizer(tensors)
-        {'input_ids': tensor([[3, 2, 1, 0],
-                [0, 1, 2, 3],
-                [1, 2, 3, 0]]), 'attention_mask': tensor([[1, 1, 1, 1],
-                [1, 1, 1, 1],
-                [1, 1, 1, 1]])}
+        {'input_ids': [[3, 2, 1], [0, 1, 2]], 'attention_mask': [[1, 1, 1], [1, 1, 1]]}
     """
 
     def __init__(self, shift: int = 0) -> None:
@@ -66,14 +87,25 @@ class DiscreteTokenizer(nn.Module):
         self.shift = shift
 
     def forward(self, x: Tensor) -> Tensor:
-        # Unsqueeze if needed
+        # Unsqueeze when the input is a vector
         if x.dim() == 1:
-            x = x.unsqueeze(0)
+            x = x.unsqueeze(1)
         input_ids = x + self.shift
         return {
-            "input_ids": input_ids,
-            "attention_mask": torch.ones_like(input_ids),
+            "input_ids": input_ids.tolist(),
+            "attention_mask": torch.ones_like(input_ids).tolist(),
         }
+
+
+def transform_func(examples):
+    """Convert image to uint8.
+
+    Fix of https://github.com/huggingface/datasets/issues/4623
+    """
+    for key in examples.keys():
+        if isinstance(examples, Tensor) and examples[key].dim() == 4:
+            examples[key] = examples[key].to(dtype=torch.uint8)
+    return examples
 
 
 class MultiModalTokenizer(nn.Module):
@@ -84,22 +116,25 @@ class MultiModalTokenizer(nn.Module):
         >>> import torch
         >>> tokenizer = MultiModalTokenizer()
         >>> inputs = {
-        ...     "texts": ["Hello world!", "This is a test."],
-        ...     "images": torch.rand(2, 3, 84, 84),
-        ...     "continuous": torch.rand(2),
-        ...     "actions": torch.randint(0, 10, (2, 4)),
+        ...     "texts": ["Go right", "Go left"],
+        ...     # "images": torch.rand(2, 3, 224, 224),
+        ...     "continuous": torch.tensor([2.1, 3.4]),
+        ...     "actions": torch.tensor([[9, 8, 6], [5, 9, 9]]),
         ... }
         >>> encoding = tokenizer(inputs)
         >>> encoding.keys()
         dict_keys(['input_ids', 'attention_mask'])
         >>> encoding["input_ids"]
-        tensor([[  101,  7592,  2088,   999,   102,  1012,  1012,  1012,  1012,  1012,
-
+        [[2, 162, 193, 3, 32781, 33024, 32009, 32008, 32006], [2, 162, 225, 3, 32806, 33024, 32005, 32009, 32009]]
+        >>> encoding["attention_mask"]
+        [[1, 1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1, 1]]
 
     Args:
         mu (float, optional): Mu-law companding parameter. Defaults to 100.
         M (float, optional): Mu-law companding parameter. Defaults to 256.
         nb_bins (int, optional): Number of bins for the discretization. Defaults to 1024.
+        token_shift (int, optional): Shift for the discrete tokens. Defaults to 32_000.
+        use_separator (bool, optional): Whether to use a separator token between observations and actions. Defaults to True.
     """
 
     def __init__(
@@ -121,6 +156,9 @@ class MultiModalTokenizer(nn.Module):
         self.continuous_tokenizer = ContinuousTokenizer(mu=mu, M=M, nb_bins=nb_bins, shift=token_shift)
 
     def forward(self, inputs: Dict[str, Tensor]) -> Tensor:
+
+        inputs = transform_func(inputs)
+
         # Get the observation keys
         observation_keys = sorted([key for key in inputs.keys() if key not in ["actions", "dones", "rewards"]])
 
@@ -138,7 +176,7 @@ class MultiModalTokenizer(nn.Module):
             # attention_mask is a list of list of int (1 for real tokens, 0 for padding)
 
         # Detect the inputs corresponding to images
-        image_keys = [key for key in observation_keys if is_image(inputs)]
+        image_keys = [key for key in observation_keys if is_image(inputs[key])]
         for key in sorted(image_keys):
             images = inputs[key]
             continue
@@ -166,8 +204,8 @@ class MultiModalTokenizer(nn.Module):
             separator_tokens = self.separator_token.repeat(sequence_length, 1)
             tokens.append(
                 {
-                    "input_ids": separator_tokens,
-                    "attention_mask": torch.ones_like(separator_tokens),
+                    "input_ids": separator_tokens.tolist(),
+                    "attention_mask": torch.ones_like(separator_tokens).tolist(),
                 }
             )
 
@@ -183,6 +221,6 @@ class MultiModalTokenizer(nn.Module):
                 raise ValueError(f"Invalid actions dtype: {actions.dtype}, expected torch.int64 or torch.float32.")
 
         # Concatenate the tokens
-        token_ids = torch.cat([token["input_ids"] for token in tokens], dim=1)
-        attention_mask = torch.cat([token["attention_mask"] for token in tokens], dim=1)
-        return {"input_ids": token_ids, "attention_mask": attention_mask}
+        input_ids = concat_multi_dim_iterables([token["input_ids"] for token in tokens])
+        attention_mask = concat_multi_dim_iterables([token["attention_mask"] for token in tokens])
+        return {"input_ids": input_ids, "attention_mask": attention_mask}
