@@ -53,14 +53,11 @@ class GiaModel(nn.Module):
         shifted_tokens = tokens[..., 1:].contiguous()
         truncated_masks = masks[..., 1:].contiguous()
 
-        loss = (
-            loss_fn(
-                truncated_logits.view(-1, truncated_logits.size(-1)),
-                shifted_tokens.view(-1),
-            )
-            * truncated_masks.view(-1).float()
+        loss = loss_fn(
+            truncated_logits.view(-1, truncated_logits.size(-1)),
+            shifted_tokens.view(-1),
         )
-
+        loss = loss * truncated_masks.view(-1).float()
         loss = loss.sum() / masks.float().sum()
 
         return loss
