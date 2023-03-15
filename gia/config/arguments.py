@@ -15,7 +15,7 @@ class TrainingArguments:
     )
     dataset_name_train: Optional[str] = field(default="", metadata={"help": "Name or path of training dataset."})
     dataset_name_valid: Optional[str] = field(default="", metadata={"help": "Name or path of validation dataset."})
-    train_batch_size: Optional[int] = field(default=16, metadata={"help": "Batch size for training."})
+    train_batch_size: Optional[int] = field(default=8, metadata={"help": "Batch size for training."})
     valid_batch_size: Optional[int] = field(default=2, metadata={"help": "Batch size for evaluation."})
     weight_decay: Optional[float] = field(default=0.1, metadata={"help": "Value of weight decay."})
     shuffle_buffer: Optional[int] = field(
