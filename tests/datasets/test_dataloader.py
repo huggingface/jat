@@ -8,12 +8,13 @@ def test_dataloader():
     args = Arguments()
     train_dataset = GiaDataset(args)
 
-    train_dataloader = DataLoader(train_dataset, batch_size=args.train_batch_size)
+    train_dataloader = DataLoader(train_dataset, batch_size=args.train_batch_size, drop_last=True)
 
     for batch in train_dataloader:
         assert len(batch["task"]) == args.train_batch_size
         # the next test will fail in a image patch setting, update it :)
+
         assert batch["tokens"].shape == (args.train_batch_size, args.seq_length)
-        assert batch["attn_ids"].shape == (args.train_batch_size, args.seq_length, 2)
+        assert batch["attn_mask"].shape == (args.train_batch_size, args.seq_length)
         assert batch["local_position_ids"].shape == (args.train_batch_size, args.seq_length)
-        assert batch["loss_masks"].shape == (args.train_batch_size, args.seq_length)
+        assert batch["loss_mask"].shape == (args.train_batch_size, args.seq_length)

@@ -16,6 +16,6 @@ def test_gia_dataset(seq_length):
         sample = dataset[i]
         assert sample["task"] == "mujoco"
         assert sample["tokens"].shape == (seq_length,)
-        assert sample["attn_ids"].shape == (seq_length, 2)
+        assert sample["attn_mask"].shape == (seq_length,)
         assert sample["local_position_ids"].shape == (seq_length,)
-        assert sample["loss_masks"].shape == (seq_length,)
+        assert sample["loss_mask"].shape == (seq_length,)
