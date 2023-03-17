@@ -6,6 +6,7 @@ from torch import Tensor
 def mu_law(x: Tensor, mu: float = 100, M: float = 256) -> Tensor:
     """
     μ-law companding.
+
     Args:
         x (Tensor): Input tensor
         mu (float, optional): μ parameter. Defaults to 100.
@@ -19,10 +20,12 @@ def mu_law(x: Tensor, mu: float = 100, M: float = 256) -> Tensor:
 def discretize(x: Tensor, nb_bins: int = 1024) -> Tensor:
     """
     Discretize tensor.
+
     Example:
         >>> x = tensor([-1.0, -0.1, 0.3, 0.4, 1.0])
         >>> discretize(x, nb_bins=6)
         tensor([0, 2, 3, 4, 5])
+
     Args:
         x (Tensor): Input tensor, in the range [-1, 1]
         nb_bins (int, optional): Number of bins. Defaults to 1024.
@@ -40,10 +43,12 @@ def discretize(x: Tensor, nb_bins: int = 1024) -> Tensor:
 def mu_law_np(x: np.ndarray, mu: float = 100, M: float = 256) -> Tensor:
     """
     μ-law companding.
+
     Args:
         x (np.Array): Input numpy array
         mu (float, optional): μ parameter. Defaults to 100.
         M (float, optional): M parameter. Defaults to 256.
+
     Returns:
         np.Array: Normalized tensor
     """
@@ -53,13 +58,16 @@ def mu_law_np(x: np.ndarray, mu: float = 100, M: float = 256) -> Tensor:
 def discretize_np(x: np.ndarray, nb_bins: int = 1024) -> Tensor:
     """
     Discretize tensor.
+
     Example:
         >>> x = tensor([-1.0, -0.1, 0.3, 0.4, 1.0])
         >>> discretize(x, nb_bins=6)
         tensor([0, 2, 3, 4, 5])
+
     Args:
         x (Tensor): Input tensor, in the range [-1, 1]
         nb_bins (int, optional): Number of bins. Defaults to 1024.
+
     Returns:
         Tensor: Discretized tensor
     """
