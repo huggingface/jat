@@ -17,9 +17,7 @@ class AddRGBImgPartialObsWrapper(ObservationWrapper):
             dtype="uint8",
         )
 
-        self.observation_space = spaces.Dict(
-            {**self.observation_space.spaces, "rgb_image": new_image_space}
-        )
+        self.observation_space = spaces.Dict({**self.observation_space.spaces, "rgb_image": new_image_space})
 
     def observation(self, obs):
         rgb_img_partial = self.get_frame(tile_size=self.tile_size, agent_pov=True)

@@ -1,11 +1,10 @@
-import os
 import argparse
+import os
 
 import gymnasium as gym
 import numpy as np
-from huggingface_hub import HfApi, repocard, upload_folder
-
 from bot_agent import Bot
+from huggingface_hub import HfApi, repocard, upload_folder
 from utils.env_wrappers import AddRGBImgPartialObsWrapper
 
 
@@ -50,32 +49,27 @@ def push_to_hf(dir_path: str, repo_name: str):
 def create_babyai_dataset(name_env, hf_repo_name, max_num_frames=100000, push_to_hub=False):
 
     env = gym.make(name_env)
-    env = AddRGBImgPartialObsWrapper(env) # add rgb image to obs
+    env = AddRGBImgPartialObsWrapper(env)  # add rgb image to obs
 
     class BabyAIEnvDataset:
         def __init__(self):
-            self.observations = {
-                'mission': [],
-                'direction': [],
-                'image': [],
-                'rgb_image': []
-            }
+            self.observations = {"mission": [], "direction": [], "image": [], "rgb_image": []}
             self.actions = []
             self.dones = []
             self.rewards = []
 
         def add_observation(self, obs):
-            self.observations['mission'].append(obs['mission'])
-            self.observations['direction'].append(obs['direction'])
-            self.observations['image'].append(obs['image'])
-            self.observations['rgb_image'].append(obs['rgb_image'])
+            self.observations["mission"].append(obs["mission"])
+            self.observations["direction"].append(obs["direction"])
+            self.observations["image"].append(obs["image"])
+            self.observations["rgb_image"].append(obs["rgb_image"])
 
         def _observations_to_ndarray(self):
             return {
-                'mission': np.array(self.observations["mission"]),
-                'direction': np.array(self.observations["direction"]),
-                'image': np.array(self.observations["image"]),
-                'rgb_image': np.array(self.observations["rgb_image"])
+                "mission": np.array(self.observations["mission"]),
+                "direction": np.array(self.observations["direction"]),
+                "image": np.array(self.observations["image"]),
+                "rgb_image": np.array(self.observations["rgb_image"]),
             }
 
         def to_dict(self):
@@ -83,7 +77,7 @@ def create_babyai_dataset(name_env, hf_repo_name, max_num_frames=100000, push_to
                 "observations": self._observations_to_ndarray(),
                 "actions": np.array(self.actions),
                 "dones": np.array(self.dones),
-                "rewards": np.array(self.rewards)
+                "rewards": np.array(self.rewards),
             }
 
     dataset = BabyAIEnvDataset()
@@ -113,7 +107,7 @@ def create_babyai_dataset(name_env, hf_repo_name, max_num_frames=100000, push_to
         with open(f"{repo_path}/dataset.npy", "wb") as f:
             np.save(f, dataset.to_dict())
 
-        generate_dataset_card(repo_path, name_env, '')
+        generate_dataset_card(repo_path, name_env, "")
         push_to_hf(repo_path, hf_repo_name)
 
 
@@ -121,7 +115,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--name_env", type=str)
     parser.add_argument("--max_num_frames", default=100000, type=int)
-    parser.add_argument("--push_to_hub", action='store_true')
+    parser.add_argument("--push_to_hub", action="store_true")
     parser.add_argument("--hf_repo_name", type=str)
     args = parser.parse_args()
 
