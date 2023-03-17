@@ -17,7 +17,8 @@ def generate_dataset_card(
     readme_path = os.path.join(dir_path, "README.md")
     readme = f"""
     An imitation learning environment for the {env} environment. \n
-    This environment was created as part of the Generally Intelligent Agents project gia: https://github.com/huggingface/gia \n
+    This environment was created as part of the Generally Intelligent Agents project gia:
+    https://github.com/huggingface/gia \n
     \n
     """
 
@@ -39,7 +40,7 @@ def generate_dataset_card(
 
 
 def push_to_hf(dir_path: str, repo_name: str):
-    repo_url = HfApi().create_repo(repo_id=repo_name, private=False, exist_ok=True, repo_type="dataset")
+    _ = HfApi().create_repo(repo_id=repo_name, private=False, exist_ok=True, repo_type="dataset")
 
     upload_folder(
         repo_id=repo_name, folder_path=dir_path, path_in_repo=".", ignore_patterns=[".git/*"], repo_type="dataset"
@@ -101,7 +102,7 @@ def create_babyai_dataset(name_env, hf_repo_name, max_num_frames=100000, push_to
     env.close()
 
     if push_to_hub:
-        repo_path = f"./train_dir"
+        repo_path = "./train_dir"
         os.makedirs(repo_path, exist_ok=True)
 
         with open(f"{repo_path}/dataset.npy", "wb") as f:

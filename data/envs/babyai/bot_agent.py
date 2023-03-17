@@ -3,7 +3,9 @@ This code was taken from https://github.com/mila-iqia/babyai and slightly adapte
 Minigrid lib (https://github.com/Farama-Foundation/Minigrid).
 """
 
-from minigrid.envs.babyai.core.verifier import *
+import numpy as np
+
+# from minigrid.envs.babyai.core.verifier import *
 from minigrid.envs.babyai.core.verifier import (
     AfterInstr,
     AndInstr,
@@ -13,9 +15,8 @@ from minigrid.envs.babyai.core.verifier import (
     OpenInstr,
     PickupInstr,
     PutNextInstr,
-    pos_next_to,
 )
-from minigrid.minigrid_env import *
+from minigrid.minigrid_env import Grid, WorldObj
 
 
 class DisappearedBoxError(Exception):
@@ -126,10 +127,10 @@ class Subgoal:
             if not np.array_equal(self.bot.prev_agent_pos, self.pos):
                 self.bot.stack.append(GoNextToSubgoal(self.bot, self.pos))
         elif action_taken == self.actions.left:
-            old_fwd_pos = self.pos + self.right_vec
+            _ = self.pos + self.right_vec
             self.bot.stack.append(GoNextToSubgoal(self.bot, self.pos + self.right_vec))
         elif action_taken == self.actions.right:
-            old_fwd_pos = self.pos - self.right_vec
+            _ = self.pos - self.right_vec
             self.bot.stack.append(GoNextToSubgoal(self.bot, self.pos - self.right_vec))
         elif action_taken == self.actions.drop and self.bot.prev_carrying != self.carrying:
             # get that thing back, if dropping was succesful
