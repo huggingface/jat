@@ -1,12 +1,10 @@
 import os
 import time
 from collections import deque
-from typing import Dict, Tuple
 
-import gym
 import numpy as np
 import torch
-from huggingface_hub import HfApi, Repository, repocard, upload_file, upload_folder
+from huggingface_hub import HfApi, repocard, upload_folder
 from sample_factory.algo.learning.learner import Learner
 from sample_factory.algo.sampling.batched_sampling import preprocess_actions
 from sample_factory.algo.utils.action_distributions import argmax_actions
@@ -21,7 +19,6 @@ from sample_factory.model.model_utils import get_rnn_size
 from sample_factory.utils.attr_dict import AttrDict
 from sample_factory.utils.typing import Config
 from sample_factory.utils.utils import log
-from sf_examples.atari.train_atari import parse_atari_args, register_atari_components
 from sf_examples.mujoco.train_mujoco import parse_mujoco_cfg, register_mujoco_components
 
 
@@ -34,7 +31,8 @@ def generate_dataset_card(
     readme_path = os.path.join(dir_path, "README.md")
     readme = f"""
     An imitation learning environment for the {env} environment, sample for the policy {experiment_name} \n
-    This environment was created as part of the Generally Intelligent Agents project gia: https://github.com/huggingface/gia \n
+    This environment was created as part of the Generally Intelligent Agents project gia:
+    https://github.com/huggingface/gia \n
     \n
     """
 
@@ -56,7 +54,7 @@ def generate_dataset_card(
 
 
 def push_to_hf(dir_path: str, repo_name: str):
-    repo_url = HfApi().create_repo(repo_id=repo_name, private=False, exist_ok=True, repo_type="dataset")
+    _ = HfApi().create_repo(repo_id=repo_name, private=False, exist_ok=True, repo_type="dataset")
 
     upload_folder(
         repo_id=repo_name, folder_path=dir_path, path_in_repo=".", ignore_patterns=[".git/*"], repo_type="dataset"
@@ -214,7 +212,8 @@ def create_mujoco_dataset(cfg: Config):
                         episode_reward[agent_i] = 0
 
                         if cfg.use_record_episode_statistics:
-                            # we want the scores from the full episode not a single agent death (due to EpisodicLifeEnv wrapper)
+                            # we want the scores from the full episode not a single agent death
+                            # (due to EpisodicLifeEnv wrapper)
                             if "episode" in infos[agent_i].keys():
                                 num_episodes += 1
                                 reward_list.append(infos[agent_i]["episode"]["r"])
