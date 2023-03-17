@@ -4,7 +4,6 @@ from collections import deque
 
 import numpy as np
 import torch
-
 from huggingface_hub import HfApi, repocard, upload_folder
 from sample_factory.algo.learning.learner import Learner
 from sample_factory.algo.sampling.batched_sampling import preprocess_actions
