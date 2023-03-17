@@ -1,0 +1,2 @@
+sample-factory
+git+https://github.com/qgallouedec/Metaworld@gym2.6_register

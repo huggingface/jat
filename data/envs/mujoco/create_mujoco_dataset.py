@@ -4,6 +4,7 @@ from collections import deque
 
 import numpy as np
 import torch
+
 from huggingface_hub import HfApi, repocard, upload_folder
 from sample_factory.algo.learning.learner import Learner
 from sample_factory.algo.sampling.batched_sampling import preprocess_actions
@@ -28,7 +29,6 @@ def generate_dataset_card(
     experiment_name: str,
     repo_id: str,
 ):
-
     readme_path = os.path.join(dir_path, "README.md")
     readme = f"""
     An imitation learning environment for the {env} environment, sample for the policy {experiment_name} \n
@@ -64,7 +64,6 @@ def push_to_hf(dir_path: str, repo_name: str):
 
 # most of this function is redundant as it is copied from sample.enjoy.enjoy
 def create_mujoco_dataset(cfg: Config):
-
     verbose = False
 
     cfg = load_from_checkpoint(cfg)
@@ -127,8 +126,8 @@ def create_mujoco_dataset(cfg: Config):
 
     class AtariEnvDataset:
         def __init__(self, num_frames):
-            self.observations = np.zeros((num_frames, *obs["obs"].shape), dtype=np.uint8)  # uint8
-            self.actions = np.zeros((num_frames, env.action_space.shape[0]))  # uint8
+            self.observations = np.zeros((num_frames, *obs["obs"].shape), dtype=np.float32)
+            self.actions = np.zeros((num_frames, env.action_space.shape[0]))
             self.dones = np.zeros((num_frames, 1))  # bool
             self.rewards = np.zeros((num_frames, 1))  # float32
 
