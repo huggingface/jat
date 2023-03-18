@@ -57,10 +57,10 @@ class ContinuousTokenizer(nn.Module):
             x = x.unsqueeze(1)
 
         # Unsqueeze if needed
-        input_ids = x + self.shift
+        tokens = x + self.shift
         return {
-            "input_ids": input_ids.tolist(),
-            "attention_mask": torch.ones_like(input_ids).tolist(),
+            "tokens": tokens.tolist(),
+            "attention_mask": torch.ones_like(tokens).tolist(),
         }
 
     def inverse_tokenize_continuous(self, tokens: Tensor) -> Tensor:

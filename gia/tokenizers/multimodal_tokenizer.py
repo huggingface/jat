@@ -42,6 +42,7 @@ def is_discrete(x: Any) -> bool:
     """
     return isinstance(x, Tensor) and x.dtype == torch.int64 and x.dim() == 1
 
+
 def is_bool(x: Any) -> bool:
     """
     Check if input is boolean.
@@ -49,6 +50,7 @@ def is_bool(x: Any) -> bool:
     Returns True if the input is a torch tensor with dtype torch.bool.
     """
     return isinstance(x, Tensor) and x.dtype == torch.bool and x.dim() == 1
+
 
 def concat_multi_dim_iterables(l: List[List[Iterable]]) -> List[List]:
     """
@@ -102,6 +104,7 @@ class DiscreteTokenizer(nn.Module):
             "tokens": tokens.tolist(),
             "attention_mask": torch.ones_like(tokens).tolist(),
         }
+
 
 class BooleanTokenizer(DiscreteTokenizer):
     """
@@ -187,6 +190,8 @@ class MultiModalTokenizer(nn.Module):
         for key, value in inputs.items():
             if is_text(value):
                 tokens = self.text_tokenizer(value)
+                # Rename input_ids to tokens
+                tokens["tokens"] = tokens.pop("input_ids")
             elif is_image(value):
                 continue
                 tokens = self.image_tokenizer(value)
