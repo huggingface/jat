@@ -1,13 +1,28 @@
 import random
+from typing import Any
 
 import torch
 from datasets import Dataset, load_dataset
+from torch import Tensor
+from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader
 
 from gia.tokenizers.multimodal_tokenizer import MultiModalTokenizer
+from gia.utils.utils import to_channel_first
+
+ACTION_POSITION = 999
 
 
-class _SingleTaskDataset(Dataset):
+def is_image(x: Any) -> bool:
+    """
+    Check if input is an image.
+
+    Returns True if the input is a torch tensor with 4 dimensions.
+    """
+    return isinstance(x, Tensor) and x.dim() == 4  # shape (batch_size, channels, height, width)
+
+
+class GiaDataset(Dataset):
     """
     Dataset for the GIA project.
     """
@@ -17,169 +32,125 @@ class _SingleTaskDataset(Dataset):
         self.p_prompt = p_prompt
         self.p_end = p_end
         self.seq_len = seq_len
+        self.patch_size = 16
         dataset = load_dataset("gia-project/gia-dataset", "babyai-go-to", split="train")
+        # Remove the "image" column as it is not used
+        dataset = dataset.remove_columns("images")
+        # Temporarily rename the observations with "observations/" prefix. Maybe we can include this in the dataset later.
         all_keys = dataset.column_names
         observations_keys = [key for key in all_keys if key not in ["actions", "dones", "rewards"]]
-        # Temporarily rename the observations with "observations/" prefix. Maybe we can include this in the dataset later.
         dataset = dataset.rename_columns({key: f"observations/{key}" for key in observations_keys})
+        # Convert the dataset to torch tensors
         dataset.set_format("torch")
+        # Tokenize the dataset
         tokenizer = MultiModalTokenizer()
-        dataset = dataset.map(tokenizer, batched=True)
+        dataset = dataset.map(tokenizer, batched=True, load_from_cache_file=False)
+        # Pack the the dataset into batches of sequences
         # As we change the dataset length, we need to remove all the previous columns.
         self.dataset = dataset.map(
-            self.pack_with_prompting, batched=True, batch_size=-1, remove_columns=dataset.column_names
+            self.pack_and_prompt, batched=True, batch_size=-1, remove_columns=dataset.column_names
         )
 
     @staticmethod
-    def flatten_dataset(dataset, observation_keys, separator_token):
-        """
-        Flatten the input dataset into a single sequence of tokens, loss masks,
-        and episode done flags.
+    def get_num_patches(x, patch_size):
+        # x is a batch of images
+        _, _, height, width = x.shape
+        return (height // patch_size) * (width // patch_size)
 
-        Args:
-            dataset (dict): A dictionary containing the input data, including
-                observation and action tokens and episode done flags.
-            observation_keys (list): A list of strings containing the names of the
-                observation keys in the dataset.
-            separator_token (str): A string representing the separator token to use
-                between episodes.
+    def pack_and_prompt(self, dataset):
+        # Compute the number of embeddings needed for the observations and actions
 
-        Returns:
-            A tuple containing the flattened tokens, flattened loss masks, and
-            episode done flags as lists.
-
-        Example:
-            >>> dataset = {
-            ...    "obs1_tokens": [[1, 2], [6, 7], [12]],
-            ...    "obs2_tokens": [[3], [8, 9], [13]],
-            ...    "actions_tokens": [[4, 5], [10, 11], [14, 15]],
-            ...    "dones": [False, False, True]
-            ... }
-            >>> observation_keys = ["obs1_tokens", "obs2_tokens"]
-            >>> separator_token = 0
-            >>> flat_tokens, flat_loss_masks, episode_done_flags = flatten_dataset(
-            ...     dataset, observation_keys, separator_token
-            ... )
-            >>> flat_tokens
-            [1, 2, 3, 0, 4, 5, 6, 7, 8, 9, 0, 10, 11, 12, 13, 0, 14, 15]
-            >>> flat_loss_masks
-            [0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1]
-            >>> episode_done_flags
-            [False, False, False, False, False, False, False, False, False, False, False, True, False, False, False]
-        """
-        flat_tokens = []
-        flat_loss_masks = []
-        episode_done_flags = []
-
-        for idx in range(len(dataset["actions_tokens"])):
-            episode_done_flags.append(dataset["dones"][idx])
-
-            for obs_key in observation_keys:
-                flat_tokens.extend(dataset[obs_key][idx])
-                flat_loss_masks.extend([0] * len(dataset[obs_key][idx]))
-                episode_done_flags.extend([False] * (len(dataset[obs_key][idx]) - 1))
-
-            flat_tokens.append(separator_token)
-            flat_loss_masks.append(0)
-            episode_done_flags.append(False)
-
-            flat_tokens.extend(dataset["actions_tokens"][idx])
-            flat_loss_masks.extend([1] * len(dataset["actions_tokens"][idx]))
-            episode_done_flags.extend([False] * len(dataset["actions_tokens"][idx]))
-        # Convert to torch tensors
-        flat_tokens = torch.tensor(flat_tokens)
-        flat_loss_masks = torch.tensor(flat_loss_masks)
-        episode_done_flags = torch.tensor(episode_done_flags)
-        return flat_tokens, flat_loss_masks, episode_done_flags
-
-    @staticmethod
-    def generate_prompted_sequences(episode_done_flags, p_prompt, p_end, seq_len):
-        """
-        Generate prompted sequences from the flattened token and loss mask lists, using a specified
-        prompt probability and prompt end probability.
-
-        Args:
-            episode_done_flags (list): A list of episode done flags, indicating the end of each episode
-                in the flattened token and loss mask lists.
-            p_prompt (float): The probability of generating a prompted sequence.
-            p_end (float): The probability of taking the prompt from the end of an episode, rather than
-                uniformly within the episode.
-            seq_len (int): The desired length of each generated sequence, including any generated prompt.
-
-        Returns:
-            A list of indexes corresponding to the generated sequences.
-
-        Example:
-            >>> # All sequences are prompted with the end of the an episode.
-            >>> generate_prompted_sequences(
-            ...     episode_done_flags=[False, False, False, False, False, False, False, True, False],
-            ...     p_prompt=1.0,
-            ...     p_end=1.0,
-            ...     seq_len=4
-            ... )
-            [[5, 6, 0, 1], [5, 6, 2, 3], [5, 6, 4, 5], [6, 6, 7, 8]]
-
-            >>> # None of the sequences are prompted.
-            >>> generate_prompted_sequences(
-            ...     episode_done_flags=[False, False, False, False, False, False, False, True, False],
-            ...     p_prompt=0.0,
-            ...     p_end=1.0,
-            ...     seq_len=4
-            ... )
-            [[0, 1, 2, 3], [4, 5, 6, 7]]
-
-            >>> # Some sequences are prompted, but not all (here, just the last one)
-            >>> generate_prompted_sequences(
-            ...     episode_done_flags=[False, False, False, False, False, False, False, True, False],
-            ...     p_prompt=0.5,
-            ...     p_end=0.5,
-            ...     seq_len=4
-            ... )
-            [[0, 1, 2, 3], [4, 5, 6, 7], [0, 1, 2, 8]]
-        """
-        dataset_indexes = []
-        episode_start_idxs = [idx for idx, done in enumerate(episode_done_flags) if done]
-        current_ep_start = 0
-
-        while True:
-            if random.random() < p_prompt:
-                num_prompt_tokens = random.randint(0, seq_len - 1)
-                episode_end_idx = random.choice(episode_start_idxs)
-
-                if random.random() < p_end:
-                    prompt_indexes = list(range(episode_end_idx - num_prompt_tokens, episode_end_idx))
-                else:
-                    prompt_episode_start = random.randint(0, len(episode_done_flags) - num_prompt_tokens)
-                    prompt_indexes = list(range(prompt_episode_start, prompt_episode_start + num_prompt_tokens))
-            else:
-                num_prompt_tokens = 0
-                prompt_indexes = []
-
-            num_tokens = seq_len - num_prompt_tokens
-
-            if current_ep_start + num_tokens > len(episode_done_flags):
-                break
-
-            indexes = prompt_indexes + list(range(current_ep_start, current_ep_start + num_tokens))
-            dataset_indexes.append(indexes)
-            current_ep_start += num_tokens
-        # Convert to torch tensors
-        return torch.tensor(dataset_indexes)
-
-    def pack_with_prompting(self, dataset):
-        # First, get the total numbers of tokens in the dataset
+        # First get the keys for the observations. Caution, images are handled separately since they are not tokenized
         observation_keys = [
             key for key in dataset.keys() if key.startswith("observations/") and key.endswith("_tokens")
         ]
+        # Concatenate the observations and actions, and ped when necessary
+        observation_tokens = {key: pad_sequence(dataset[key], batch_first=True) for key in observation_keys}
+        num_obs_tokens = sum(tokens.size(1) for tokens in observation_tokens.values())
 
-        # Then, we need to flatten the dataset
-        flat_tokens, flat_loss_masks, episode_done_flags = self.flatten_dataset(
-            dataset, observation_keys, self.separator_token
-        )
-        batch_idxs = self.generate_prompted_sequences(episode_done_flags, self.p_prompt, self.p_end, self.seq_len)
+        # Special case for images: we need to deduce the number of embeddings from the image size
+        # `image_keys` and `observation_keys` are intended not to overlap since the images are not tokenized
+        image_keys = [key for key in dataset.keys() if key.startswith("observations/") and is_image(dataset[key])]
+        # First, make sure that all images are in channels first format
+        for key in image_keys:
+            dataset[key] = to_channel_first(dataset[key])
+        # The number of embeddings is the sum of the number of patches for each image
+        num_image_patches = sum(self.get_num_patches(dataset[key], self.patch_size) for key in image_keys)
+        num_emb_per_observation = num_obs_tokens + num_image_patches
+
+        # Do the same for the actions (here it's simpler since there is only one key, and the action is not an image)
+        action_tokens = pad_sequence(dataset["actions_tokens"], batch_first=True)
+        num_emb_per_action = action_tokens.size(1)
+
+        # Set the position for observations and actions
+        # observation_indices = torch.arange(num_emb_per_observation)
+        # action_indices = torch.ones(num_emb_per_action, dtype=torch.int64) * ACTION_POSITION
+
+        # obs_act_pos_indices = list(range(num_emb_per_observation)) + list(range(num_emb_per_action))
+        # obs_act_loss_mask = [0] * num_emb_per_observation + [1] * num_emb_per_action
+
+        num_emb_per_interaction = num_emb_per_observation + num_emb_per_action
+        num_interractions_per_seq = self.seq_len // num_emb_per_interaction
+        # assert num_emb_per_interaction * 2 + 1 <= self.seq_len  # we require at least two obs_acts in the sequence + prompt token
+
+        # # tokenize all the episodes
+        # tokenized_episodes = []
+        # for obs_ep, action_ep in tqdm(zip(obs_eps, action_eps)):
+        #     cur_ep_tokens = []
+        #     for obs, act in zip(obs_ep, action_ep):
+        #         cur_ep_tokens.extend(tokenize_np(obs))
+        #         cur_ep_tokens.extend(tokenize_np(act))
+        #     tokenized_episodes.append(cur_ep_tokens)
+
+        # From the done flags, compute the indexes of the start of each episode
+        episode_end_idxs = [i for i, done in enumerate(dataset["dones"]) if done]
+        current_ep_start = 0
+        while True:
+            if random.random() < self.p_prompt:
+                num_prompt_interactions = random.randint(1, num_interractions_per_seq)
+                num_interractions = num_interractions_per_seq - num_prompt_interactions
+                prompt_episode_idx = random.randint(0, len(episode_end_idxs) - 1)
+                if random.random() < self.p_end:  # Prompt at the end of the episode
+                    # Ensure that you don't take from the previous episode
+                    previous_episode_end_idx = (
+                        episode_end_idxs[prompt_episode_idx - 1] if prompt_episode_idx > 0 else -1
+                    )
+                    episode_end_idx = episode_end_idxs[prompt_episode_idx]
+                    prompt_episode_length = episode_end_idx - previous_episode_end_idx
+                    num_prompt_interactions = min(num_prompt_interactions, prompt_episode_length)
+                    prompt_indexes = list(range(episode_end_idx - num_prompt_interactions + 1, episode_end_idx + 1))
+                else:  # Prompt anywhere in the episode
+                    # Get the range for the possible start of the prompt
+                    previous_episode_end_idx = (
+                        episode_end_idxs[prompt_episode_idx - 1] if prompt_episode_idx > 0 else -1
+                    )
+                    episode_end_idx = episode_end_idxs[prompt_episode_idx]
+                    prompt_episode_length = episode_end_idx - previous_episode_end_idx
+                    num_prompt_interactions = min(num_prompt_interactions, prompt_episode_length)
+                    prompt_start_idx = random.randint(
+                        previous_episode_end_idx + 1, episode_end_idx - num_prompt_interactions + 1
+                    )
+                    prompt_indexes = list(range(prompt_start_idx, prompt_start_idx + num_prompt_interactions))
+            else:
+                num_prompt_interactions = 0
+                num_interractions = num_interractions_per_seq
+                prompt_indexes = []
+
+            if current_ep_start + num_interractions > len(dataset["dones"]):
+                break
+            episode_indexes = list(range(current_ep_start, current_ep_start + num_interractions))
+
+            indexes = prompt_indexes + episode_indexes
+            observations = {key: [val[idx] for idx in indexes] for key, val in observation_tokens.items()}
+            images = {key: [dataset[idx] for idx in indexes] for key in image_keys}
+            actions = action_tokens[indexes]
+
+            current_ep_start += num_interractions
+
         return {
-            "tokens": flat_tokens[batch_idxs],
-            "loss_masks": flat_loss_masks[batch_idxs],
+            **observations,
+            **images,
+            "actions_tokens": actions,
         }
 
     def __len__(self):
@@ -190,6 +161,6 @@ class _SingleTaskDataset(Dataset):
 
 
 if __name__ == "__main__":
-    dataset = _SingleTaskDataset()
+    dataset = GiaDataset()
     loader = DataLoader(dataset, batch_size=1, shuffle=True)
     print(next(iter(loader)))

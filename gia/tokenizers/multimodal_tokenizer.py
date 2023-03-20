@@ -43,41 +43,6 @@ def is_discrete(x: Any) -> bool:
     return isinstance(x, Tensor) and x.dtype == torch.int64 and x.dim() == 1
 
 
-def is_bool(x: Any) -> bool:
-    """
-    Check if input is boolean.
-
-    Returns True if the input is a torch tensor with dtype torch.bool.
-    """
-    return isinstance(x, Tensor) and x.dtype == torch.bool and x.dim() == 1
-
-
-def concat_multi_dim_iterables(l: List[List[Iterable]]) -> List[List]:
-    """
-    Concatenate a list of iterables from shape (M, N, X) to shape (N, X1 + X2 + ...).
-
-    Examples:
-        >>> concat_multi_dim_iterables([
-        ... [[1, 2], [3, 4, 5]],
-        ... [[6, 7, 8], [9]],
-        ... ])
-        [[1, 2, 6, 7, 8], [3, 4, 5, 9]]
-
-    Args:
-        l (List[List[Iterable]]): A list of iterables of shape (M, N, X) where X can vary for each element.
-
-    Returns:
-        List[List]: A list of iterables of shape (N, X1 + X2 + ...).
-    """
-    output = []
-    for idx in range(len(l[0])):
-        sub_list = []
-        for iterable in l:
-            sub_list.extend(iterable[idx])
-        output.append(sub_list)
-    return output
-
-
 def transform_func(examples):
     """Convert image to uint8.
 
@@ -89,135 +54,7 @@ def transform_func(examples):
     return examples
 
 
-class DiscreteTokenizer(nn.Module):
-    """
-    Discrete tokenizer.
-
-    Example:
-        >>> import torch
-        >>> tokenizer = DiscreteTokenizer()
-        >>> tensors = torch.tensor([[3, 2, 1],
-        ...                         [0, 1, 2]])
-        >>> tokenizer(tensors)
-        {'tokens': [[3, 2, 1], [0, 1, 2]], 'attention_mask': [[1, 1, 1], [1, 1, 1]]}
-    """
-
-    def __init__(self, shift: int = 0) -> None:
-        super().__init__()
-        self.shift = shift
-
-    def forward(self, x: Tensor) -> Tensor:
-        # Unsqueeze when the input is a vector
-        if x.dim() == 1:
-            x = x.unsqueeze(1)
-        tokens = x + self.shift
-        return {
-            "tokens": tokens.tolist(),
-            "attention_mask": torch.ones_like(tokens).tolist(),
-        }
-
-
-class BooleanTokenizer(DiscreteTokenizer):
-    """
-    Boolean tokenizer.
-
-    Example:
-        >>> import torch
-        >>> tokenizer = BooleanTokenizer()
-        >>> tensors = torch.tensor([[ True, False, True],
-        ...                         [False,  True, True]])
-        >>> tokenizer(tensors)
-        {'tokens': [[1, 0, 1], [0, 1, 1]], 'attention_mask': [[1, 1, 1], [1, 1, 1]]}
-    """
-
-    def forward(self, x: Tensor) -> Tensor:
-        x = x.to(torch.int64)
-        return super().forward(x)
-
-
-class ContinuousTokenizer(nn.Module):
-    """
-    Continous tokenizer.
-
-    First, each floating point element of input tensor is mu-law companded as in WaveNet (Oord et al., 2016).
-    Then, the tensor is discretized into integers in the range [0, nb_bins-1].
-
-    Example:
-        >>> import torch
-        >>> tokenizer = ContinuousTokenizer()
-        >>> tensors = torch.tensor([[-0.6285, -5.1349,  3.9317, -3.5854],
-        ...                         [ 3.9263, -1.8975,  7.3103, -7.3467],
-        ...                         [-6.9724, -2.9982,  9.1740,  0.1002]])
-        >>> tokenizer(tensors)
-        tensor([[302, 197, 813, 215],
-                [813, 247, 844, 179],
-                [181, 224, 856, 633]])
-
-    Args:
-        mu_law_compand (bool, optional): Whether to use mu-law companding. Defaults to True.
-        mu (float, optional): μ parameter. Defaults to 100.
-        M (float, optional): M parameter. Defaults to 256.
-        nb_bins (int, optional): Number of bins for the discretization. Defaults to 1024.
-    """
-
-    def __init__(
-        self, mu_law_compand: bool = True, mu: float = 100, M: float = 256, nb_bins: int = 1024, shift: int = 0
-    ) -> None:
-        super().__init__()
-        self.mu_law_compand = mu_law_compand
-        self.mu = mu
-        self.M = M
-        self.nb_bins = nb_bins
-        self.shift = shift
-
-    def forward(self, x: Tensor) -> Dict[str, Tensor]:
-        # Normalize tensors to the range [-1, 1]
-        if self.mu_law_compand:
-            x = mu_law(x, mu=self.mu, M=self.M)
-
-        # Clip to the range [-1, 1]
-        x = torch.clamp(x, -1.0, 1.0)
-
-        # Discretize tensors
-        x = discretize(x, nb_bins=self.nb_bins)
-
-        # Unsqueeze when the input is a vector
-        if x.dim() == 1:
-            x = x.unsqueeze(1)
-
-        # Unsqueeze if needed
-        tokens = x + self.shift
-        return {
-            "tokens": tokens.tolist(),
-            "attention_mask": torch.ones_like(tokens).tolist(),
-        }
-
-    def inverse_tokenize_continuous(self, tokens: Tensor) -> Tensor:
-        """
-        Inverse tokenize continous.
-
-        First, each integer element of input tensor is mapped to the center of the corresponding bin.
-        Then, the tensor is de-mu-law companded if needed.
-
-        Args:
-            tokens (Tensor): Tokens
-
-        Returns:
-            Tensor: Reconstructed tensor
-        """
-
-        # Maps tokens from [0, nb_bins-1] to [-1, 1]
-        # We map the bin number to the center of the bin
-        x = (2 * tokens + 1) / self.nb_bins - 1
-
-        # De-mu-law compand tensors
-        if self.mu_law_compand:
-            x = inverse_mu_law(x, mu=self.mu, M=self.M)
-
-        return x
-
-
-class PatchExtractor(nn.Module):
+class PositionExtractor(nn.Module):
     """
     Extract patches from images.
 
@@ -226,17 +63,14 @@ class PatchExtractor(nn.Module):
 
     Returns:
         dict: A dictionary containing the following keys and values:
-            - "patches": A tensor of shape (batch_size, H*W, channels, patch_size, patch_size).
             - "row_indices": A tensor of shape (batch_size, H*W) containing row indices of patches.
             - "col_indices": A tensor of shape (batch_size, H*W) containing column indices of patches.
             - "attention_mask": A tensor of shape (batch_size, H*W) containing attention mask.
 
     Examples:
         >>> x = torch.randn(2, 3, 16, 12)
-        >>> patch_extractor = PatchExtractor(patch_size=4)
-        >>> result = patch_extractor(x)
-        >>> result["patches"].shape
-        torch.Size([2, 12, 3, 4, 4])
+        >>> position_extractor = PatchExtractor(patch_size=4)
+        >>> result = position_extractor(x)
         >>> result["row_indices"]
         [[0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2], [0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2]]
         >>> result["col_indices"]
@@ -248,26 +82,21 @@ class PatchExtractor(nn.Module):
     def __init__(self, patch_size: int = 16) -> None:
         super().__init__()
         self.patch_size = patch_size
+        self._cnn = nn.Conv2d(3, 3, kernel_size=patch_size, stride=patch_size)
 
     def forward(self, x: Tensor) -> Tensor:
-        _, _, height, width = x.shape
-        assert height % self.patch_size == 0, "Height must be divisible by patch_size"
-        assert width % self.patch_size == 0, "Width must be divisible by patch_size"
-        patches = x.unfold(2, self.patch_size, self.patch_size).unfold(3, self.patch_size, self.patch_size)
-        # Get H and W
-        batch_size, H, W = patches.shape[:3]
+        batch_size, _, height, width = x.shape
+        h_out = height // self.patch_size
+        w_out = width // self.patch_size
+
         # Get the row and the column indices. First dim is still the batch size
-        rows, cols = torch.meshgrid(torch.arange(H), torch.arange(W), indexing="ij")
+        rows, cols = torch.meshgrid(torch.arange(h_out), torch.arange(w_out), indexing="ij")
         row_indices = rows.flatten().unsqueeze(0).repeat(batch_size, 1)
         col_indices = cols.flatten().unsqueeze(0).repeat(batch_size, 1)
-        # Flatten the patches (from shape (batch_size, H, W, channels, patch_size, patch_size)
-        # to (batch_size, H*W, channels, patch_size, patch_size))
-        patches = patches.flatten(1, 2)
         return {
-            "patches": patches,
             "row_indices": row_indices.tolist(),
             "col_indices": col_indices.tolist(),
-            "attention_mask": torch.ones(batch_size, H * W, dtype=torch.int).tolist(),
+            "attention_mask": torch.ones(batch_size, h_out * w_out, dtype=torch.int).tolist(),
         }
 
 
@@ -313,36 +142,89 @@ class MultiModalTokenizer(nn.Module):
         super().__init__()
         self.token_shift = token_shift
         self.use_separator = use_separator
+        self.mu_law_compand = True
+        self.mu = mu
+        self.M = M
+        self.nb_bins = nb_bins
+        self.token_shift = token_shift
         # Token for separating observations and actions
         self.separator_token = torch.tensor(nb_bins + token_shift, dtype=torch.int64)
         self.text_tokenizer = AutoTokenizer.from_pretrained("albert-base-v2")
-        self.patch_extractor = PatchExtractor(patch_size)
-        self.dicrete_tokenizer = DiscreteTokenizer(token_shift)
-        self.boolean_tokenizer = BooleanTokenizer(token_shift)
-        self.continuous_tokenizer = ContinuousTokenizer(mu=mu, M=M, nb_bins=nb_bins, shift=token_shift)
+
+    def tokenize_discrete(self, x: Tensor) -> Tensor:
+        # Unsqueeze when the input is a vector
+        if x.dim() == 1:
+            x = x.unsqueeze(1)
+        tokens = x + self.token_shift
+        return tokens.tolist()
+
+    def tokenize_continuous(self, x: Tensor) -> Tensor:
+        # Normalize tensors to the range [-1, 1]
+        if self.mu_law_compand:
+            x = mu_law(x, mu=self.mu, M=self.M)
+
+        # Clip to the range [-1, 1]
+        x = torch.clamp(x, -1.0, 1.0)
+
+        # Discretize tensors
+        x = discretize(x, nb_bins=self.nb_bins)
+
+        # Unsqueeze when the input is a vector
+        if x.dim() == 1:
+            x = x.unsqueeze(1)
+
+        # Unsqueeze if needed
+        tokens = x + self.token_shift
+        return tokens.tolist()
+
+    def inverse_tokenize_continuous(self, tokens: Tensor) -> Tensor:
+        """
+        Inverse tokenize continous.
+
+        First, each integer element of input tensor is mapped to the center of the corresponding bin.
+        Then, the tensor is de-mu-law companded if needed.
+
+        Args:
+            tokens (Tensor): Tokens
+
+        Returns:
+            Tensor: Reconstructed tensor
+        """
+
+        # Maps tokens from [0, nb_bins-1] to [-1, 1]
+        # We map the bin number to the center of the bin
+        x = (2 * tokens + 1) / self.nb_bins - 1
+
+        # De-mu-law compand tensors
+        if self.mu_law_compand:
+            x = inverse_mu_law(x, mu=self.mu, M=self.M)
+
+        return x
+
+    def tokenize_text(self, x: Tensor) -> Tensor:
+        x[0] = "Hi"
+        tokens = self.text_tokenizer(x, padding=True)
+        return tokens["input_ids"]
 
     def forward(self, inputs: Dict[str, Tensor]) -> Tensor:
         inputs = transform_func(inputs)
+        # Tokenize just the observations and actions
+        # Allow for multiple observations and actions (e.g. key = "observations_0" or "observations/image")
+        keys = [key for key in inputs.keys() if key.startswith("observations") or key.startswith("actions")]
 
         output = {}
-        for key, value in inputs.items():
+        for key in keys:
+            value = inputs[key]
             if is_text(value):
-                tokens = self.text_tokenizer(value)
-                # Rename input_ids to tokens
-                tokens["tokens"] = tokens.pop("input_ids")
-            elif is_image(value):  # Warning: special case for images: output is a patch, not a number
-                tokens = self.patch_extractor(value)
+                output[f"{key}_tokens"] = self.tokenize_text(value)
+            elif is_image(value):  # Warning: special case for images: we do nothing
+                continue
             elif is_discrete(value):
-                tokens = self.dicrete_tokenizer(value)
+                output[f"{key}_tokens"] = self.tokenize_discrete(value)
             elif is_continuous(value):
-                tokens = self.continuous_tokenizer(value)
-            elif is_bool(value):
-                tokens = self.boolean_tokenizer(value)
+                output[f"{key}_tokens"] = self.tokenize_discrete(value)
             else:
                 raise ValueError(f"Unknown input type for key '{key}'.")
-
-            for _key, _value in tokens.items():
-                output[f"{key}_{_key}"] = _value
         return output
 
 

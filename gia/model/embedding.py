@@ -1,19 +1,13 @@
+from typing import Dict
+
 import torch
 from torch import Tensor, nn
+from transformers import AutoImageProcessor, ViTModel
 
 
 class Embeddings(nn.Module):
     """
     Embedding layer.
-
-    Example:
-        >>> import torch
-        >>> tokens = torch.tensor([[ 826,  170,  167, 33024,  465,  306],
-        ...                        [ 275,  744,  176, 33024,  555,  890],
-        ...                        [ 214,  199,  224, 33024,  162,   65]])
-        >>> embedding_layer = Embeddings(embedding_dim=32)
-        >>> embedding_layer(tokens).shape
-        torch.Size([3, 6, 32])
 
     Args:
         embedding_dim (int): The embedding dimension.
@@ -36,13 +30,17 @@ class Embeddings(nn.Module):
         self.positional_emb = nn.Embedding(num_embeddings=max_nb_observation_tokens + 1, embedding_dim=embedding_dim)
         self.action_positional_emb_idx = torch.tensor(max_nb_observation_tokens, dtype=torch.int64)
 
-    def forward(self, tokens: Tensor) -> Tensor:
-        sequence_length = tokens.shape[0]
+        self.image_processor = AutoImageProcessor.from_pretrained("google/vit-base-patch16-224-in21k")
+        self.image_embeddings = ViTModel.from_pretrained("google/vit-base-patch16-224-in21k").get_input_embeddings()
 
-        # Check that the separator token is present in all sequences and that it has a constant position
-        values, indices = torch.max(tokens, dim=1)
-        assert torch.all(values == self.separator_token), "Separator token not found in at least one sequence."
-        assert torch.all(indices[:-1] == indices[1:]), "Separator should be at the same position in all sequences."
+    def forward(self, d: Dict[str, Tensor]) -> Tensor:
+        # First, handle tokens
+        # tokens = d["observation_tokens"]
+
+        # Now, handle images
+        images = d["observations/rgb_images"]
+        inputs = self.image_processor(images, return_tensors="pt")
+        outputs = self.image_embeddings(**inputs)
 
         observation_size = torch.argmax(tokens[0])  # we assume that the separator token is always the greatest token.
         action_size = tokens.shape[1] - observation_size - 1  # -1 for the separator token
@@ -60,3 +58,17 @@ class Embeddings(nn.Module):
         action_pos_embeddings = self.positional_emb(action_pos_emb_idxs)
         embeddings[:, observation_size + 1 :] += action_pos_embeddings
         return embeddings
+
+
+if __name__ == "__main__":
+    from torch.utils.data import DataLoader
+
+    from gia.datasets.gia_dataset import GiaDataset
+
+    dataset = GiaDataset()
+    loader = DataLoader(dataset, batch_size=2, shuffle=True)
+    embeddings = Embeddings(512)
+    print(next(iter(loader)))
+
+    for batch in loader:
+        embeddings(batch)
