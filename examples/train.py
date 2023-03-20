@@ -8,19 +8,17 @@ import time
 from argparse import Namespace
 from pathlib import Path
 
-
-from huggingface_hub import Repository
 from torch.optim import AdamW
 from torch.utils.data.dataloader import DataLoader
 
 
-from gia.config import Arguments
+from gia.config import Arguments, parse_args
 from gia.datasets import GiaDataset
 
 import datasets
 
 import transformers
-from transformers import HfArgumentParser, get_scheduler, set_seed
+from transformers import get_scheduler, set_seed
 from accelerate import Accelerator, DistributedType
 
 
@@ -124,15 +122,10 @@ def log_metrics(step, metrics, logger, accelerator):
 
 
 def main():
-    parser = HfArgumentParser(Arguments)
-    if len(sys.argv) == 2 and sys.argv[1].endswith(".yaml"):
-        # If we pass only one argument to the script and it's the path to a YAML file,
-        # let's parse it to get our arguments.
-        args = parser.parse_yaml_file(os.path.abspath(sys.argv[1]))
-    else:
-        args = parser.parse_args()
+    args = parse_args()
 
     args.use_cache = True  # for debugging
+    Arguments.save_args(args)
 
     # Accelerator
     accelerator = Accelerator(log_with=["wandb", "tensorboard"], logging_dir=f"{args.save_dir}/log")

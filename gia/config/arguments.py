@@ -1,8 +1,12 @@
-from pathlib import Path
+import os
+import sys
 import json
+
 from dataclasses import dataclass, field
+from pathlib import Path
+
 from typing import List, Optional
-from dataclasses_json import dataclass_json
+from transformers import HfArgumentParser
 
 
 @dataclass
@@ -74,6 +78,11 @@ class DatasetArguments:
 
 
 @dataclass
+class EvalArguments:
+    n_episodes: Optional[int] = field(default=10, metadata={"help": "The number of eval episodes to perform"})
+
+
+@dataclass
 class Arguments(TrainingArguments, ModelArguments, DatasetArguments):
     @staticmethod
     def save_args(args):
@@ -92,3 +101,15 @@ class Arguments(TrainingArguments, ModelArguments, DatasetArguments):
             args.__dict__ = json.load(f)
 
         return args
+
+
+def parse_args():
+    parser = HfArgumentParser(Arguments)
+    if len(sys.argv) == 2 and sys.argv[1].endswith(".yaml"):
+        # If we pass only one argument to the script and it's the path to a YAML file,
+        # let's parse it to get our arguments.
+        args = parser.parse_yaml_file(os.path.abspath(sys.argv[1]))
+    else:
+        args = parser.parse_args()
+
+    return args
