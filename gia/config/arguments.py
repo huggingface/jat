@@ -1,5 +1,8 @@
+from pathlib import Path
+import json
 from dataclasses import dataclass, field
 from typing import List, Optional
+from dataclasses_json import dataclass_json
 
 
 @dataclass
@@ -72,4 +75,20 @@ class DatasetArguments:
 
 @dataclass
 class Arguments(TrainingArguments, ModelArguments, DatasetArguments):
-    pass
+    @staticmethod
+    def save_args(args):
+        output_dir = args.save_dir
+        out_path = Path(output_dir) / "args.json"
+
+        with open(out_path, "w") as outfile:
+            json.dump(args.__dict__, outfile, indent=2)
+
+    @staticmethod
+    def load_args(args):
+        # TODO: add checking / overwriting of non-default args?
+        input_dir = args.save_dir
+        input_path = Path(input_dir) / "args.json"
+        with open(input_path, "r") as f:
+            args.__dict__ = json.load(f)
+
+        return args
