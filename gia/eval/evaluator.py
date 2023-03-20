@@ -1,3 +1,3 @@
 class Evaluator:
-    def evaluate():
+    def evaluate(model):
         raise NotImplementedError

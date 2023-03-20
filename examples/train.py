@@ -3,7 +3,7 @@
 from gia.model import GiaModel
 import logging
 import os
-import sys
+
 import time
 from argparse import Namespace
 from pathlib import Path

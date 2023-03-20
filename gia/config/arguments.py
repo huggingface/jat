@@ -83,10 +83,11 @@ class EvalArguments:
 
 
 @dataclass
-class Arguments(TrainingArguments, ModelArguments, DatasetArguments):
+class Arguments(TrainingArguments, ModelArguments, DatasetArguments, EvalArguments):
     @staticmethod
     def save_args(args):
         output_dir = args.save_dir
+        os.makedirs(args.save_dir, exist_ok=True)
         out_path = Path(output_dir) / "args.json"
 
         with open(out_path, "w") as outfile:
