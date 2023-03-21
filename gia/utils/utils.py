@@ -62,7 +62,7 @@ def mu_law(x: Tensor, mu: float = 100, M: float = 256) -> Tensor:
     Returns:
         Tensor: Normalized tensor
     """
-    return torch.sign(x) * torch.log(torch.abs(x) * mu + 1.0) / torch.log(torch.tensor(M * mu + 1.0))
+    return np.sign(x) * np.log(np.abs(x) * mu + 1.0) / np.log(M * mu + 1.0)
 
 
 def discretize(x: Tensor, nb_bins: int = 1024) -> Tensor:
@@ -81,10 +81,10 @@ def discretize(x: Tensor, nb_bins: int = 1024) -> Tensor:
     Returns:
         Tensor: Discretized tensor
     """
-    if torch.any(x < -1.0) or torch.any(x > 1.0):
+    if np.any(x < -1.0) or np.any(x > 1.0):
         raise ValueError("Input tensor must be in the range [-1, 1]")
     x = (x + 1.0) / 2 * nb_bins  # [-1, 1] to [0, nb_bins]
-    discretized = torch.floor(x).long()
+    discretized = np.floor(x).astype(np.int64)
     discretized[discretized == nb_bins] = nb_bins - 1  # Handle the case where x == 1.0
     return discretized
 

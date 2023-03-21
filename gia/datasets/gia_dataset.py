@@ -1,166 +1,247 @@
 import random
-from typing import Any
+from typing import Dict, List
 
-import torch
-from datasets import Dataset, load_dataset
-from torch import Tensor
-from torch.nn.utils.rnn import pad_sequence
+import numpy as np
+from datasets import DatasetDict, load_dataset
 from torch.utils.data import DataLoader
 
-from gia.tokenizers.multimodal_tokenizer import MultiModalTokenizer
-from gia.utils.utils import to_channel_first
-
-ACTION_POSITION = 999
+from gia.processor.multimodal_processor import MultimodalProcessor
 
 
-def is_image(x: Any) -> bool:
+class BatchGenerator:
     """
-    Check if input is an image.
+    Batch generator for the GIA dataset.
 
-    Returns True if the input is a torch tensor with 4 dimensions.
+    Args:
+        seq_len (int): The length of the sequence to be generated.
+        p_prompt (int): The probability of generating a prompt token.
+        p_end (int): The probability the the prompt token is taken from the end of an episode.
+        patch_size (int): The size of the square patch to be extracted from the image.
+        mu (float): The mu parameter for the mu-law transformation.
+        M (float): Mu-law companding parameter. Defaults to 256.
+        nb_bins (int): The number of bins for the discretization of the continuous data.
+        token_shift (int): The shift for the non-textual tokens.
+
+    Input:
+        - dataset (Dict[str, np.ndarray]): A dictionary containing the dataset.
+            The dictionary must contain the following keys:
+                - "observations[*]": Observations (possibly many keys starting with "observations")
+                - "actions": Actions
+                - "dones": Dones flags
+
+    Returns:
+        Dict[str, np.ndarray]: A dictionary containing the processed dataset with keys for observations,
+            actions, and masks.
     """
-    return isinstance(x, Tensor) and x.dim() == 4  # shape (batch_size, channels, height, width)
 
-
-class GiaDataset(Dataset):
-    """
-    Dataset for the GIA project.
-    """
-
-    def __init__(self, p_prompt=0.25, p_end=0.5, seq_len=512):
-        self.separator_token = 32_000
+    def __init__(
+        self,
+        seq_len: int = 1024,
+        p_prompt: int = 0.25,
+        p_end: int = 0.5,
+        patch_size: int = 16,
+        mu: float = 100,
+        M: float = 256,
+        nb_bins: int = 1024,
+        token_shift: int = 32_000,
+    ) -> None:
+        self.seq_len = seq_len
         self.p_prompt = p_prompt
         self.p_end = p_end
-        self.seq_len = seq_len
-        self.patch_size = 16
-        dataset = load_dataset("gia-project/gia-dataset", "babyai-go-to", split="train")
-        # Remove the "image" column as it is not used
-        dataset = dataset.remove_columns("images")
-        # Temporarily rename the observations with "observations/" prefix. Maybe we can include this in the dataset later.
-        all_keys = dataset.column_names
-        observations_keys = [key for key in all_keys if key not in ["actions", "dones", "rewards"]]
-        dataset = dataset.rename_columns({key: f"observations/{key}" for key in observations_keys})
-        # Convert the dataset to torch tensors
-        dataset.set_format("torch")
-        # Tokenize the dataset
-        tokenizer = MultiModalTokenizer()
-        dataset = dataset.map(tokenizer, batched=True, load_from_cache_file=False)
-        # Pack the the dataset into batches of sequences
-        # As we change the dataset length, we need to remove all the previous columns.
-        self.dataset = dataset.map(
-            self.pack_and_prompt, batched=True, batch_size=-1, remove_columns=dataset.column_names
-        )
+        self.patch_size = patch_size
+        self.processor = MultimodalProcessor(mu, M, nb_bins, token_shift)
 
     @staticmethod
-    def get_num_patches(x, patch_size):
-        # x is a batch of images
+    def stack_with_padding(x: List[np.ndarray], padding_value: int = 0) -> np.ndarray:
+        """
+        Stack a list of numpy arrays along a new axis with padding, aligning each input array to the top-left corner.
+
+        Args:
+            x (List[np.ndarray]): A list of numpy arrays to stack. The arrays may have different shapes.
+            padding_value (int, optional): The value to use for padding the stacked array. Defaults to 0.
+
+        Returns:
+            tuple: A tuple containing two numpy arrays:
+                - stacked (np.ndarray): A stacked numpy array with padding, such that the original arrays are aligned
+                    to the top-left corner.
+                - mask (np.ndarray): A boolean numpy array of the same shape as the stacked array, with True
+                    indicating the positions of the original data and False indicating the padding.
+        """
+
+        # Find the max shape of arrays in x
+        max_shape = np.array([arr.shape for arr in x]).max(axis=0)
+
+        # Initialize the stacked array with padding_value
+        stacked = np.full((len(x), *max_shape), padding_value)
+        mask = np.zeros((len(x), *max_shape), dtype=bool)
+
+        # Fill the stacked array with input arrays
+        for idx, arr in enumerate(x):
+            slices = tuple(slice(0, dim) for dim in arr.shape)
+            stacked[idx][slices] = arr
+            mask[idx][slices] = True
+
+        return stacked, mask
+
+    @staticmethod
+    def get_num_patches(x: np.ndarray, patch_size: int) -> int:
+        """
+        Calculate the total number of non-overlapping patches in a 2D input array or image.
+
+        Args:
+            x (np.ndarray): A 2D numpy array or image with shape (batch_size, channels, height, width).
+            patch_size (int): The size of the square patch to be extracted.
+
+        Returns:
+            int: The total number of non-overlapping patches in the input array or image.
+        """
         _, _, height, width = x.shape
         return (height // patch_size) * (width // patch_size)
 
-    def pack_and_prompt(self, dataset):
-        # Compute the number of embeddings needed for the observations and actions
+    def __call__(self, dataset: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
+        # Preprocess the dataset
+        observation_keys = [key for key in dataset.keys() if key.startswith("observations")]
+        dataset.update(self.processor({key: dataset[key] for key in observation_keys + ["actions"]}))
 
-        # First get the keys for the observations. Caution, images are handled separately since they are not tokenized
-        observation_keys = [
-            key for key in dataset.keys() if key.startswith("observations/") and key.endswith("_tokens")
-        ]
-        # Concatenate the observations and actions, and ped when necessary
-        observation_tokens = {key: pad_sequence(dataset[key], batch_first=True) for key in observation_keys}
-        num_obs_tokens = sum(tokens.size(1) for tokens in observation_tokens.values())
+        # First, we need to compute the number of embeddings needed for the observations and actions.
+        # At this point, there are 2 possibilities for the observations:
+        # 1. The observation is anything but an image, then the input is tokenized
+        # 2. The observation is an image
+        # In both cases, the observations are stored in a numpy array of shape (batch_size, seq_len)
+        # We need to first get the keys for both cases
+        observation_keys = [key for key in dataset.keys() if key.startswith("observations")]
+        tokenized_observation_keys = [key for key in observation_keys if dataset[key].ndim == 2]
+        image_observation_keys = [key for key in observation_keys if dataset[key].ndim == 4]
+        assert len(tokenized_observation_keys) + len(image_observation_keys) == len(observation_keys)
 
-        # Special case for images: we need to deduce the number of embeddings from the image size
-        # `image_keys` and `observation_keys` are intended not to overlap since the images are not tokenized
-        image_keys = [key for key in dataset.keys() if key.startswith("observations/") and is_image(dataset[key])]
-        # First, make sure that all images are in channels first format
-        for key in image_keys:
-            dataset[key] = to_channel_first(dataset[key])
-        # The number of embeddings is the sum of the number of patches for each image
-        num_image_patches = sum(self.get_num_patches(dataset[key], self.patch_size) for key in image_keys)
+        # We first compute the number of embeddings for the tokenized observations
+        # Get the number of embeddings for the observations
+        num_obs_tokens = sum(dataset[key].shape[1] for key in tokenized_observation_keys)
+
+        # Now, we need to compute the number of embeddings for the images.
+        # The number of embeddings is the number of patches in the image.
+        # In some rare cases, there are plus than one image in the observation, so we need to sum them.
+        num_image_patches = sum(self.get_num_patches(dataset[key], self.patch_size) for key in image_observation_keys)
+
+        # Finally, we can compute the total number of embeddings for the observations
         num_emb_per_observation = num_obs_tokens + num_image_patches
 
-        # Do the same for the actions (here it's simpler since there is only one key, and the action is not an image)
-        action_tokens = pad_sequence(dataset["actions_tokens"], batch_first=True)
-        num_emb_per_action = action_tokens.size(1)
+        # Now, we need to compute the number of embeddings for the actions.
+        # It's simpler since there is only one key, and the action is not an image.
+        num_emb_per_action = dataset["actions"].shape[1]
 
-        # Set the position for observations and actions
-        # observation_indices = torch.arange(num_emb_per_observation)
-        # action_indices = torch.ones(num_emb_per_action, dtype=torch.int64) * ACTION_POSITION
-
-        # obs_act_pos_indices = list(range(num_emb_per_observation)) + list(range(num_emb_per_action))
-        # obs_act_loss_mask = [0] * num_emb_per_observation + [1] * num_emb_per_action
-
+        # Compute the number of interactions per sequence
         num_emb_per_interaction = num_emb_per_observation + num_emb_per_action
         num_interractions_per_seq = self.seq_len // num_emb_per_interaction
-        # assert num_emb_per_interaction * 2 + 1 <= self.seq_len  # we require at least two obs_acts in the sequence + prompt token
 
-        # # tokenize all the episodes
-        # tokenized_episodes = []
-        # for obs_ep, action_ep in tqdm(zip(obs_eps, action_eps)):
-        #     cur_ep_tokens = []
-        #     for obs, act in zip(obs_ep, action_ep):
-        #         cur_ep_tokens.extend(tokenize_np(obs))
-        #         cur_ep_tokens.extend(tokenize_np(act))
-        #     tokenized_episodes.append(cur_ep_tokens)
+        # We require at least two interactions per sequence to be able to prompt. TODO: why?
+        # assert num_emb_per_interaction * 2 + 1 <= seq_len
 
         # From the done flags, compute the indexes of the start of each episode
-        episode_end_idxs = [i for i, done in enumerate(dataset["dones"]) if done]
+        ep_end_idxs = [i for i, done in enumerate(dataset["dones"]) if done]
+
+        # We create sequences of interactions one by one.
+        # In p_prompt % of the cases, we add a prompt at the beginning of the sequence.
+        # We iterate until we don't have enough interactions left to fill a sequence
         current_ep_start = 0
+        all_batches = []
         while True:
             if random.random() < self.p_prompt:
                 num_prompt_interactions = random.randint(1, num_interractions_per_seq)
                 num_interractions = num_interractions_per_seq - num_prompt_interactions
-                prompt_episode_idx = random.randint(0, len(episode_end_idxs) - 1)
+                prompt_ep_idx = random.randint(0, len(ep_end_idxs) - 1)
                 if random.random() < self.p_end:  # Prompt at the end of the episode
                     # Ensure that you don't take from the previous episode
-                    previous_episode_end_idx = (
-                        episode_end_idxs[prompt_episode_idx - 1] if prompt_episode_idx > 0 else -1
-                    )
-                    episode_end_idx = episode_end_idxs[prompt_episode_idx]
-                    prompt_episode_length = episode_end_idx - previous_episode_end_idx
-                    num_prompt_interactions = min(num_prompt_interactions, prompt_episode_length)
-                    prompt_indexes = list(range(episode_end_idx - num_prompt_interactions + 1, episode_end_idx + 1))
+                    prev_ep_end_idx = ep_end_idxs[prompt_ep_idx - 1] if prompt_ep_idx > 0 else -1
+                    ep_end_idx = ep_end_idxs[prompt_ep_idx]
+                    prompt_ep_length = ep_end_idx - prev_ep_end_idx
+                    num_prompt_interactions = min(num_prompt_interactions, prompt_ep_length)
+                    prompt_indexes = np.arange(ep_end_idx - num_prompt_interactions + 1, ep_end_idx + 1)
                 else:  # Prompt anywhere in the episode
                     # Get the range for the possible start of the prompt
-                    previous_episode_end_idx = (
-                        episode_end_idxs[prompt_episode_idx - 1] if prompt_episode_idx > 0 else -1
-                    )
-                    episode_end_idx = episode_end_idxs[prompt_episode_idx]
-                    prompt_episode_length = episode_end_idx - previous_episode_end_idx
-                    num_prompt_interactions = min(num_prompt_interactions, prompt_episode_length)
-                    prompt_start_idx = random.randint(
-                        previous_episode_end_idx + 1, episode_end_idx - num_prompt_interactions + 1
-                    )
-                    prompt_indexes = list(range(prompt_start_idx, prompt_start_idx + num_prompt_interactions))
+                    prev_ep_end_idx = ep_end_idxs[prompt_ep_idx - 1] if prompt_ep_idx > 0 else -1
+                    ep_end_idx = ep_end_idxs[prompt_ep_idx]
+                    prompt_ep_length = ep_end_idx - prev_ep_end_idx
+                    num_prompt_interactions = min(num_prompt_interactions, prompt_ep_length)
+                    prompt_start_idx = random.randint(prev_ep_end_idx + 1, ep_end_idx - num_prompt_interactions + 1)
+                    prompt_indexes = np.arange(prompt_start_idx, prompt_start_idx + num_prompt_interactions)
             else:
                 num_prompt_interactions = 0
                 num_interractions = num_interractions_per_seq
-                prompt_indexes = []
+                prompt_indexes = np.arange(0)
 
-            if current_ep_start + num_interractions > len(dataset["dones"]):
+            if current_ep_start + num_interractions > len(dataset["dones"]):  # No more interactions left
                 break
-            episode_indexes = list(range(current_ep_start, current_ep_start + num_interractions))
 
-            indexes = prompt_indexes + episode_indexes
-            observations = {key: [val[idx] for idx in indexes] for key, val in observation_tokens.items()}
-            images = {key: [dataset[idx] for idx in indexes] for key in image_keys}
-            actions = action_tokens[indexes]
+            ep_indexes = np.arange(current_ep_start, current_ep_start + num_interractions)
 
+            indexes = np.concatenate((prompt_indexes, ep_indexes))
+            batch = {key: dataset[key][indexes] for key in observation_keys + ["actions"]}
+            all_batches.append(batch)
             current_ep_start += num_interractions
 
-        return {
-            **observations,
-            **images,
-            "actions_tokens": actions,
-        }
+        # Turn the list of dict into a dict of list
+        dataset = {key: [batch[key] for batch in all_batches] for key in observation_keys + ["actions"]}
+        # Stack the list of arrays into a single array of shape (batch_size, seq_len, ...).
+        # Use padding to fill when the sequence is shorter than others.
+        dataset = {key: self.stack_with_padding(dataset[key]) for key in dataset.keys()}  # dict of tuples (data, mask)
 
-    def __len__(self):
-        return len(self.dataset)
+        # Create a new entries for the masks
+        data = {key: value[0] for key, value in dataset.items()}
+        masks = {f"{key}_mask": value[1] for key, value in dataset.items()}
+        return {**data, **masks}
 
-    def __getitem__(self, idx):
-        return self.dataset[idx]
+
+def load_gia_dataset(
+    task_name: str,
+    p_prompt: float = 0.25,
+    p_end: float = 0.5,
+    seq_len: int = 1024,
+    patch_size: int = 16,
+    mu: float = 100,
+    M: float = 256,
+    nb_bins: int = 1024,
+    token_shift: int = 32_000,
+) -> DatasetDict:
+    """
+    Load a GIA dataset.
+
+    Example:
+        >>> dataset = load_gia_dataset("babyai-go-to")
+        >>> dataset[0]["observations/image"].shape
+        torch.Size([56, 3, 56, 56])
+    """
+    dataset = load_dataset("gia-project/gia-dataset", task_name, split="train")
+    # TODO: remove this when a better solution is found
+    if "babyai" in task_name:
+        # remove the "image" column as it is not used
+        dataset = dataset.remove_columns("images")
+
+    # Temporarily rename the observations with "observations/" prefix. Maybe we can include this in the dataset later.
+    all_keys = dataset.column_names
+    observations_keys = [key for key in all_keys if key not in ["actions", "dones", "rewards"]]
+    dataset = dataset.rename_columns({key: f"observations/{key}" for key in observations_keys})
+
+    # Convert the dataset to torch tensors
+    dataset.set_format(type="numpy")
+
+    # Pack the the dataset into batches of sequences
+    # As we change the dataset length, we need to remove all the previous columns.
+    batch_generator = BatchGenerator(seq_len, p_prompt, p_end, patch_size, mu, M, nb_bins, token_shift)
+    dataset = dataset.map(
+        batch_generator,
+        batched=True,
+        batch_size=10_000,
+        remove_columns=dataset.column_names,
+    )
+    dataset.set_format(type="torch")
+    return dataset
 
 
 if __name__ == "__main__":
-    dataset = GiaDataset()
-    loader = DataLoader(dataset, batch_size=1, shuffle=True)
-    print(next(iter(loader)))
+    from tqdm import tqdm
+
+    dataset = load_gia_dataset("babyai-go-to")
+    daltaloader = DataLoader(dataset.with_format("torch"), batch_size=32)
+    for batch in tqdm(daltaloader):
+        tqdm.write(str(batch["observations/rgb_images"].shape))
