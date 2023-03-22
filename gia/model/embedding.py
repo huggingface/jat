@@ -1,8 +1,8 @@
 from typing import Dict
 
 import torch
+import torch.nn.functional as F
 from torch import Tensor, nn
-from transformers import AutoImageProcessor, ViTModel
 
 
 class ImagePositionEncoding(nn.Module):
@@ -16,85 +16,89 @@ class ImagePositionEncoding(nn.Module):
     patch position encodings.
 
     Args:
-        vocab_size (int, optional): The size of the position embedding vocabulary. Default is 128.
-        patch_size (int, optional): The size of the square patches used to divide the input image. Default is 16.
+        vocab_size (int, optional): The size of the position embedding vocabulary. Defaults to 128.
+        patch_size (int, optional): The size of the square patches used to divide the input image. Defaults to 16.
 
     Inputs:
-        images (torch.Tensor): A tensor of shape (B, C, H, W) containing the input images.
-        eval (bool, optional): A flag indicating whether the module is being used for evaluation. Default is False.
+        positions (torch.Tensor): A tensor of shape (B, 2) containing the positions of the patches.
+        eval (bool, optional): A flag indicating whether the module is being used for evaluation. Defaults to False.
 
     Outputs:
-        position_encodings (torch.Tensor): A tensor of shape (B, 1, M, N) containing the patch position encodings
+        position_encodings (torch.Tensor): A tensor of shape (B, N) containing the patch position encodings
             for each image in the batch.
 
     Example:
         >>> import torch
-        >>> pos_enc = ImagePositionEncoding(vocab_size=128, patch_size=16)
-        >>> images = torch.randn(2, 3, 80, 64)
+        >>> pos_enc = ImagePositionEncoding(vocab_size=128)
+        >>> images = torch.rand(10, 2)
         >>> pos_encoding = pos_enc(images)
         >>> pos_encoding.shape
-        torch.Size([2, 1, 5, 4])
+        torch.Size([10, 128])
     """
 
-    def __init__(self, vocab_size: int = 128, patch_size: int = 16) -> None:
+    def __init__(self, vocab_size: int = 128) -> None:
         super().__init__()
         self.vocab_size = vocab_size
-        self.patch_size = patch_size
         self.row_embedding = nn.Embedding(vocab_size, 1)
         self.column_embedding = nn.Embedding(vocab_size, 1)
 
-    def forward(self, images: Tensor, eval: bool = False) -> Tensor:
-        #  First, the relative row and column intervals of the patch are calculated
-        # by normalizing the patch’s pixel intervals by the image resolution.
-        batch_size, _, height, width = images.size()
-        n_rows, n_cols = height // self.patch_size, width // self.patch_size
-        norm_row_intervals = torch.arange(n_rows + 1) / n_rows
-        norm_col_intervals = torch.arange(n_cols + 1) / n_cols
-
+    def forward(self, positions: Tensor, eval: bool = False) -> Tensor:
         # The row and column normalized intervals are then quantized into a vocabulary
         # size (we use 128) and are used to index a row and column table of learnable position encodings.
-        quant_row_intervals = (norm_row_intervals * self.vocab_size).round().long()
-        quant_col_intervals = (norm_col_intervals * self.vocab_size).round().long()
+        quant_row_intervals = (positions[..., 0] * self.vocab_size).round().long()
+        quant_col_intervals = (positions[..., 1] * self.vocab_size).round().long()
 
         # The method in which the quantized row and column intervals are converted into indices depends
         # on whether we are training or evaluating the model: during training a random index is uniformly
         # sampled from the quantized interval, while during evaluation we deterministically take the
         # (rounded) mean of the interval
-        sampled_row_idx = torch.zeros((batch_size, n_rows), dtype=torch.long)
-        sampled_col_idx = torch.zeros((batch_size, n_cols), dtype=torch.long)
+        sampled_row_idx = torch.zeros(positions.shape[0], dtype=torch.long)
+        sampled_col_idx = torch.zeros(positions.shape[0], dtype=torch.long)
         if eval:
-            sampled_row_idx[:] = ((quant_row_intervals[:-1] + quant_row_intervals[1:]) / 2).round()
-            sampled_col_idx[:] = ((quant_col_intervals[:-1] + quant_col_intervals[1:]) / 2).round()
+            sampled_row_idx = (quant_row_intervals[..., 0] + quant_row_intervals[..., 1]) // 2
+            sampled_col_idx = (quant_col_intervals[..., 0] + quant_col_intervals[..., 1]) // 2
         else:
-            for row_idx in range(n_rows):
-                sampled_row_idx[:, row_idx] = torch.randint(
-                    quant_row_intervals[row_idx], quant_row_intervals[row_idx + 1], size=(batch_size,)
-                )
-            for col_idx in range(n_cols):
-                sampled_col_idx[:, col_idx] = torch.randint(
-                    quant_col_intervals[col_idx], quant_col_intervals[col_idx + 1], size=(batch_size,)
-                )
+            for idx, (low, high) in enumerate(quant_row_intervals):
+                sampled_row_idx[idx] = torch.randint(low, high, (1,))
+            for idx, (low, high) in enumerate(quant_col_intervals):
+                sampled_col_idx[idx] = torch.randint(low, high, (1,))
 
         # The row and column indices are then used to look up the position encodings in the row and column tables.
         row_pos_encodings = self.row_embedding(sampled_row_idx)
         col_pos_encodings = self.column_embedding(sampled_col_idx)
-
-        # Element-wise addition of the row and column position encodings to get the patch position encodings.
-        row_pos_encodings = row_pos_encodings.view(batch_size, 1, n_rows, 1)
-        col_pos_encodings = col_pos_encodings.view(batch_size, 1, 1, n_cols)
         return row_pos_encodings + col_pos_encodings
 
 
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-
-
 class BasicBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, stride=1, groups=32):
+    """
+    Basic Block for ResNet.
+
+    Args:
+        in_channels (int): Number of input channels.
+        out_channels (int): Number of output channels.
+        stride (int): Stride for the convolution. Defaults to 1.
+        groups (int): Number of groups for the GroupNorm. Defaults to 32.
+
+    Inputs:
+        x (torch.Tensor): A tensor of shape (B, C_in, H, W) containing the input images.
+
+    Outputs:
+        out (torch.Tensor): A tensor of shape (B, C_out, H, W) containing the output of the block.
+
+    Example:
+        >>> import torch
+        >>> block = BasicBlock(3, 64)
+        >>> x = torch.randn(2, 3, 80, 64)
+        >>> out = block(x)
+        >>> out.shape
+        torch.Size([2, 64, 80, 64])
+    """
+
+    def __init__(self, in_channels: int, out_channels: int, stride: int = 1, groups: int = 32) -> None:
         super().__init__()
-        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=stride, padding=1, bias=False)
         self.groupnorm1 = nn.GroupNorm(groups, out_channels)
+        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=stride, padding=1, bias=False)
+
         self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=False)
         self.groupnorm2 = nn.GroupNorm(groups, out_channels)
 
@@ -105,7 +109,7 @@ class BasicBlock(nn.Module):
                 nn.GroupNorm(groups, out_channels),
             )
 
-    def forward(self, x):
+    def forward(self, x: Tensor) -> Tensor:
         identity = x
 
         out = self.conv1(x)
@@ -123,18 +127,47 @@ class BasicBlock(nn.Module):
 
 
 class ResNetBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, num_blocks, stride, groups=32):
+    """
+    ResNet Block for ResNet.
+
+    Args:
+        in_channels (int): Number of input channels.
+        out_channels (int): Number of output channels.
+        num_blocks (int, optional): Number of blocks in the block. Defaults to 2.
+        stride (int, optional): Stride for the convolution. Defaults to 1.
+        groups (int, optional): Number of groups for the GroupNorm. Defaults to 32.
+
+    Inputs:
+        x (torch.Tensor): A tensor of shape (B, C_in, H, W) containing the input images.
+    """
+
+    def __init__(
+        self, in_channels: int, out_channels: int, num_blocks: int = 2, stride: int = 1, groups: int = 32
+    ) -> None:
         super().__init__()
         strides = [stride] + [1] * (num_blocks - 1)
-        self.layers = nn.Sequential(
-            *[
-                BasicBlock(in_channels if i == 0 else out_channels, out_channels, stride=s, groups=groups)
-                for i, s in enumerate(strides)
-            ]
-        )
+        blocks = [
+            BasicBlock(in_channels if i == 0 else out_channels, out_channels, stride=s, groups=groups)
+            for i, s in enumerate(strides)
+        ]
+        self.layers = nn.Sequential(*blocks)
 
-    def forward(self, x):
+    def forward(self, x: Tensor) -> Tensor:
         return self.layers(x)
+
+
+class MultiDimBatchWrapper(nn.Module):
+    def __init__(self, module: nn.Module, n_dims: int = 2):
+        super().__init__()
+        self.module = module
+        self.n_dims = n_dims
+
+    def forward(self, x: Tensor) -> Tensor:
+        batch_shape = x.shape[: self.n_dims]
+        x = x.view(-1, *x.shape[self.n_dims :])
+        x = self.module(x)
+        x = x.view(*batch_shape, *x.shape[1:])
+        return x
 
 
 class Embeddings(nn.Module):
@@ -144,8 +177,11 @@ class Embeddings(nn.Module):
     Args:
         embedding_dim (int): The embedding dimension.
         vocab_size (int, optional): The vocabulary size. Defaults to 32_000.
-        nb_bins (int, optional): Number of bins. Defaults to 1024.
+        nb_bins (int, optional): Number of bins for the discretization of continuous values. Defaults to 1024.
         max_nb_observation_tokens (int, optional): Maximum number of observation tokens. Defaults to 512.
+        patch_size (int, optional): The size of the square patch to be extracted from the image. Defaults to 16.
+        image_vocab_size (int, optional): The size of the position embedding vocabulary for the image
+            patches. Defaults to 128.
     """
 
     def __init__(
@@ -156,7 +192,7 @@ class Embeddings(nn.Module):
         max_nb_observation_tokens: int = 512,
         patch_size: int = 16,
         image_vocab_size: int = 128,
-    ):
+    ) -> None:
         super().__init__()
         self.separator_token = nb_bins + vocab_size
         # The total number of tokens is the number of observation tokens + 1 for the separator token.
@@ -168,10 +204,8 @@ class Embeddings(nn.Module):
         self.positional_emb = nn.Embedding(num_embeddings=max_nb_observation_tokens + 1, embedding_dim=embedding_dim)
         self.action_positional_emb_idx = torch.tensor(max_nb_observation_tokens, dtype=torch.int64)
 
-        self.image_encoder = nn.Conv2d(
-            in_channels=3, out_channels=embedding_dim, kernel_size=patch_size, stride=patch_size
-        )
-        self.image_pos_enc = ImagePositionEncoding(vocab_size=image_vocab_size, patch_size=patch_size)
+        self.image_encoder = MultiDimBatchWrapper(ResNetBlock(3, embedding_dim, num_blocks=2, stride=16, groups=32), 3)
+        self.image_pos_enc = MultiDimBatchWrapper(ImagePositionEncoding(vocab_size=image_vocab_size), 3)
 
         # self.image_processor = AutoImageProcessor.from_pretrained("google/vit-base-patch16-224-in21k")
         # self.image_embeddings = ViTModel.from_pretrained("google/vit-base-patch16-224-in21k").get_input_embeddings()
@@ -179,30 +213,33 @@ class Embeddings(nn.Module):
     def forward(self, batch: Dict[str, Tensor]) -> Tensor:
         # Here, d is a dictionary containing the following keys:
         # - "observations[/*]": A tensor of shape (batch_size, L, n_obs_tokens) if observation is not an image.
-        #                       A tensor of shape (batch_size, L, num_channels, height, width) if observation is an image.
+        #                       A tensor of shape (batch_size, L, num_patches, num_channels, height, width) if observation is an image.
         # - "actions": A tensor of shape (batch_size, L, n_action_tokens)
         # Where L is the number of interactions in the batch. Note that this number can vary from batch to batch because
         # if the prompt is too short, L will be smaller than the maximum possible number interactions in the batch.
 
         # First, handle tokens
-        observation_keys = [key for key in batch.keys() if key.startswith("observations")]
-        tokenized_observation_keys = [key for key in observation_keys if batch[key][0].dim() == 2]
-        image_observation_keys = [key for key in observation_keys if batch[key][0].dim() == 4]
+        observation_keys = [key for key in batch.keys() if key.startswith("observations") and not key.endswith("mask")]
+        tokenized_observation_keys = [key for key in observation_keys if batch[key].dim() == 3]
+        image_observation_keys = [key for key in observation_keys if batch[key].dim() == 6]
         assert len(tokenized_observation_keys) + len(image_observation_keys) == len(observation_keys)
 
         # Concat all tokenized observations
         tokens = torch.cat([batch[key] for key in tokenized_observation_keys], dim=2)
-        embeddings = self.embeddings(tokens)
-        observation_pos_emb_idxs = torch.arange(embeddings.shape[1]).unsqueeze(0).repeat(embeddings.shape[0], 1)
-        observation_pos_embeddings = self.positional_emb(observation_pos_emb_idxs)
+        embeddings = self.embeddings(tokens)  # shape (batch_size, L, n_obs_tokens, embedding_dim)
+        obs_pos_emb_idxs = torch.arange(embeddings.shape[1])
+        # Expand the position embedding indices to match the batch size, then the number of observation tokens
+        obs_pos_emb_idxs = obs_pos_emb_idxs.unsqueeze(0).repeat(embeddings.shape[0], 1)
+        obs_pos_emb_idxs = obs_pos_emb_idxs.unsqueeze(2).repeat(1, 1, embeddings.shape[2])
+        observation_pos_embeddings = self.positional_emb(obs_pos_emb_idxs)
         embeddings += observation_pos_embeddings
 
         # Now, handle images
         # First, normalize the images to be in [-1, 1]
-        images = {key: batch[key].float() * 2.0 / 255.0 - 1.0 for key in image_observation_keys}
-        embed_images = {
-            key: self.image_encoder(images[key]) + self.image_pos_enc(images[key]) for key in image_observation_keys
-        }
+        dict_images = {key: batch[key].float() * 2.0 / 255.0 - 1.0 for key in image_observation_keys}
+        positions = {key: batch[f"_positions/{key}"] for key in image_observation_keys}
+        embed_images = {key: self.image_encoder(images) for key, images in dict_images.items()}
+        patch_pos_embeddings = {key: self.image_pos_enc(positions[key]) for key in image_observation_keys}
         # Reshape to the right size: from (batch_size, embedding_dim, n_rows, n_cols) to (batch_size, n_rows * n_cols, embedding_dim)
         embed_images = {
             key: embed_images[key]
@@ -229,8 +266,8 @@ if __name__ == "__main__":
 
     from gia.datasets.gia_dataset import load_gia_dataset
 
-    dataset = load_gia_dataset("babyai-go-to").shuffle()
-    dataloader = DataLoader(dataset, batch_size=16)
+    dataset = load_gia_dataset("babyai-go-to", load_from_cache_file=False)
+    dataloader = DataLoader(dataset, batch_size=8)
     embeddings = Embeddings(512)
     for batch in tqdm(dataloader):
         print(embeddings(batch))
