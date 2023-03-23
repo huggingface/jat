@@ -1,4 +1,4 @@
-from typing import Any, Dict, Sized
+from typing import Any, Dict
 
 from torch.utils.data import Dataset
 
