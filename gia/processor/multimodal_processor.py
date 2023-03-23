@@ -1,4 +1,4 @@
-from typing import Any, Dict, Iterable, Optional
+from typing import Dict, Iterable
 
 import cv2
 import numpy as np
@@ -7,7 +7,7 @@ from transformers import AutoTokenizer
 from gia.utils.utils import discretize, inverse_mu_law, mu_law
 
 
-def is_text(x: Any) -> bool:
+def is_text(x: Iterable) -> bool:
     """
     Check if input is text.
 
@@ -16,29 +16,29 @@ def is_text(x: Any) -> bool:
     return all(isinstance(s, str) for s in x)
 
 
-def is_image(x: Any) -> bool:
+def is_image(x: np.ndarray) -> bool:
     """
     Check if input is an image.
 
-    Returns True if the input is a 4D level nested list of integers.
+    Returns True if the input has 4 dimensions.
     """
     return x.ndim == 4
 
 
-def is_continuous(x: Any) -> bool:
+def is_continuous(x: np.ndarray) -> bool:
     """
     Check if input is continous.
 
-    Returns True if the input a list of float, or a list of list of float.
+    Returns True if the dtype is float32 or float64.
     """
-    return x.dtype == np.float32
+    return x.dtype in [np.float32, np.float64]
 
 
-def is_discrete(x: Any) -> bool:
+def is_discrete(x: np.ndarray) -> bool:
     """
     Check if input is discrete.
 
-    Returns True if the input a list of integers, or a list of list of integers.
+    Returns True if the dtype is int64.
     """
     return x.dtype == np.int64
 
@@ -51,14 +51,24 @@ class MultimodalProcessor:
         >>> import numpy as np
         >>> tokenizer = MultimodalProcessor()
         >>> inputs = {
-        ...     "texts": ["Go right", "Go left"],
-        ...     "images": np.random.randint(0, 256, (2, 3, 16, 16), dtype=np.uint8).tolist(),
-        ...     "continuous": [2.1, 3.4],
-        ...     "actions": [[9, 8, 6], [5, 9, 9]],
+        ...     "texts": np.array(["Go right", "Go left"]),
+        ...     "images": np.random.randint(0, 256, (2, 3, 16, 16), dtype=np.uint8),
+        ...     "continuous": np.array([2.1, 3.4]),
+        ...     "actions": np.array([[9, 8, 6], [5, 9, 9]]),
         ... }
         >>> encoding = tokenizer(inputs)
         >>> encoding.keys()
-
+        dict_keys(['texts', 'images', '_positions/images', 'continuous', 'actions'])
+        >>> encoding["texts"].shape
+        (2, 4)
+        >>> encoding["images"].shape
+        (2, 1, 3, 16, 16)
+        >>> encoding["_positions/images"].shape
+        (2, 1, 2, 2)
+        >>> encoding["continuous"].shape
+        (2, 1)
+        >>> encoding["actions"].shape
+        (2, 3)
 
     Args:
         mu (float, optional): μ parameter for the μ-law companding. Defaults to 100.
@@ -204,14 +214,12 @@ class MultimodalProcessor:
 if __name__ == "__main__":
     import numpy as np
 
-    tokenizer = MultimodalProcessor(patch_size=2)
-    x = np.random.randint(0, 256, (1, 2, 4, 5), dtype=np.uint8)
-    print(x[0])
+    tokenizer = MultimodalProcessor()
     inputs = {
-        # "texts": ["Go right", "Go left"],
-        "images": x,
-        # "continuous": [2.1, 3.4],
-        # "actions": [[9, 8, 6], [5, 9, 9]],
+        "texts": np.array(["Go right", "Go left"]),
+        "images": np.random.randint(0, 256, (2, 3, 16, 16), dtype=np.uint8),
+        "continuous": np.array([2.1, 3.4]),
+        "actions": np.array([[9, 8, 6], [5, 9, 9]]),
     }
     encoding = tokenizer(inputs)
-    print(encoding["images"][0].shape)
+    print(encoding.keys())
