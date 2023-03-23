@@ -25,6 +25,7 @@ class BatchGenerator:
         M (float, optional): M parameter for the μ-law companding. Defaults to 256.
         nb_bins (int, optional): Number of bins for the discretization of continuous values. Defaults to 1024.
         token_shift (int, optional): Shift for the discrete tokens. Defaults to 32_000.
+        use_separator (bool, optional): Whether to use a separator token between the observations and actions. Defaults to True.
 
     Input:
         - dataset (Dict[str, np.ndarray]): A dictionary containing the dataset.
@@ -48,11 +49,13 @@ class BatchGenerator:
         M: float = 256,
         nb_bins: int = 1024,
         token_shift: int = 32_000,
+        use_separator: bool = True,
     ) -> None:
         self.seq_len = seq_len
         self.p_prompt = p_prompt
         self.p_end = p_end
         self.patch_size = patch_size
+        self.use_separator = use_separator
         self.processor = MultimodalProcessor(mu, M, nb_bins, patch_size, token_shift)
 
     @staticmethod
@@ -122,7 +125,10 @@ class BatchGenerator:
         num_emb_per_action = dataset["actions"].shape[1]
 
         # Compute the number of interactions per sequence
-        num_emb_per_interaction = num_emb_per_observation + num_emb_per_action
+        if self.use_separator:
+            num_emb_per_interaction = num_emb_per_observation + 1 + num_emb_per_action
+        else:
+            num_emb_per_interaction = num_emb_per_observation + num_emb_per_action
         num_interractions_per_seq = self.seq_len // num_emb_per_interaction
 
         # We require at least two interactions per sequence to be able to prompt. TODO: why?
@@ -193,6 +199,7 @@ def load_gia_dataset(
     M: float = 256,
     nb_bins: int = 1024,
     token_shift: int = 32_000,
+    use_sepatator: bool = True,
     load_from_cache_file: bool = True,
 ) -> DatasetDict:
     """
@@ -209,7 +216,7 @@ def load_gia_dataset(
         nb_bins (int, optional): Number of bins for the discretization of continuous values. Defaults to 1024.
         token_shift (int, optional): Shift for the discrete tokens. Defaults to 32_000.
         load_from_cache_file (bool, optional): Whether to load the dataset from the cache. Defaults to True.
-
+        use_sepatator (bool, optional): Whether to use a separator token between the observations and the actions. Defaults to True.
 
     Example:
         >>> dataset = load_gia_dataset("babyai-go-to")
@@ -217,7 +224,7 @@ def load_gia_dataset(
         torch.Size([56, 3, 56, 56])
     """
     # Get hash from the function parameters
-    params = (task_name, p_prompt, p_end, seq_len, patch_size, mu, M, nb_bins, token_shift)
+    params = (task_name, p_prompt, p_end, seq_len, patch_size, mu, M, nb_bins, token_shift, use_sepatator)
     h = hashlib.sha256("".join(str(elem) for elem in params).encode()).hexdigest()
     cache_filename = f"gia-{h}"
     dirname = os.path.expanduser("~/.cache/huggingface/datasets")
@@ -249,10 +256,9 @@ def load_gia_dataset(
         dataset[f"observations/{key}"] = dataset.pop(key)
 
     # Pack the the dataset into batches of sequences
-    # As we change the dataset length, we need to remove all the previous columns.
-    batch_generator = BatchGenerator(seq_len, p_prompt, p_end, patch_size, mu, M, nb_bins, token_shift)
+    batch_generator = BatchGenerator(seq_len, p_prompt, p_end, patch_size, mu, M, nb_bins, token_shift, use_sepatator)
     dataset = batch_generator(dataset)
-    dataset = DatasetDict(dataset)
+    dataset = DatasetDict(dataset)  # convert to a DatasetDict
     torch.save(dataset, cache_path)  # save into cache file
     return dataset
 
@@ -261,7 +267,7 @@ if __name__ == "__main__":
     import torch
     from tqdm import tqdm
 
-    dataset = load_gia_dataset("babyai-go-to", load_from_cache_file=False)
+    dataset = load_gia_dataset("babyai-go-to")
     daltaloader = DataLoader(dataset, batch_size=64, num_workers=8)
     for batch in daltaloader:
         tqdm.write(" ".join(str(value.shape) + " " + str(value.dtype) for value in batch.values()))
