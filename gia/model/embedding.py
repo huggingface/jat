@@ -100,11 +100,48 @@ class ResidualBlockV2(nn.Module):
 
 
 class ImageEncoder(nn.Module):
-    def __init__(self, in_channels: int, out_features: int, num_groups: int, patch_size: int) -> None:
+
+    """
+    An image encoder module for extracting image features from a batch of images.
+
+    Args:
+        in_channels (int): The number of channels in the input images.
+        num_res_channels (int): The number of channels in the residual blocks.
+        out_features (int): The number of features in the output image features.
+        num_groups (int): The number of groups for the GroupNorm layers.
+        patch_size (int): The size of the patches to be extracted from the input images.
+
+    Structure:
+
+    ```
+          Input image shape (in_channels, patch_size, patch_size)
+               |
+          Conv2d(in_channels, num_res_channels, kernel_size=1)
+        _____  |
+        |      |
+        | GroupNorm(num_groups, num_res_channels)
+        |      |
+        | Conv2d(num_res_channels, num_res_channels, kernel_size=3, padding=1)
+        |      |
+        | GroupNorm(num_groups, num_res_channels)
+        |      |
+        | Conv2d(num_res_channels, num_res_channels, kernel_size=3, padding=1)
+        |______|
+               |
+            Flatten()
+               |
+            Linear(num_res_channels * patch_size * patch_size, out_features)
+               |
+    ```
+    """
+
+    def __init__(
+        self, in_channels: int, num_res_channels: int, out_features: int, num_groups: int, patch_size: int
+    ) -> None:
         super().__init__()
-        self.conv = nn.Conv2d(in_channels, out_features, kernel_size=1)
-        self.residual_block = ResidualBlockV2(out_features, num_groups)
-        self.linear = nn.Linear(out_features * patch_size * patch_size, out_features)
+        self.conv = nn.Conv2d(in_channels, num_res_channels, kernel_size=1)
+        self.residual_block = ResidualBlockV2(num_res_channels, num_groups)
+        self.linear = nn.Linear(num_res_channels * patch_size * patch_size, out_features)
 
     def forward(self, x: Tensor) -> Tensor:
         x = self.conv(x)
