@@ -17,7 +17,7 @@ class ImagePositionEncoding(nn.Module):
 
     Args:
         vocab_size (int, optional): The size of the position embedding vocabulary. Defaults to 128.
-        patch_size (int, optional): The size of the square patches used to divide the input image. Defaults to 16.
+        embedding_dim (int, optional): The embedding dimension. Defaults to 512.
 
     Inputs:
         positions (torch.Tensor): A tensor of shape (B, 2) containing the positions of the patches.
@@ -36,11 +36,11 @@ class ImagePositionEncoding(nn.Module):
         torch.Size([10, 128])
     """
 
-    def __init__(self, vocab_size: int = 128) -> None:
+    def __init__(self, vocab_size: int = 128, embedding_dim: int = 2048) -> None:
         super().__init__()
         self.vocab_size = vocab_size
-        self.row_embedding = nn.Embedding(vocab_size, 1)
-        self.column_embedding = nn.Embedding(vocab_size, 1)
+        self.row_embedding = nn.Embedding(vocab_size, embedding_dim)
+        self.column_embedding = nn.Embedding(vocab_size, embedding_dim)
 
     def forward(self, positions: Tensor, eval: bool = False) -> Tensor:
         # The row and column normalized intervals are then quantized into a vocabulary
@@ -58,10 +58,11 @@ class ImagePositionEncoding(nn.Module):
             sampled_row_idx = (quant_row_intervals[..., 0] + quant_row_intervals[..., 1]) // 2
             sampled_col_idx = (quant_col_intervals[..., 0] + quant_col_intervals[..., 1]) // 2
         else:
+            # low == high == 0 happens when timestep is masked, so we need to handle this case
             for idx, (low, high) in enumerate(quant_row_intervals):
-                sampled_row_idx[idx] = torch.randint(low, high, (1,))
+                sampled_row_idx[idx] = torch.randint(low, high, (1,)) if low != high else low
             for idx, (low, high) in enumerate(quant_col_intervals):
-                sampled_col_idx[idx] = torch.randint(low, high, (1,))
+                sampled_col_idx[idx] = torch.randint(low, high, (1,)) if low != high else low
 
         # The row and column indices are then used to look up the position encodings in the row and column tables.
         row_pos_encodings = self.row_embedding(sampled_row_idx)
@@ -69,95 +70,70 @@ class ImagePositionEncoding(nn.Module):
         return row_pos_encodings + col_pos_encodings
 
 
-class BasicBlock(nn.Module):
+class ResidualBlockV2(nn.Module):
     """
-    Basic Block for ResNet.
+    A residual block with GroupNorm and GELU activations.
+
+    It consists of two convolutional layers with GroupNorm and GELU activations, followed by a residual
+    connection.
 
     Args:
-        in_channels (int): Number of input channels.
-        out_channels (int): Number of output channels.
-        stride (int): Stride for the convolution. Defaults to 1.
-        groups (int): Number of groups for the GroupNorm. Defaults to 32.
-
-    Inputs:
-        x (torch.Tensor): A tensor of shape (B, C_in, H, W) containing the input images.
-
-    Outputs:
-        out (torch.Tensor): A tensor of shape (B, C_out, H, W) containing the output of the block.
-
-    Example:
-        >>> import torch
-        >>> block = BasicBlock(3, 64)
-        >>> x = torch.randn(2, 3, 80, 64)
-        >>> out = block(x)
-        >>> out.shape
-        torch.Size([2, 64, 80, 64])
+        num_channels (int): The number of channels.
+        num_groups (int): The number of groups for the GroupNorm layers.
     """
 
-    def __init__(self, in_channels: int, out_channels: int, stride: int = 1, groups: int = 32) -> None:
+    def __init__(self, num_channels: int, num_groups: int) -> None:
         super().__init__()
-        self.groupnorm1 = nn.GroupNorm(groups, out_channels)
-        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=stride, padding=1, bias=False)
-
-        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=False)
-        self.groupnorm2 = nn.GroupNorm(groups, out_channels)
-
-        self.shortcut = nn.Sequential()
-        if stride != 1 or in_channels != out_channels:
-            self.shortcut = nn.Sequential(
-                nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, bias=False),
-                nn.GroupNorm(groups, out_channels),
-            )
+        self.gn1 = nn.GroupNorm(num_groups, num_channels)
+        self.conv1 = nn.Conv2d(num_channels, num_channels, kernel_size=3, padding=1)
+        self.gn2 = nn.GroupNorm(num_groups, num_channels)
+        self.conv2 = nn.Conv2d(num_channels, num_channels, kernel_size=3, padding=1)
 
     def forward(self, x: Tensor) -> Tensor:
-        identity = x
-
-        out = self.conv1(x)
-        out = self.groupnorm1(out)
-        out = F.gelu(out)
-
-        out = self.conv2(out)
-        out = self.groupnorm2(out)
-
-        identity = self.shortcut(identity)
-        out += identity
-        out = F.gelu(out)
-
-        return out
+        y = self.gn1(x)
+        y = F.gelu(y)
+        y = self.conv1(y)
+        y = self.gn2(y)
+        y = F.gelu(y)
+        y = self.conv2(y)
+        return x + y
 
 
-class ResNetBlock(nn.Module):
-    """
-    ResNet Block for ResNet.
-
-    Args:
-        in_channels (int): Number of input channels.
-        out_channels (int): Number of output channels.
-        num_blocks (int, optional): Number of blocks in the block. Defaults to 2.
-        stride (int, optional): Stride for the convolution. Defaults to 1.
-        groups (int, optional): Number of groups for the GroupNorm. Defaults to 32.
-
-    Inputs:
-        x (torch.Tensor): A tensor of shape (B, C_in, H, W) containing the input images.
-    """
-
-    def __init__(
-        self, in_channels: int, out_channels: int, num_blocks: int = 2, stride: int = 1, groups: int = 32
-    ) -> None:
+class ImageEncoder(nn.Module):
+    def __init__(self, in_channels: int, out_features: int, num_groups: int, patch_size: int) -> None:
         super().__init__()
-        strides = [stride] + [1] * (num_blocks - 1)
-        blocks = [
-            BasicBlock(in_channels if i == 0 else out_channels, out_channels, stride=s, groups=groups)
-            for i, s in enumerate(strides)
-        ]
-        self.layers = nn.Sequential(*blocks)
+        self.conv = nn.Conv2d(in_channels, out_features, kernel_size=1)
+        self.residual_block = ResidualBlockV2(out_features, num_groups)
+        self.linear = nn.Linear(out_features * patch_size * patch_size, out_features)
 
     def forward(self, x: Tensor) -> Tensor:
-        return self.layers(x)
+        x = self.conv(x)
+        x = self.residual_block(x)
+        x = x.flatten(start_dim=1)
+        x = self.linear(x)
+        return x
 
 
 class MultiDimBatchWrapper(nn.Module):
-    def __init__(self, module: nn.Module, n_dims: int = 2):
+    """
+    A wrapper for a module that allows it to process inputs with an arbitrary number of leading dimensions.
+
+    Args:
+        module (nn.Module): The module to wrap.
+        n_dims (int, optional): The number of leading dimensions to preserve. Defaults to 2.
+
+    Example:
+        >>> import torch
+        >>> import torch.nn as nn
+        >>> b1, b2, c, h, w = 10, 5, 3, 32, 32
+        >>> conv = nn.Conv2d(c, 16, kernel_size=3, padding=1)
+        >>> wrapper = MultiDimBatchWrapper(conv, n_dims=2)
+        >>> images = torch.randn(b1, b2, c, h, w)
+        >>> conv(images).shape
+        torch.Size([10, 5, 16, 32, 32])
+    """
+
+    def __init__(self, module: nn.Module, n_dims: int = 2) -> None:
         super().__init__()
         self.module = module
         self.n_dims = n_dims
@@ -175,7 +151,7 @@ class Embeddings(nn.Module):
     Embedding layer.
 
     Args:
-        embedding_dim (int): The embedding dimension.
+        embedding_dim (int, optional): The embedding dimension. Defaults to 2048.
         vocab_size (int, optional): The vocabulary size. Defaults to 32_000.
         nb_bins (int, optional): Number of bins for the discretization of continuous values. Defaults to 1024.
         max_nb_observation_tokens (int, optional): Maximum number of observation tokens. Defaults to 512.
@@ -186,7 +162,7 @@ class Embeddings(nn.Module):
 
     def __init__(
         self,
-        embedding_dim: int,
+        embedding_dim: int = 2048,
         vocab_size: int = 32_000,
         nb_bins: int = 1024,
         max_nb_observation_tokens: int = 512,
@@ -204,7 +180,7 @@ class Embeddings(nn.Module):
         self.positional_emb = nn.Embedding(num_embeddings=max_nb_observation_tokens + 1, embedding_dim=embedding_dim)
         self.action_positional_emb_idx = torch.tensor(max_nb_observation_tokens, dtype=torch.int64)
 
-        self.image_encoder = MultiDimBatchWrapper(ResNetBlock(3, embedding_dim, num_blocks=2, stride=16, groups=32), 3)
+        self.image_encoder = MultiDimBatchWrapper(ImageEncoder(3, embedding_dim, num_groups=32, patch_size=16), 3)
         self.image_pos_enc = MultiDimBatchWrapper(ImagePositionEncoding(vocab_size=image_vocab_size), 3)
 
         # self.image_processor = AutoImageProcessor.from_pretrained("google/vit-base-patch16-224-in21k")
@@ -267,7 +243,7 @@ if __name__ == "__main__":
     from gia.datasets.gia_dataset import load_gia_dataset
 
     dataset = load_gia_dataset("babyai-go-to", load_from_cache_file=False)
-    dataloader = DataLoader(dataset, batch_size=8)
-    embeddings = Embeddings(512)
+    dataloader = DataLoader(dataset, batch_size=1)
+    embeddings = Embeddings(256)
     for batch in tqdm(dataloader):
         print(embeddings(batch))
