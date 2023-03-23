@@ -20,7 +20,8 @@ class ImagePositionEncoding(nn.Module):
         embedding_dim (int, optional): The embedding dimension. Defaults to 512.
 
     Inputs:
-        positions (torch.Tensor): A tensor of shape (B, 2) containing the positions of the patches.
+        patch_pos (torch.Tensor): A tensor of shape (B, 2, 2) containing the interval of the patch positions.
+            Each element describes the interval with an array [[x_min, y_min], [x_max, y_max]].
         eval (bool, optional): A flag indicating whether the module is being used for evaluation. Defaults to False.
 
     Outputs:
@@ -29,11 +30,16 @@ class ImagePositionEncoding(nn.Module):
 
     Example:
         >>> import torch
-        >>> pos_enc = ImagePositionEncoding(vocab_size=128)
-        >>> images = torch.rand(10, 2)
+        >>> pos_enc = ImagePositionEncoding()
+        >>> images = torch.tensor(
+        ...     [
+        ...         [[0.0, 0.0], [0.2, 0.3]],
+        ...         [[0.1, 0.3], [0.2, 0.4]],
+        ...     ]
+        ... )
         >>> pos_encoding = pos_enc(images)
         >>> pos_encoding.shape
-        torch.Size([10, 128])
+        torch.Size([2, 2048])
     """
 
     def __init__(self, vocab_size: int = 128, embedding_dim: int = 2048) -> None:
@@ -42,18 +48,18 @@ class ImagePositionEncoding(nn.Module):
         self.row_embedding = nn.Embedding(vocab_size, embedding_dim)
         self.column_embedding = nn.Embedding(vocab_size, embedding_dim)
 
-    def forward(self, positions: Tensor, eval: bool = False) -> Tensor:
+    def forward(self, patch_pos: Tensor, eval: bool = False) -> Tensor:
         # The row and column normalized intervals are then quantized into a vocabulary
         # size (we use 128) and are used to index a row and column table of learnable position encodings.
-        quant_row_intervals = (positions[..., 0] * self.vocab_size).round().long()
-        quant_col_intervals = (positions[..., 1] * self.vocab_size).round().long()
+        quant_row_intervals = (patch_pos[..., 0] * self.vocab_size).round().long()
+        quant_col_intervals = (patch_pos[..., 1] * self.vocab_size).round().long()
 
         # The method in which the quantized row and column intervals are converted into indices depends
         # on whether we are training or evaluating the model: during training a random index is uniformly
         # sampled from the quantized interval, while during evaluation we deterministically take the
         # (rounded) mean of the interval
-        sampled_row_idx = torch.zeros(positions.shape[0], dtype=torch.long)
-        sampled_col_idx = torch.zeros(positions.shape[0], dtype=torch.long)
+        sampled_row_idx = torch.zeros(patch_pos.shape[0], dtype=torch.long)
+        sampled_col_idx = torch.zeros(patch_pos.shape[0], dtype=torch.long)
         if eval:
             sampled_row_idx = (quant_row_intervals[..., 0] + quant_row_intervals[..., 1]) // 2
             sampled_col_idx = (quant_col_intervals[..., 0] + quant_col_intervals[..., 1]) // 2
@@ -164,7 +170,7 @@ class MultiDimBatchWrapper(nn.Module):
         >>> import torch.nn as nn
         >>> b1, b2, c, h, w = 10, 5, 3, 32, 32
         >>> conv = nn.Conv2d(c, 16, kernel_size=3, padding=1)
-        >>> wrapper = MultiDimBatchWrapper(conv, n_dims=2)
+        >>> conv = MultiDimBatchWrapper(conv, n_dims=2)
         >>> images = torch.randn(b1, b2, c, h, w)
         >>> conv(images).shape
         torch.Size([10, 5, 16, 32, 32])
@@ -183,104 +189,192 @@ class MultiDimBatchWrapper(nn.Module):
         return x
 
 
+class LocalPositionEncodings(nn.Module):
+    """
+    A module for computing local position encodings.
+
+    Args:
+        vocab_size (int, optional): The size of the vocabulary. Defaults to 128.
+        embedding_dim (int, optional): The dimension of the embedding. Defaults to 2048.
+
+    Inputs:
+        shape (torch.Size): The shape of the input tensor, which should be of the form
+            (batch_size, seq_len, num_tokens, embedding_dim).
+        same (bool, optional): Whether to use the same position encodings for all tokens in a sequence.
+
+    Outputs:
+        Tensor: The local position encodings of shape (batch_size, seq_len, num_tokens, embedding_dim).
+
+    Example:
+        >>> import torch
+        >>> import torch.nn as nn
+        >>> batch_size, seq_len, num_tokens = 8, 16, 20
+        >>> vocab_size, embedding_dim = 128, 2048
+        >>> pos_enc = LocalPositionEncodings(vocab_size, embedding_dim)
+        >>> shape = torch.Size([batch_size, seq_len, num_tokens, embedding_dim])
+        >>> pos_emb = pos_enc(shape)
+        >>> pos_emb.shape
+        torch.Size([8, 16, 20, 2048])
+    """
+
+    def __init__(self, vocab_size: int = 128, embedding_dim: int = 2048) -> None:
+        super().__init__()
+        self.vocab_size = vocab_size
+        self.embedding_dim = embedding_dim
+        self.embedding = nn.Embedding(vocab_size, embedding_dim)
+
+    def forward(self, shape: torch.Size, same: bool = False) -> Tensor:
+        batch_size, seq_len, num_tokens, embedding_dim = shape
+        assert embedding_dim == self.embedding_dim
+        if same:
+            pos_emb_idxs = torch.full((seq_len,), self.vocab_size - 1, dtype=torch.long)
+        else:
+            pos_emb_idxs = torch.arange(seq_len)
+        pos_emb_idxs = pos_emb_idxs.view(1, seq_len, 1)
+        pos_emb_idxs = pos_emb_idxs.expand(batch_size, seq_len, num_tokens)
+        return self.embedding(pos_emb_idxs)
+
+
 class Embeddings(nn.Module):
     """
     Embedding layer.
 
     Args:
         embedding_dim (int, optional): The embedding dimension. Defaults to 2048.
-        vocab_size (int, optional): The vocabulary size. Defaults to 32_000.
+        text_vocab_size (int, optional): The vocabulary size for text. Defaults to 32_000.
         nb_bins (int, optional): Number of bins for the discretization of continuous values. Defaults to 1024.
         max_nb_observation_tokens (int, optional): Maximum number of observation tokens. Defaults to 512.
+        use_separator (bool, optional): Whether to use a separator token. Defaults to True.
         patch_size (int, optional): The size of the square patch to be extracted from the image. Defaults to 16.
         image_vocab_size (int, optional): The size of the position embedding vocabulary for the image
             patches. Defaults to 128.
+        num_res_channels (int, optional): The number of residual channels in the image patch encoder. Defaults to 256.
+        num_groups (int, optional): The number of groups in the image patch encoder. Defaults to 32.
+
+    Inputs:
+        batch (Dict[str, Tensor]): A batch of data. It is expected to contain the observations and the actions.
+            The keys for the observations should start with "observations". For example, "observations" or
+            "observations/rgb". You can mix modalities. The values can be either tokens or images patches. If
+            they are tokens, they should be of shape (batch_size, seq_len, num_tokens) and of type torch.long. If
+            they are images, they should be of shape (batch_size, seq_len, num_patches, num_channels, height, width)
+            and of type torch.uint8.
+            The key for the actions is "actions". You can't mix modalities. The value can only be tokens. For
+            more information, see above.
+
+    Outputs:
+        Tensor: The embeddings of shape (batch_size, seq_len*L, embedding_dim) where L is the total number of
+            embeddings for each sequence, equal to the sum of the number of tokens (or patches) for each modality.
+
+    Example:
+        >>> import torch
+        >>> import torch.nn as nn
+        >>> batch_size, seq_len, num_tokens = 8, 16, 20
+        >>> batch = {
+        ...     "observations": torch.randint(0, 32_000, (batch_size, seq_len, num_tokens)),
+        ...     "actions": torch.randint(32_000, 32_010, (batch_size, seq_len, num_tokens)),
+        ... }
+        >>> embed = Embeddings()
+        >>> embeddings = embed(batch)
+        >>> embeddings.shape
+        torch.Size([8, 640, 2048])
     """
 
     def __init__(
         self,
         embedding_dim: int = 2048,
-        vocab_size: int = 32_000,
+        text_vocab_size: int = 32_000,
         nb_bins: int = 1024,
         max_nb_observation_tokens: int = 512,
+        use_separator: bool = True,
         patch_size: int = 16,
         image_vocab_size: int = 128,
+        num_res_channels: int = 256,
+        num_groups: int = 32,
     ) -> None:
         super().__init__()
-        self.separator_token = nb_bins + vocab_size
-        # The total number of tokens is the number of observation tokens + 1 for the separator token.
-        self.embeddings = nn.Embedding(num_embeddings=vocab_size + nb_bins + 1, embedding_dim=embedding_dim)
-        # Learnable local position encodings
+        # Encoder for tokens
+        # The total number of tokens is the number of tokens for text + the max number of bins
+        # for the continuous and discrete values + 1 for the separator token
+        self.use_separator = use_separator
+        if use_separator:
+            self.embeddings = nn.Embedding(text_vocab_size + nb_bins + 1, embedding_dim)
+            self.separator_token = text_vocab_size + nb_bins
+        else:
+            self.embeddings = nn.Embedding(text_vocab_size + nb_bins, embedding_dim)
+
+        # Encoder for the image patches
+        image_encoder = ImageEncoder(3, num_res_channels, embedding_dim, num_groups, patch_size)
+        self.image_encoder = MultiDimBatchWrapper(image_encoder, n_dims=3)
+
+        # Learnable local position encodings for the image patches
+        self.image_pos_enc = MultiDimBatchWrapper(ImagePositionEncoding(image_vocab_size, embedding_dim), 3)
+
+        # Learnable local position encodings in the sequence
         # The total number of tokens is the number of observation tokens + 1 for the unique action token
-        # TODO: It's not clear whether we should add postional embeddings for the separator token.
-        # For now, we don't add it.
-        self.positional_emb = nn.Embedding(num_embeddings=max_nb_observation_tokens + 1, embedding_dim=embedding_dim)
-        self.action_positional_emb_idx = torch.tensor(max_nb_observation_tokens, dtype=torch.int64)
-
-        self.image_encoder = MultiDimBatchWrapper(ImageEncoder(3, embedding_dim, num_groups=32, patch_size=16), 3)
-        self.image_pos_enc = MultiDimBatchWrapper(ImagePositionEncoding(vocab_size=image_vocab_size), 3)
-
-        # self.image_processor = AutoImageProcessor.from_pretrained("google/vit-base-patch16-224-in21k")
-        # self.image_embeddings = ViTModel.from_pretrained("google/vit-base-patch16-224-in21k").get_input_embeddings()
+        self.local_pos_embeddings = LocalPositionEncodings(max_nb_observation_tokens + 1, embedding_dim)
 
     def forward(self, batch: Dict[str, Tensor]) -> Tensor:
-        # Here, d is a dictionary containing the following keys:
+        # Here, batch is a dictionary containing the following keys:
         # - "observations[/*]": A tensor of shape (batch_size, L, n_obs_tokens) if observation is not an image.
-        #                       A tensor of shape (batch_size, L, num_patches, num_channels, height, width) if observation is an image.
+        #                       A tensor of shape (batch_size, L, num_patches, num_channels, height, width) if
+        #                           observation is an image.
         # - "actions": A tensor of shape (batch_size, L, n_action_tokens)
-        # Where L is the number of interactions in the batch. Note that this number can vary from batch to batch because
-        # if the prompt is too short, L will be smaller than the maximum possible number interactions in the batch.
+        # Where L is the number of interactions in the batch. Note that this number can vary from batch
+        # to batch, because, if the prompt is too short, L is smaller than the maximum possible number
+        # interactions in the batch.
 
-        # First, handle tokens
-        observation_keys = [key for key in batch.keys() if key.startswith("observations") and not key.endswith("mask")]
-        tokenized_observation_keys = [key for key in observation_keys if batch[key].dim() == 3]
-        image_observation_keys = [key for key in observation_keys if batch[key].dim() == 6]
-        assert len(tokenized_observation_keys) + len(image_observation_keys) == len(observation_keys)
+        # First, handle observations: get the keys of tokens and images
+        obs_keys = [key for key in batch.keys() if key.startswith("observations") and not key.endswith("mask")]
+        tokenized_obs_keys = [key for key in obs_keys if batch[key].dim() == 3]
+        image_obs_keys = [key for key in obs_keys if batch[key].dim() == 6]
+        assert len(tokenized_obs_keys) + len(image_obs_keys) == len(obs_keys)
 
-        # Concat all tokenized observations
-        tokens = torch.cat([batch[key] for key in tokenized_observation_keys], dim=2)
-        embeddings = self.embeddings(tokens)  # shape (batch_size, L, n_obs_tokens, embedding_dim)
-        obs_pos_emb_idxs = torch.arange(embeddings.shape[1])
-        # Expand the position embedding indices to match the batch size, then the number of observation tokens
-        obs_pos_emb_idxs = obs_pos_emb_idxs.unsqueeze(0).repeat(embeddings.shape[0], 1)
-        obs_pos_emb_idxs = obs_pos_emb_idxs.unsqueeze(2).repeat(1, 1, embeddings.shape[2])
-        observation_pos_embeddings = self.positional_emb(obs_pos_emb_idxs)
-        embeddings += observation_pos_embeddings
+        # Handle images observations: normalize and embed, then add patch position embeddings
+        normalized_images = {key: batch[key].float() * 2.0 / 255.0 - 1.0 for key in image_obs_keys}
+        image_embeddings = {key: self.image_encoder(images) for key, images in normalized_images.items()}
+        patch_pos_embeddings = {key: self.image_pos_enc(batch[f"_positions/{key}"]) for key in image_obs_keys}
+        image_embeddings = {key: image_embeddings[key] + patch_pos_embeddings[key] for key in image_obs_keys}
 
-        # Now, handle images
-        # First, normalize the images to be in [-1, 1]
-        dict_images = {key: batch[key].float() * 2.0 / 255.0 - 1.0 for key in image_observation_keys}
-        positions = {key: batch[f"_positions/{key}"] for key in image_observation_keys}
-        embed_images = {key: self.image_encoder(images) for key, images in dict_images.items()}
-        patch_pos_embeddings = {key: self.image_pos_enc(positions[key]) for key in image_observation_keys}
-        # Reshape to the right size: from (batch_size, embedding_dim, n_rows, n_cols) to (batch_size, n_rows * n_cols, embedding_dim)
-        embed_images = {
-            key: embed_images[key]
-            .permute(0, 2, 3, 1)
-            .reshape(embed_images[key].shape[0], -1, embed_images[key].shape[1])
-            for key in image_observation_keys
-        }
+        # Handle tokens observations: concatenate all tokenized observations and embed
+        tokenized_obs = torch.cat([batch[key] for key in tokenized_obs_keys], dim=2)
+        obs_embeddings = self.embeddings(tokenized_obs)  # shape (batch_size, L, n_obs_tokens, embedding_dim)
 
-        # Concat all observations
-        embeddings = torch.cat([embeddings] + [embed_images[key] for key in image_observation_keys], dim=1)
+        # Concatenate images embeddings with the other embeddings and add local position embeddings
+        obs_embeddings = torch.cat([obs_embeddings] + [image_embeddings[key] for key in image_obs_keys], dim=2)
+        obs_pos_embeddings = self.local_pos_embeddings(obs_embeddings.shape)
+        obs_embeddings += obs_pos_embeddings
 
-        # Compute and add positional action embeddings
-        action_pos_emb_idxs = self.action_positional_emb_idx.repeat(sequence_length, action_size)
-        action_pos_embeddings = self.positional_emb(action_pos_emb_idxs)
-        embeddings[:, observation_size + 1 :] += action_pos_embeddings
+        # Create separator token
+        batch_size, seq_len, _, embedding_dim = obs_embeddings.shape
+        if self.use_separator:
+            separator_token = torch.full((batch_size, seq_len, 1), self.separator_token, dtype=torch.long)
+            separator_embeddings = self.embeddings(separator_token)
+
+        # Handle action: embed and add local position embeddings
+        action_embeddings = self.embeddings(batch["actions"])
+        action_pos_embeddings = self.local_pos_embeddings(action_embeddings.shape, same=True)
+        action_embeddings += action_pos_embeddings
+
+        # Concatenate all embeddings
+        if self.use_separator:
+            embeddings = torch.cat([obs_embeddings, action_embeddings], dim=2)
+        else:
+            embeddings = torch.cat([obs_embeddings, separator_embeddings, action_embeddings], dim=2)
+
+        # Flatten the embeddings into a single sequence of tokens of shape (batch_size, seq_len*L, embedding_dim)
+        # Where L is the total number of tokens for one interaction (observation + separator + action)
+        embeddings = embeddings.reshape(batch_size, -1, embedding_dim)
         return embeddings
 
 
 if __name__ == "__main__":
-    # TODO: This still does not work because the concatenation of observations and actions is not properly
-    # implemented in the dataset.
     from torch.utils.data import DataLoader
     from tqdm import tqdm
 
     from gia.datasets.gia_dataset import load_gia_dataset
 
     dataset = load_gia_dataset("babyai-go-to", load_from_cache_file=False)
-    dataloader = DataLoader(dataset, batch_size=1)
-    embeddings = Embeddings(256)
+    dataloader = DataLoader(dataset)
+    embeddings = Embeddings()
     for batch in tqdm(dataloader):
-        print(embeddings(batch))
+        tqdm.write(str(embeddings(batch).shape))
