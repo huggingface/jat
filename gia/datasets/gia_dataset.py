@@ -25,7 +25,8 @@ class BatchGenerator:
         M (float, optional): M parameter for the μ-law companding. Defaults to 256.
         nb_bins (int, optional): Number of bins for the discretization of continuous values. Defaults to 1024.
         token_shift (int, optional): Shift for the discrete tokens. Defaults to 32_000.
-        use_separator (bool, optional): Whether to use a separator token between the observations and actions. Defaults to True.
+        use_separator (bool, optional): Whether to use a separator token between the observations and actions.
+            Defaults to True.
 
     Input:
         - dataset (Dict[str, np.ndarray]): A dictionary containing the dataset.
@@ -113,7 +114,8 @@ class BatchGenerator:
         # First, we need to compute the number of embeddings needed for the observations and actions.
         # At this point, there are 2 possibilities for the observations:
         # 1. The observation is anything but an image, then the value is tokenized
-        # 2. The observation is an image, then the value is a tuple containing the patches and the corresponding positions
+        # 2. The observation is an image, then the value is a tuple containing the patches and
+        #    the corresponding positions
         # In both cases, the values are numpy arrays of shape (batch_size, seq_len, ...)
         # We need to first get the keys for both cases
         tokenized_observation_keys = [key for key in observation_keys if dataset[key].ndim == 2]
@@ -216,7 +218,8 @@ def load_gia_dataset(
         nb_bins (int, optional): Number of bins for the discretization of continuous values. Defaults to 1024.
         token_shift (int, optional): Shift for the discrete tokens. Defaults to 32_000.
         load_from_cache_file (bool, optional): Whether to load the dataset from the cache. Defaults to True.
-        use_sepatator (bool, optional): Whether to use a separator token between the observations and the actions. Defaults to True.
+        use_sepatator (bool, optional): Whether to use a separator token between the observations and the actions.
+            Defaults to True.
 
     Example:
         >>> dataset = load_gia_dataset("babyai-go-to")
@@ -264,7 +267,6 @@ def load_gia_dataset(
 
 
 if __name__ == "__main__":
-    import torch
     from tqdm import tqdm
 
     dataset = load_gia_dataset("babyai-go-to")
