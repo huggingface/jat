@@ -3,30 +3,7 @@ from torch.utils.data.dataloader import DataLoader
 from transformers import AutoConfig, AutoModelForCausalLM
 
 from gia.config import Arguments
-from gia.datasets import GiaDataset
-
-# class PatchedFeatureExtractor(nn.Module):
-#     def __init__(self, args):
-#         # create the model etc
-#         pass
-
-#     def forward(self, x):
-#         # TODO: select image patches from batch, with batch[image_patches] ?
-#         # extracted embeddings add to batch
-#         return x
-
-
-class CustomEmbeddingModule(nn.Module):
-    def __init__(self, args: Arguments, model_config):
-        super().__init__()
-        self.wte = nn.Embedding(model_config.vocab_size, model_config.embed_dim)
-        # self.wpe = nn.Embedding(model_config.max_position_embeddings, model_config.embed_dim)
-
-    def forward(self, batch):
-        # TODO: spliting based on image patches etc
-        # for more flexibility we may want to use our own position ids and zero & freeze the base models position embs
-        x = self.wte(batch["tokens"])  # + self.wpe(batch["local_position_ids"])
-        return x
+from gia.model.embedding import Embeddings
 
 
 class GiaModel(nn.Module):
@@ -37,14 +14,14 @@ class GiaModel(nn.Module):
         config.max_position_embeddings = args.seq_length  # this is a workaround for gpt-neo's local self attn
         self.model = AutoModelForCausalLM.from_config(config)
         config.embed_dim = self.model.base_model.embed_dim
-
-        self.emb = CustomEmbeddingModule(args, config)
+        self.emb = Embeddings(config.embed_dim)
 
     def forward(self, batch):
         embeds = self.emb(batch)
         # the model requires us to provide position ids, otherwise it will generate them
-        out = self.model(inputs_embeds=embeds, position_ids=batch["local_position_ids"])
-        out.loss = self.loss(out.logits, batch["tokens"], batch["loss_mask"])
+        # qgallouedec: I've removed position_ids=batch["local_position_ids"]. Is this a problem?
+        out = self.model(inputs_embeds=embeds["embeddings"], attention_mask=embeds["attention_mask"])
+        # out.loss = self.loss(out.logits, batch["tokens"], batch["loss_mask"])
         return out
 
     def loss(self, logits, tokens, masks):
@@ -64,14 +41,15 @@ class GiaModel(nn.Module):
 
 
 if __name__ == "__main__":
-    args = Arguments()
-    args.tasks = ["mujoco"]
-    args.use_cache = True
+    from torch.utils.data import DataLoader
+    from tqdm import tqdm
 
-    dataset = GiaDataset(args)
-    dataloader = DataLoader(dataset, batch_size=2)
-    model = GiaModel(args)
+    from gia.datasets.gia_dataset import load_gia_dataset
 
-    batch = next(iter(dataloader))
-    out = model(batch)
-    print(out)
+    dataset = load_gia_dataset("mujoco-ant", load_from_cache_file=False)
+    dataloader = DataLoader(dataset)
+    model = GiaModel(Arguments())
+    for batch in tqdm(dataloader):
+        out = model(batch)
+        tqdm.write(str(out))
+
