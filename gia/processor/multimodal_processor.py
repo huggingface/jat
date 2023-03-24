@@ -1,4 +1,4 @@
-from typing import Dict, Iterable, Optional
+from typing import Dict
 
 import cv2
 import numpy as np
@@ -158,7 +158,7 @@ class MultimodalProcessor:
                 tokens = self.tokenize_text(value)
             elif key.startswith("image"):
                 tokens, positions = self.extract_patches(value)  # actually, this is not a token, but patches
-                output[f"patches_positions"] = positions
+                output["patches_positions"] = positions
             elif key.startswith("discrete"):
                 tokens = self.tokenize_discrete(value)
             elif key.startswith("continuous"):

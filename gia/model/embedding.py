@@ -253,13 +253,13 @@ class Embeddings(nn.Module):
 
     Inputs:
         batch (Dict[str, Tensor]): A batch of data. It is expected to contain the observations and the actions.
-            The possible keys for observations are "text_observations", "image_observations", "discrete_observations", and
-            "continuous_observation".
-            The possible keys for actions are "text_actions", "discrete_actions" and "continuous_actions". It is expected
-            that the batch contains only one action key.
-            For each observation and action key, it is expected that the batch also contains loss mask and the attention
-            mask. The corresponding keys are "{key}_loss_mask" and "{key}_attention_mask" respectively. For example,
-            for the "text_observations" key, the batch should contain "text_observations_loss_mask" and
+            The possible keys for observations are "text_observations", "image_observations", "discrete_observations",
+            and "continuous_observation".
+            The possible keys for actions are "text_actions", "discrete_actions" and "continuous_actions". It is
+            expected that the batch contains only one action key.
+            For each observation and action key, it is expected that the batch also contains loss mask and the
+            attention mask. The corresponding keys are "{key}_loss_mask" and "{key}_attention_mask" respectively.
+            For example, for the "text_observations" key, the batch should contain "text_observations_loss_mask" and
             "text_observations_attention_mask".
 
     Outputs:
@@ -347,8 +347,8 @@ class Embeddings(nn.Module):
         # Concatenate images embeddings with the other embeddings and add local position embeddings
         if has_image:
             obs_embeddings = torch.cat((obs_embeddings, image_embeddings), dim=2)
-            obs_loss_mask = torch.cat((obs_loss_mask, batch[f"image_observations_loss_mask"]), dim=2)
-            obs_attention_mask = torch.cat((obs_attention_mask, batch[f"image_observations_attention_mask"]), dim=2)
+            obs_loss_mask = torch.cat((obs_loss_mask, batch["image_observations_loss_mask"]), dim=2)
+            obs_attention_mask = torch.cat((obs_attention_mask, batch["image_observations_attention_mask"]), dim=2)
         obs_pos_embeddings = self.local_pos_embeddings(obs_embeddings.shape)
         obs_embeddings += obs_pos_embeddings
 

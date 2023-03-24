@@ -300,7 +300,7 @@ def load_gia_dataset(
     # Rename keys to get the format "[type]_[observations or actions]"
     keys = list(dataset.keys())  # Avoid "Keys changed during iteration"
     for key in keys:
-        if not key in ["actions", "dones", "rewards"]:
+        if key not in ["actions", "dones", "rewards"]:
             observations = dataset.pop(key)
             if is_image(observations):
                 observations = observations.astype(np.uint8)
@@ -325,7 +325,7 @@ def load_gia_dataset(
     elif is_continuous(actions):
         dataset["continuous_actions"] = actions
     else:
-        raise ValueError(f"Unknown action type.")
+        raise ValueError("Unknown action type.")
 
     # Pack the the dataset into batches of sequences
     batch_generator = BatchGenerator(seq_len, p_prompt, p_end, patch_size, mu, M, nb_bins, token_shift, use_sepatator)
