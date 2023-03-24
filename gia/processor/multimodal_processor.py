@@ -1,46 +1,10 @@
-from typing import Dict, Iterable
+from typing import Dict, Iterable, Optional
 
 import cv2
 import numpy as np
 from transformers import AutoTokenizer
 
 from gia.utils.utils import discretize, inverse_mu_law, mu_law
-
-
-def is_text(x: Iterable) -> bool:
-    """
-    Check if input is text.
-
-    It checks if the input a array of strings.
-    """
-    return all(isinstance(s, str) for s in x)
-
-
-def is_image(x: np.ndarray) -> bool:
-    """
-    Check if input is an image.
-
-    Returns True if the input has 4 dimensions.
-    """
-    return x.ndim == 4
-
-
-def is_continuous(x: np.ndarray) -> bool:
-    """
-    Check if input is continous.
-
-    Returns True if the dtype is float32 or float64.
-    """
-    return x.dtype in [np.float32, np.float64]
-
-
-def is_discrete(x: np.ndarray) -> bool:
-    """
-    Check if input is discrete.
-
-    Returns True if the dtype is int64.
-    """
-    return x.dtype == np.int64
 
 
 class MultimodalProcessor:
@@ -51,29 +15,25 @@ class MultimodalProcessor:
         >>> import numpy as np
         >>> tokenizer = MultimodalProcessor()
         >>> inputs = {
-        ...     "texts": np.array(["Go right", "Go left"]),
-        ...     "images": np.random.randint(0, 256, (2, 3, 16, 16), dtype=np.uint8),
-        ...     "continuous": np.array([2.1, 3.4]),
-        ...     "actions": np.array([[9, 8, 6], [5, 9, 9]]),
+        ...     "text_observations": np.array(["Go right", "Go left"]),
+        ...     "image_observations": np.random.randint(0, 256, (2, 3, 32, 32), dtype=np.uint8),
+        ...     "continuous_actions": np.array([2.1, 3.4]),
+        ...     "discrete_actions": np.array([[9, 8, 6], [5, 9, 9]]),
         ... }
         >>> encoding = tokenizer(inputs)
-        >>> encoding.keys()
-        dict_keys(['texts', 'images', '_positions/images', 'continuous', 'actions'])
-        >>> encoding["texts"].shape
-        (2, 4)
-        >>> encoding["images"].shape
-        (2, 1, 3, 16, 16)
-        >>> encoding["_positions/images"].shape
-        (2, 1, 2, 2)
-        >>> encoding["continuous"].shape
-        (2, 1)
-        >>> encoding["actions"].shape
-        (2, 3)
+        >>> for key in encoding:
+        ...     print(f"{key}: {encoding[key].shape}")
+        text_observations: (2, 4)
+        patches_positions: (2, 4, 2, 2)
+        image_observations: (2, 4, 3, 16, 16)
+        continuous_actions: (2, 1)
+        discrete_actions: (2, 3)
 
     Args:
         mu (float, optional): μ parameter for the μ-law companding. Defaults to 100.
         M (float, optional): M parameter for the μ-law companding. Defaults to 256.
         nb_bins (int, optional): Number of bins for the discretization of continuous values. Defaults to 1024.
+        patch_size (int, optional): Size of the patches to extract from the images. Defaults to 16.
         token_shift (int, optional): Shift for the discrete tokens. Defaults to 32_000.
     """
 
@@ -131,7 +91,8 @@ class MultimodalProcessor:
                 [[i / (H // P), j / (W // P)], [(i + 1) / (H // P), (j + 1) / (W // P)]]
                 for i in range(H // P)
                 for j in range(W // P)
-            ]
+            ],
+            dtype=np.float32,
         )
         positions = np.tile(positions, (B, 1, 1, 1))
 
@@ -193,33 +154,36 @@ class MultimodalProcessor:
         output = {}
         for key in inputs:
             value = inputs[key]
-            if is_text(value):
-                output[key] = self.tokenize_text(value)
-            elif is_image(value):
-                value = np.array(value, dtype=np.uint8)
-                if np.argmin(value.shape[1:]) == 2:  # channels last, make it channels first
-                    value = np.transpose(value, (0, 3, 1, 2))
-                assert np.argmin(value.shape[1:]) == 0, "Channels error"
-                output[key], positions = self.extract_patches(value)
-                output[f"_positions/{key}"] = positions
-            elif is_discrete(value):
-                output[key] = self.tokenize_discrete(value)
-            elif is_continuous(value):
-                output[key] = self.tokenize_continuous(value)
+            if key.startswith("text"):
+                tokens = self.tokenize_text(value)
+            elif key.startswith("image"):
+                tokens, positions = self.extract_patches(value)  # actually, this is not a token, but patches
+                output[f"patches_positions"] = positions
+            elif key.startswith("discrete"):
+                tokens = self.tokenize_discrete(value)
+            elif key.startswith("continuous"):
+                tokens = self.tokenize_continuous(value)
             else:
                 raise ValueError(f"Unknown input type for key '{key}'.")
+
+            output[key] = tokens
         return output
 
 
 if __name__ == "__main__":
-    import numpy as np
+    # import numpy as np
 
-    tokenizer = MultimodalProcessor()
-    inputs = {
-        "texts": np.array(["Go right", "Go left"]),
-        "images": np.random.randint(0, 256, (2, 3, 16, 16), dtype=np.uint8),
-        "continuous": np.array([2.1, 3.4]),
-        "actions": np.array([[9, 8, 6], [5, 9, 9]]),
-    }
-    encoding = tokenizer(inputs)
-    print(encoding.keys())
+    # tokenizer = MultimodalProcessor()
+    # inputs = {
+    #     "text_observations": np.array(["Go right", "Go left"]),
+    #     "image_observations": np.random.randint(0, 256, (2, 3, 32, 32), dtype=np.uint8),
+    #     "continuous_actions": np.array([2.1, 3.4]),
+    #     "discrete_actions": np.array([[9, 8, 6], [5, 9, 9]]),
+    # }
+    # encoding = tokenizer(inputs)
+    # for key in encoding:
+    #     print(key, encoding[key].shape)
+
+    import doctest
+
+    doctest.testmod()

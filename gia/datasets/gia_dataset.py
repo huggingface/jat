@@ -1,7 +1,7 @@
 import hashlib
 import os
 import random
-from typing import Dict, List
+from typing import Dict, List, Iterable
 
 import numpy as np
 import torch
@@ -9,6 +9,42 @@ from datasets import load_dataset
 
 from gia.datasets.dataset_dict import DatasetDict
 from gia.processor.multimodal_processor import MultimodalProcessor
+
+
+def is_text(x: Iterable) -> bool:
+    """
+    Check if input is text.
+
+    It checks if the input a array of strings.
+    """
+    return all(isinstance(s, str) for s in x)
+
+
+def is_image(x: np.ndarray) -> bool:
+    """
+    Check if input is an image.
+
+    Returns True if the input has 4 dimensions.
+    """
+    return x.ndim == 4
+
+
+def is_continuous(x: np.ndarray) -> bool:
+    """
+    Check if input is continous.
+
+    Returns True if the dtype is float32 or float64.
+    """
+    return x.dtype in [np.float32, np.float64]
+
+
+def is_discrete(x: np.ndarray) -> bool:
+    """
+    Check if input is discrete.
+
+    Returns True if the dtype is int8, int16, int32, int64, uint8, uint16, uint32, or uint64.
+    """
+    return x.dtype in [np.int8, np.int16, np.int32, np.int64, np.uint8, np.uint16, np.uint32, np.uint64]
 
 
 class BatchGenerator:
@@ -106,30 +142,32 @@ class BatchGenerator:
         return (height // patch_size) * (width // patch_size)
 
     def __call__(self, dataset: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
-        # Preprocess the dataset
-        observation_keys = [key for key in dataset.keys() if key.startswith("observations")]
-        dataset.update(self.processor({key: dataset[key] for key in observation_keys + ["actions"]}))
+        # Preprocess the dataset (tokenize and extract patches)
+        observation_keys = [key for key in dataset.keys() if key.endswith("observations")]
+        action_keys = [key for key in dataset.keys() if key.endswith("actions")]  # should be only one
+        dataset.update(self.processor({key: dataset[key] for key in observation_keys + action_keys}))
 
+        # Add loss mask: m = True if the token at index l is either from text or
+        # from the logged action of an agent, and 0 otherwise
+        for key in observation_keys + action_keys:
+            shape = dataset[key].shape[:2]  # (batch_size, seq_len)
+            if key.startswith("text") or key.endswith("actions"):
+                dataset[f"{key}_loss_mask"] = np.ones(shape, dtype=bool)
+            else:
+                dataset[f"{key}_loss_mask"] = np.zeros(shape, dtype=bool)
         # First, we need to compute the number of embeddings needed for the observations and actions.
         # At this point, there are 2 possibilities for the observations:
         # 1. The observation is anything but an image, then the value is tokenized
         # 2. The observation is an image, then the value is a tuple containing the patches and
         #    the corresponding positions
         # In both cases, the values are numpy arrays of shape (batch_size, seq_len, ...)
-        # We need to first get the keys for both cases
-        tokenized_observation_keys = [key for key in observation_keys if dataset[key].ndim == 2]
-        image_observation_keys = [key for key in observation_keys if dataset[key].ndim == 5]
-        assert len(tokenized_observation_keys) + len(image_observation_keys) == len(observation_keys)
-
         # We compute the total number of embeddings for the observations and actions
-        num_emb_per_observation = sum(dataset[key].shape[1] for key in observation_keys)
-        num_emb_per_action = dataset["actions"].shape[1]
+        num_emb_per_interaction = sum(dataset[key].shape[1] for key in observation_keys + action_keys)
 
-        # Compute the number of interactions per sequence
+        # Add one embedding for the separator token
         if self.use_separator:
-            num_emb_per_interaction = num_emb_per_observation + 1 + num_emb_per_action
-        else:
-            num_emb_per_interaction = num_emb_per_observation + num_emb_per_action
+            num_emb_per_interaction += 1
+
         num_interractions_per_seq = self.seq_len // num_emb_per_interaction
 
         # We require at least two interactions per sequence to be able to prompt. TODO: why?
@@ -186,8 +224,21 @@ class BatchGenerator:
 
         # Create a new entries for the masks
         data = {key: value[0] for key, value in dataset.items()}
-        masks = {f"{key}_mask": value[1] for key, value in dataset.items()}
-        return {**data, **masks}
+        # We di about the attention mask for loss mask, since they are equal to the attention mask
+        # of the modality they are associated with.
+        attention_mask = {
+            f"{key}_attention_mask": value[1] for key, value in dataset.items() if not key.endswith("loss_mask")
+        }
+        # Small hack here, for image patches, we need to turn the attention mask into the right shape
+        if "image_observations_attention_mask" in attention_mask:
+            attention_mask.pop("image_observations_attention_mask")
+            mask = attention_mask.pop("patches_positions_attention_mask")
+            # From shape (batch_size, seq_len, num_patches, 2, 2) to (batch_size, seq_len, num_patches)
+            # Note that all the values are egals in the last two dimensions, so we can just take the first one
+            mask = mask[:, :, :, 0, 0]
+            attention_mask["image_observations_attention_mask"] = mask
+
+        return {**data, **attention_mask}
 
 
 def load_gia_dataset(
@@ -241,21 +292,40 @@ def load_gia_dataset(
     # Convert the dataset to numpy arrays
     dataset = dataset.with_format("numpy")[:]
 
-    # Fix image dtype (from int64 to uint8)
-    for key, value in dataset.items():
-        if value.ndim == 4:
-            dataset[key] = dataset[key].astype(np.uint8)
-
     # TODO: remove this when a better solution is found
     if "babyai" in task_name:
         # remove the "image" column as it is not used
         dataset.pop("images")
 
-    # Temporarily rename the observations with "observations/" prefix. Maybe we can include this in the dataset later.
-    all_keys = dataset.keys()
-    observations_keys = [key for key in all_keys if key not in ["actions", "dones", "rewards"]]
-    for key in observations_keys:
-        dataset[f"observations/{key}"] = dataset.pop(key)
+    # Rename keys to get the format "[type]_[observations or actions]"
+    keys = list(dataset.keys())  # Avoid "Keys changed during iteration"
+    for key in keys:
+        if not key in ["actions", "dones", "rewards"]:
+            observations = dataset.pop(key)
+            if is_image(observations):
+                observations = observations.astype(np.uint8)
+                if np.argmin(observations.shape[1:]) == 2:  # channels last, make it channels first
+                    observations = np.transpose(observations, (0, 3, 1, 2))
+                assert np.argmin(observations.shape[1:]) == 0, "Channels error"
+                dataset["image_observations"] = observations
+            elif is_text(observations):
+                dataset["text_observations"] = observations
+            elif is_discrete(observations):
+                dataset["discrete_observations"] = observations
+            elif is_continuous(observations):
+                dataset["continuous_observations"] = observations
+            else:
+                raise ValueError(f"Unknown observation type for {key}")
+    # Do the same for actions.
+    actions = dataset.pop("actions")
+    if is_text(actions):
+        dataset["text_actions"] = actions
+    elif is_discrete(actions):
+        dataset["discrete_actions"] = actions
+    elif is_continuous(actions):
+        dataset["continuous_actions"] = actions
+    else:
+        raise ValueError(f"Unknown action type.")
 
     # Pack the the dataset into batches of sequences
     batch_generator = BatchGenerator(seq_len, p_prompt, p_end, patch_size, mu, M, nb_bins, token_shift, use_sepatator)
@@ -269,7 +339,9 @@ if __name__ == "__main__":
     from torch.utils.data import DataLoader
     from tqdm import tqdm
 
-    dataset = load_gia_dataset("babyai-go-to")
-    daltaloader = DataLoader(dataset, batch_size=64, num_workers=8)
-    for batch in daltaloader:
-        tqdm.write(" ".join(str(value.shape) + " " + str(value.dtype) for value in batch.values()))
+    dataset = load_gia_dataset("babyai-go-to", load_from_cache_file=False)
+    daltaloader = DataLoader(dataset, batch_size=64)
+    for batch in tqdm(daltaloader):
+        for key, value in batch.items():
+            tqdm.write(f"{key}: {value.shape} {value.dtype}")
+        tqdm.write("---")

@@ -253,13 +253,14 @@ class Embeddings(nn.Module):
 
     Inputs:
         batch (Dict[str, Tensor]): A batch of data. It is expected to contain the observations and the actions.
-            The keys for the observations should start with "observations". For example, "observations" or
-            "observations/rgb". You can mix modalities. The values can be either tokens or images patches. If
-            they are tokens, they should be of shape (batch_size, seq_len, num_tokens) and of type torch.long. If
-            they are images, they should be of shape (batch_size, seq_len, num_patches, num_channels, height, width)
-            and of type torch.uint8.
-            The key for the actions is "actions". You can't mix modalities. The value can only be tokens. For
-            more information, see above.
+            The possible keys for observations are "text_observations", "image_observations", "discrete_observations", and
+            "continuous_observation".
+            The possible keys for actions are "text_actions", "discrete_actions" and "continuous_actions". It is expected
+            that the batch contains only one action key.
+            For each observation and action key, it is expected that the batch also contains loss mask and the attention
+            mask. The corresponding keys are "{key}_loss_mask" and "{key}_attention_mask" respectively. For example,
+            for the "text_observations" key, the batch should contain "text_observations_loss_mask" and
+            "text_observations_attention_mask".
 
     Outputs:
         Tensor: The embeddings of shape (batch_size, seq_len*L, embedding_dim) where L is the total number of
@@ -322,12 +323,12 @@ class Embeddings(nn.Module):
         # Where L is the number of interactions in the batch. Note that this number can vary from batch
         # to batch, because, if the prompt is too short, L is smaller than the maximum possible number
         # interactions in the batch.
-
         # First, handle observations: get the keys of tokens and images
-        obs_keys = [key for key in batch.keys() if key.startswith("observations") and not key.endswith("mask")]
-        tokenized_obs_keys = [key for key in obs_keys if batch[key].dim() == 3]
-        image_obs_keys = [key for key in obs_keys if batch[key].dim() == 6]
-        assert len(tokenized_obs_keys) + len(image_obs_keys) == len(obs_keys)
+        possible_tokenized_obs_keys = ["text_observations", "discrete_observations", "continuous_observations"]
+        possible_action_keys = ["text_actions", "discrete_actions", "continuous_actions"]
+        tokenized_obs_keys = [key for key in batch.keys() if key in possible_tokenized_obs_keys]
+        image_obs_keys = [key for key in batch.keys() if key == "image_observations"]
+        action_key = [key for key in batch.keys() if key in possible_action_keys][0]
 
         # Handle images observations: normalize and embed, then add patch position embeddings
         normalized_images = {key: batch[key].float() * 2.0 / 255.0 - 1.0 for key in image_obs_keys}
@@ -336,45 +337,57 @@ class Embeddings(nn.Module):
         image_embeddings = {key: image_embeddings[key] + patch_pos_embeddings[key] for key in image_obs_keys}
 
         # Handle tokens observations: concatenate all tokenized observations and embed
+        # FIXME: what happens when there is just image observations?
         tokenized_obs = torch.cat([batch[key] for key in tokenized_obs_keys], dim=2)
         obs_embeddings = self.embeddings(tokenized_obs)  # shape (batch_size, L, n_obs_tokens, embedding_dim)
+        obs_loss_mask = torch.cat([batch[f"{key}_loss_mask"] for key in tokenized_obs_keys], dim=2)
 
         # Concatenate images embeddings with the other embeddings and add local position embeddings
         obs_embeddings = torch.cat([obs_embeddings] + [image_embeddings[key] for key in image_obs_keys], dim=2)
         obs_pos_embeddings = self.local_pos_embeddings(obs_embeddings.shape)
         obs_embeddings += obs_pos_embeddings
+        obs_loss_mask = torch.cat([obs_loss_mask] + [batch[f"{key}_loss_mask"] for key in image_obs_keys], dim=2)
 
         # Create separator token
         batch_size, seq_len, _, embedding_dim = obs_embeddings.shape
         if self.use_separator:
             separator_token = torch.full((batch_size, seq_len, 1), self.separator_token, dtype=torch.long)
             separator_embeddings = self.embeddings(separator_token)
+            separator_loss_mask = torch.ones((batch_size, seq_len, 1), dtype=torch.bool)
 
         # Handle action: embed and add local position embeddings
-        action_embeddings = self.embeddings(batch["actions"])
+        action_embeddings = self.embeddings(batch[action_key])
         action_pos_embeddings = self.local_pos_embeddings(action_embeddings.shape, same=True)
         action_embeddings += action_pos_embeddings
+        action_loss_mask = batch[f"{action_key}_loss_mask"]
 
         # Concatenate all embeddings
         if self.use_separator:
             embeddings = torch.cat([obs_embeddings, action_embeddings], dim=2)
+            loss_mask = torch.cat([obs_loss_mask, action_loss_mask], dim=2)
         else:
             embeddings = torch.cat([obs_embeddings, separator_embeddings, action_embeddings], dim=2)
+            loss_mask = torch.cat([obs_loss_mask, separator_loss_mask, action_loss_mask], dim=2)
 
         # Flatten the embeddings into a single sequence of tokens of shape (batch_size, seq_len*L, embedding_dim)
         # Where L is the total number of tokens for one interaction (observation + separator + action)
         embeddings = embeddings.reshape(batch_size, -1, embedding_dim)
-        return embeddings
+        loss_mask = loss_mask.reshape(batch_size, -1)
+        return {"embeddings": embeddings, "loss_mask": loss_mask}
 
 
 if __name__ == "__main__":
+    # TODO: add attention mask
     from torch.utils.data import DataLoader
     from tqdm import tqdm
 
     from gia.datasets.gia_dataset import load_gia_dataset
 
-    dataset = load_gia_dataset("babyai-go-to", load_from_cache_file=False)
+    dataset = load_gia_dataset("mujoco-ant", load_from_cache_file=False)
     dataloader = DataLoader(dataset)
     embeddings = Embeddings()
     for batch in tqdm(dataloader):
-        tqdm.write(str(embeddings(batch).shape))
+        emb = embeddings(batch)
+        for key, value in emb.items():
+            tqdm.write(f"{key}: {value.shape} {value.dtype}")
+        tqdm.write("---")
