@@ -6,7 +6,6 @@ from typing import Dict, List
 import numpy as np
 import torch
 from datasets import load_dataset
-from torch.utils.data import DataLoader
 
 from gia.datasets.dataset_dict import DatasetDict
 from gia.processor.multimodal_processor import MultimodalProcessor
@@ -267,6 +266,7 @@ def load_gia_dataset(
 
 
 if __name__ == "__main__":
+    from torch.utils.data import DataLoader
     from tqdm import tqdm
 
     dataset = load_gia_dataset("babyai-go-to")
