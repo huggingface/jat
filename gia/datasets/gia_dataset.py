@@ -1,7 +1,7 @@
 import hashlib
 import os
 import random
-from typing import Dict, List, Iterable
+from typing import Dict, Iterable, List
 
 import numpy as np
 import torch
