@@ -1,5 +1,4 @@
 from torch import nn
-from torch.utils.data.dataloader import DataLoader
 from transformers import AutoConfig, AutoModelForCausalLM
 
 from gia.config import Arguments
@@ -21,7 +20,7 @@ class GiaModel(nn.Module):
         # the model requires us to provide position ids, otherwise it will generate them
         # qgallouedec: I've removed position_ids=batch["local_position_ids"]. Is this a problem?
         out = self.model(inputs_embeds=embeds["embeddings"], attention_mask=embeds["attention_mask"])
-        # out.loss = self.loss(out.logits, batch["tokens"], batch["loss_mask"])
+        out.loss = self.loss(out.logits, embeds["tokens"], embeds["loss_mask"])
         return out
 
     def loss(self, logits, tokens, masks):
@@ -52,4 +51,3 @@ if __name__ == "__main__":
     for batch in tqdm(dataloader):
         out = model(batch)
         tqdm.write(str(out))
-

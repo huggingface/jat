@@ -339,8 +339,8 @@ class Embeddings(nn.Module):
 
         # Handle tokens observations: concatenate all tokenized observations and embed
         # FIXME: what happens when there is just image observations?
-        tokenized_obs = torch.cat([batch[key] for key in tokenized_obs_keys], dim=2)
-        obs_embeddings = self.embeddings(tokenized_obs)  # shape (batch_size, L, n_obs_tokens, embedding_dim)
+        obs_tokens = torch.cat([batch[key] for key in tokenized_obs_keys], dim=2)
+        obs_embeddings = self.embeddings(obs_tokens)  # shape (batch_size, L, n_obs_tokens, embedding_dim)
         obs_loss_mask = torch.cat([batch[f"{key}_loss_mask"] for key in tokenized_obs_keys], dim=2)
         obs_attention_mask = torch.cat([batch[f"{key}_attention_mask"] for key in tokenized_obs_keys], dim=2)
 
@@ -349,6 +349,9 @@ class Embeddings(nn.Module):
             obs_embeddings = torch.cat((obs_embeddings, image_embeddings), dim=2)
             obs_loss_mask = torch.cat((obs_loss_mask, batch["image_observations_loss_mask"]), dim=2)
             obs_attention_mask = torch.cat((obs_attention_mask, batch["image_observations_attention_mask"]), dim=2)
+            # Add zeros to the tokenized observations (they are masked anyway)
+            fake_tokens = torch.zeros(image_embeddings.shape[:3], dtype=torch.int64)  # (batch_size, L, num_patches)
+            obs_tokens = torch.cat((obs_tokens, fake_tokens), dim=2)
         obs_pos_embeddings = self.local_pos_embeddings(obs_embeddings.shape)
         obs_embeddings += obs_pos_embeddings
 
@@ -361,7 +364,8 @@ class Embeddings(nn.Module):
             separator_attention_mask = torch.ones((batch_size, seq_len, 1), dtype=torch.bool)
 
         # Handle action: embed and add local position embeddings
-        action_embeddings = self.embeddings(batch[action_key])
+        action_tokens = batch[action_key]
+        action_embeddings = self.embeddings(action_tokens)
         action_pos_embeddings = self.local_pos_embeddings(action_embeddings.shape, same=True)
         action_embeddings += action_pos_embeddings
         action_loss_mask = batch[f"{action_key}_loss_mask"]
@@ -372,17 +376,20 @@ class Embeddings(nn.Module):
             embeddings = torch.cat([obs_embeddings, action_embeddings], dim=2)
             loss_mask = torch.cat([obs_loss_mask, action_loss_mask], dim=2)
             attention_mask = torch.cat([obs_attention_mask, action_attention_mask], dim=2)
+            tokens = torch.cat([obs_tokens, action_tokens], dim=2)
         else:
             embeddings = torch.cat([obs_embeddings, separator_embeddings, action_embeddings], dim=2)
             loss_mask = torch.cat([obs_loss_mask, separator_loss_mask, action_loss_mask], dim=2)
             attention_mask = torch.cat([obs_attention_mask, separator_attention_mask, action_attention_mask], dim=2)
+            tokens = torch.cat([obs_tokens, separator_token, action_tokens], dim=2)
 
         # Flatten the embeddings into a single sequence of tokens of shape (batch_size, seq_len*L, embedding_dim)
         # Where L is the total number of tokens for one interaction (observation + separator + action)
         embeddings = embeddings.reshape(batch_size, -1, embedding_dim)
         loss_mask = loss_mask.reshape(batch_size, -1)
         attention_mask = attention_mask.reshape(batch_size, -1)
-        return {"embeddings": embeddings, "loss_mask": loss_mask, "attention_mask": attention_mask}
+        tokens = tokens.reshape(batch_size, -1)
+        return {"embeddings": embeddings, "loss_mask": loss_mask, "attention_mask": attention_mask, "tokens": tokens}
 
 
 if __name__ == "__main__":
