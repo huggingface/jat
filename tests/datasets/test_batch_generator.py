@@ -1,0 +1,148 @@
+from typing import Dict
+
+import numpy as np
+import pytest
+
+from gia.datasets.batch_generator import BatchGenerator
+
+BATCH_SIZE = 128
+C, H, W = 3, 16, 16
+PATCH_SIZE = 8
+OBS_SIZE = 4
+SEQ_LEN = 32
+
+
+@pytest.fixture
+def dataset():
+    # Example dataset
+    obs = np.random.rand(BATCH_SIZE, OBS_SIZE).astype(np.float32)
+    img = np.random.randint(0, 255, size=(BATCH_SIZE, C, H, W), dtype=np.uint8)
+    actions = np.random.randint(0, 10, size=(BATCH_SIZE,), dtype=np.int64)
+    dones = np.random.rand(BATCH_SIZE) < 0.1
+    return {"continuous_observations": obs, "image_observations": img, "discrete_actions": actions, "dones": dones}
+
+
+@pytest.mark.parametrize("use_separator", [True, False])
+def test_batch_generator(dataset: Dict[str, np.ndarray], use_separator: bool):
+    # Initialize batch generator
+    batch_gen = BatchGenerator(seq_len=SEQ_LEN, patch_size=PATCH_SIZE, use_separator=use_separator)
+
+    # Call batch generator on dataset
+    batches = batch_gen(dataset)
+
+    # Check output keys
+    assert set(batches.keys()) == {
+        # Tokens, attention mask and loss mask for observations and actions
+        "continuous_observations",
+        "continuous_observations_attention_mask",
+        "continuous_observations_loss_mask",
+        "discrete_actions",
+        "discrete_actions_attention_mask",
+        "discrete_actions_loss_mask",
+        # Special case for image observations, also returns patches positions
+        "image_observations",
+        "image_observations_attention_mask",
+        "image_observations_loss_mask",
+        "patches_positions",
+        # Dones
+        "dones",
+        "dones_attention_mask",
+    }
+    exp_nb_patches = (W // PATCH_SIZE) * (H // PATCH_SIZE)  # Expected number of patches per image
+    # tokens + patches + sperator + actions
+    if use_separator:
+        num_token_per_int = OBS_SIZE + exp_nb_patches + 1 + 1
+    else:
+        num_token_per_int = OBS_SIZE + exp_nb_patches + 1
+    num_int_per_seq = SEQ_LEN // num_token_per_int  # Number of interactions per sequence
+
+    # Check output shapes
+    # We don't know how many batches there are, so we just check that it's the same for all outputs
+    num_seq = len(batches["continuous_observations"])
+
+    # Check output shapes
+    assert batches["continuous_observations"].shape == (num_seq, num_int_per_seq, OBS_SIZE)
+    assert batches["continuous_observations_attention_mask"].shape == (num_seq, num_int_per_seq, OBS_SIZE)
+    assert batches["continuous_observations_loss_mask"].shape == (num_seq, num_int_per_seq, OBS_SIZE)
+    assert batches["discrete_actions"].shape == (num_seq, num_int_per_seq, 1)
+    assert batches["discrete_actions_attention_mask"].shape == (num_seq, num_int_per_seq, 1)
+    assert batches["discrete_actions_loss_mask"].shape == (num_seq, num_int_per_seq, 1)
+    assert batches["image_observations"].shape == (num_seq, num_int_per_seq, exp_nb_patches, C, PATCH_SIZE, PATCH_SIZE)
+    assert batches["image_observations_attention_mask"].shape == (num_seq, num_int_per_seq, exp_nb_patches)
+    assert batches["image_observations_loss_mask"].shape == (num_seq, num_int_per_seq, exp_nb_patches)
+    assert batches["patches_positions"].shape == (num_seq, num_int_per_seq, exp_nb_patches, 2, 2)
+    assert batches["dones"].shape == (num_seq, num_int_per_seq)
+    assert batches["dones_attention_mask"].shape == (num_seq, num_int_per_seq)
+
+
+def test_batch_generator_no_prompt(dataset: Dict[str, np.ndarray]):
+    # Initialize batch generator
+    batch_gen = BatchGenerator(seq_len=SEQ_LEN, patch_size=PATCH_SIZE, p_prompt=0.0)
+
+    exp_nb_patches = (W // PATCH_SIZE) * (H // PATCH_SIZE)  # Expected number of patches per image
+    num_token_per_int = OBS_SIZE + exp_nb_patches + 1 + 1
+    num_int_per_seq = SEQ_LEN // num_token_per_int
+    num_seq = BATCH_SIZE // num_int_per_seq
+
+    # Call batch generator on dataset
+    batches = batch_gen(dataset)
+
+    # Check output shapes
+    assert batches["continuous_observations"].shape == (num_seq, num_int_per_seq, OBS_SIZE)
+    assert batches["continuous_observations_attention_mask"].shape == (num_seq, num_int_per_seq, OBS_SIZE)
+    assert batches["continuous_observations_loss_mask"].shape == (num_seq, num_int_per_seq, OBS_SIZE)
+    assert batches["discrete_actions"].shape == (num_seq, num_int_per_seq, 1)
+    assert batches["discrete_actions_attention_mask"].shape == (num_seq, num_int_per_seq, 1)
+    assert batches["discrete_actions_loss_mask"].shape == (num_seq, num_int_per_seq, 1)
+    assert batches["image_observations"].shape == (num_seq, num_int_per_seq, exp_nb_patches, C, PATCH_SIZE, PATCH_SIZE)
+    assert batches["image_observations_attention_mask"].shape == (num_seq, num_int_per_seq, exp_nb_patches)
+    assert batches["image_observations_loss_mask"].shape == (num_seq, num_int_per_seq, exp_nb_patches)
+    assert batches["patches_positions"].shape == (num_seq, num_int_per_seq, exp_nb_patches, 2, 2)
+    assert batches["dones"].shape == (num_seq, num_int_per_seq)
+    assert batches["dones_attention_mask"].shape == (num_seq, num_int_per_seq)
+
+    # Check values
+    for i in range(num_seq):
+        for key in dataset.keys():
+            expected_seq = dataset[key][i * num_int_per_seq : (i + 1) * num_int_per_seq]
+            assert np.all(batches[key][i] == expected_seq)
+
+
+def test_empty_list():
+    # Test with an empty list
+    with pytest.raises(ValueError):
+        BatchGenerator.stack_with_padding([])
+
+
+def test_padding_value():
+    # Test with a non-zero padding value
+    x = [np.ones((2, 2)), np.zeros((3, 2))]
+    stacked, mask = BatchGenerator.stack_with_padding(x, padding_value=-1)
+    assert stacked.shape == (2, 3, 2)
+    assert mask.shape == (2, 3, 2)
+    target_stacked = np.array(
+        [
+            [[1, 1], [1, 1], [-1, -1]],
+            [[0, 0], [0, 0], [0, 0]],
+        ]
+    )
+    target_mask = np.array(
+        [
+            [[True, True], [True, True], [False, False]],
+            [[True, True], [True, True], [True, True]],
+        ]
+    )
+    assert np.array_equal(stacked, target_stacked)
+    assert np.array_equal(mask, target_mask)
+
+
+def test_same_shapes():
+    # Test with arrays of same shapes
+    x = [np.ones((2, 2)), np.zeros((2, 2))]
+    stacked, mask = BatchGenerator.stack_with_padding(x)
+    assert stacked.shape == (2, 2, 2)
+    assert mask.shape == (2, 2, 2)
+    target_stacked = np.array([[[1, 1], [1, 1]], [[0, 0], [0, 0]]])
+    target_mask = np.array([[[True, True], [True, True]], [[True, True], [True, True]]])
+    assert np.array_equal(stacked, target_stacked)
+    assert np.array_equal(mask, target_mask)
