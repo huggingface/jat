@@ -6,8 +6,8 @@ import numpy as np
 import torch
 from datasets import load_dataset
 
-from gia.datasets.batch_generator import BatchGenerator
-from gia.datasets.dataset_dict import DatasetDict
+from .batch_generator import BatchGenerator
+from .dataset_dict import DatasetDict
 
 
 def is_text(x: Iterable) -> bool:

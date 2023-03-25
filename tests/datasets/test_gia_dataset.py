@@ -1,7 +1,13 @@
 import numpy as np
 from torch.utils.data import DataLoader
 
-from gia.datasets_.gia_dataset import is_continuous, is_discrete, is_image, is_text, load_gia_dataset
+from gia.datasets.gia_dataset import (
+    is_continuous,
+    is_discrete,
+    is_image,
+    is_text,
+    load_gia_dataset,
+)
 
 
 def test_is_text():
