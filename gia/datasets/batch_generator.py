@@ -133,6 +133,13 @@ class BatchGenerator:
         if self.use_separator:
             num_emb_per_interaction += 1
 
+        # Check that the sequence lenght is high enough to contain at least one interaction
+        if self.seq_len < num_emb_per_interaction:
+            raise ValueError(
+                f"The sequence length ({self.seq_len}) is too short to contain at least one interaction "
+                f"Use a sequence length of at least {num_emb_per_interaction}."
+            )
+
         num_interractions_per_seq = self.seq_len // num_emb_per_interaction
 
         # We require at least two interactions per sequence to be able to prompt. TODO: why?
