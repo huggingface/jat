@@ -69,6 +69,7 @@ REQUIRED_PKGS = [
     "accelerate",
     "wandb",
     "datasets",
+    "opencv-python",
 ]
 
 
