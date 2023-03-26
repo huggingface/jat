@@ -4,9 +4,19 @@ from gia.model.embedding import Embeddings
 
 
 def test_embeddings():
-    nb_bins = 8
-    embedding_layer = Embeddings(embedding_dim=32, vocab_size=32, nb_bins=nb_bins, max_nb_observation_tokens=7)
-    tokens = torch.randint(0, nb_bins, (10, 7))
-    tokens[:, 3] = 32 + 8  # separator token
-    embeddings = embedding_layer(tokens)
-    assert embeddings.shape == (10, 7, 32)
+    batch_size, seq_len, num_tokens = 8, 4, 3
+    batch = {
+        "discrete_observations": torch.randint(0, 32_000, (batch_size, seq_len, num_tokens)),
+        "discrete_observations_loss_mask": torch.randint(0, 2, (batch_size, seq_len, num_tokens)).bool(),
+        "discrete_observations_attention_mask": torch.randint(0, 2, (batch_size, seq_len, num_tokens)).bool(),
+        "discrete_actions": torch.randint(32_000, 32_010, (batch_size, seq_len, num_tokens)),
+        "discrete_actions_loss_mask": torch.randint(32_000, 32_010, (batch_size, seq_len, num_tokens)).bool(),
+        "discrete_actions_attention_mask": torch.randint(32_000, 32_010, (batch_size, seq_len, num_tokens)).bool(),
+    }
+    embed = Embeddings(embedding_dim=32)
+    embeddings = embed(batch)
+    # observations and actions are concatenated
+    assert embeddings["tokens"].shape == (batch_size, seq_len * num_tokens * 2)
+    assert embeddings["attention_mask"].shape == (batch_size, seq_len * num_tokens * 2)
+    assert embeddings["loss_mask"].shape == (batch_size, seq_len * num_tokens * 2)
+    assert embeddings["embeddings"].shape == (batch_size, seq_len * num_tokens * 2, 32)
