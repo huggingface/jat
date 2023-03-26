@@ -1,7 +1,6 @@
 import numpy as np
 import torch
 from gym import spaces
-from torch import Tensor
 
 # numpy_to_torch_dtype_dict = {
 #     np.bool       : torch.bool,
@@ -50,88 +49,56 @@ def dol_to_donp(dol):
     return {k: np.array(v) for k, v in dol.items()}
 
 
-def mu_law(x: Tensor, mu: float = 100, M: float = 256) -> Tensor:
+def mu_law(x: np.ndarray, mu: float = 100, M: float = 256) -> np.ndarray:
     """
     μ-law companding.
 
     Args:
-        x (Tensor): Input tensor
+        x (np.ndarray): Input array
         mu (float, optional): μ parameter. Defaults to 100.
         M (float, optional): M parameter. Defaults to 256.
 
     Returns:
-        Tensor: Normalized tensor
+        np.ndarray: Normalized array
     """
     return np.sign(x) * np.log(np.abs(x) * mu + 1.0) / np.log(M * mu + 1.0)
 
 
-def discretize(x: Tensor, nb_bins: int = 1024) -> Tensor:
+def discretize(x: np.ndarray, nb_bins: int = 1024) -> np.ndarray:
     """
-    Discretize tensor.
+    Discretize array.
 
     Example:
-        >>> x = tensor([-1.0, -0.1, 0.3, 0.4, 1.0])
+        >>> import numpy as np
+        >>> x = np.array([-1.0, -0.1, 0.3, 0.4, 1.0])
         >>> discretize(x, nb_bins=6)
-        tensor([0, 2, 3, 4, 5])
+        array([0, 2, 3, 4, 5])
 
     Args:
-        x (Tensor): Input tensor, in the range [-1, 1]
+        x (np.ndarray): Input array, in the range [-1, 1]
         nb_bins (int, optional): Number of bins. Defaults to 1024.
 
     Returns:
-        Tensor: Discretized tensor
+        np.ndarray: Discretized array
     """
     if np.any(x < -1.0) or np.any(x > 1.0):
-        raise ValueError("Input tensor must be in the range [-1, 1]")
+        raise ValueError("Input array must be in the range [-1, 1]")
     x = (x + 1.0) / 2 * nb_bins  # [-1, 1] to [0, nb_bins]
     discretized = np.floor(x).astype(np.int64)
     discretized[discretized == nb_bins] = nb_bins - 1  # Handle the case where x == 1.0
     return discretized
 
 
-def inverse_mu_law(x: Tensor, mu: float = 100, M: float = 256) -> Tensor:
+def inverse_mu_law(x: np.ndarray, mu: float = 100, M: float = 256) -> np.ndarray:
     """
     Inverse μ-law companding.
 
     Args:
-        x (Tensor): Input tensor
+        x (np.ndarray): Input array
         mu (float, optional): μ parameter. Defaults to 100.
         M (float, optional): M parameter. Defaults to 256.
 
     Returns:
-        Tensor: Unnormalized tensor
+        np.ndarray: Unnormalized array
     """
-    return torch.sign(x) * (torch.exp(torch.abs(x) * torch.log(torch.tensor(M * mu + 1.0))) - 1.0) / mu
-
-
-def to_channel_first(image_tensor):
-    """
-    Convert a tensor from channel-last to channel-first format (used by PyTorch).
-
-    Args:
-        image_tensor (Tensor): Batch of images.
-
-    Returns:
-        Tensor: Batch of images in channel-first format.
-
-    Raises:
-        ValueError: If the input tensor is not detected to be an image.
-
-    Example:
-        >>> x = torch.rand(4, 84, 84, 3)
-        >>> to_channel_first(x).shape
-        torch.Size([4, 3, 84, 84])
-    """
-    # Get the index of the smallest dimension, expect the batch dimension
-    channel_dim = torch.argmin(torch.tensor(image_tensor.shape[1:])) + 1
-
-    # Check if the input is in channel-first or channel-last format
-    if channel_dim == 1:
-        # The tensor is already in channel-first format
-        return image_tensor
-    elif channel_dim == 3:
-        # The tensor is in channel-last format, permute the tensor
-        return image_tensor.permute(0, 3, 1, 2)
-    else:
-        # Invalid tensor shape
-        raise ValueError("Invalid tensor shape: {}".format(image_tensor.shape))
+    return np.sign(x) * (np.exp(np.abs(x) * np.log(M * mu + 1.0)) - 1.0) / mu
