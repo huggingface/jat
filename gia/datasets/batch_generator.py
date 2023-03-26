@@ -23,15 +23,36 @@ class BatchGenerator:
             Defaults to True.
 
     Input:
-        - dataset (Dict[str, np.ndarray]): A dictionary containing the dataset.
-            The dictionary must contain the following keys:
-                - "observations[*]": Observations (possibly many keys starting with "observations")
-                - "actions": Actions
-                - "dones": Dones flags
+        dataset (Dict[str, np.ndarray]): A dictionary containing the dataset. The dictionary must contain:
+            - At least one key for the observations. It can be either "discrete_observations",
+                "continuous_observations", "image_observations", or "text_observations", depending on the type of
+                observations. The dataset can contain multiple keys for the observations.
+            - One key for the actions. It can be either "discrete_actions", "continuous_actions", or
+                "text_actions", depending on the type of actions. The dataset can only contain one key for the
+                actions.
+            - The dones flags, with key "dones".
 
     Returns:
         Dict[str, np.ndarray]: A dictionary containing the processed dataset with keys for observations,
             actions, and masks.
+
+    Example:
+        >>> import numpy as np
+        >>> dataset_size = 1000
+        >>> dataset = {
+        ...     "discrete_observations": np.random.randint(0, 10, size=(dataset_size, 10), dtype=np.int64),
+        ...     "continuous_actions": np.random.rand(dataset_size, 5),
+        ...     "dones": np.random.rand(dataset_size) < 0.1,
+        ... }
+        >>> batch_generator = BatchGenerator()
+        >>> batch = batch_generator(dataset)
+        >>> batch["discrete_observations"].shape
+        (18, 64, 10)
+        >>> batch["continuous_actions"].shape
+        (18, 64, 5)
+
+    In the example above, the dataset contains 1000 interactions. From the dataset, the batch generator
+    generates 18 sequences of length 64 tokens.
     """
 
     def __init__(
@@ -54,13 +75,14 @@ class BatchGenerator:
         self.processor = MultimodalProcessor(mu, M, nb_bins, patch_size, token_shift)
 
     @staticmethod
-    def stack_with_padding(x: List[np.ndarray], padding_value: int = 0) -> np.ndarray:
+    def stack_with_padding(x: List[np.ndarray], padding_value: int = 0, side: str = "left") -> np.ndarray:
         """
         Stack a list of numpy arrays with padding along the first dimension.
 
         Args:
             x (List[np.ndarray]): A list of numpy arrays to be stacked.
             padding_value (int, optional): The value to use for padding the arrays. Defaults to 0.
+            side (str, optional): The side of the arrays to pad. Can be either "left" or "right". Defaults to "left".
 
         Returns:
             A tuple of two numpy arrays:
@@ -75,9 +97,7 @@ class BatchGenerator:
         assert all(arr.shape[1:] == x[0].shape[1:] for arr in x)
 
         # Get the shape in the first dimension
-        max_shape = np.array([arr.shape[0] for arr in x]).max(axis=0)
-
-        shape = (max_shape, *x[0].shape[1:])
+        shape = (max(arr.shape[0] for arr in x), *x[0].shape[1:])
 
         # Initialize the stacked array with padding_value
         stacked = np.full((len(x), *shape), padding_value, dtype=x[0].dtype)
@@ -85,9 +105,14 @@ class BatchGenerator:
 
         # Fill the stacked array with input arrays
         for idx, arr in enumerate(x):
-            slices = tuple(slice(0, dim) for dim in arr.shape)
-            stacked[idx][slices] = arr
-            mask[idx][slices] = True
+            if side == "left":
+                stacked[idx, : arr.shape[0]] = arr
+                mask[idx, : arr.shape[0]] = True
+            elif side == "right":
+                stacked[idx, -arr.shape[0] :] = arr
+                mask[idx, -arr.shape[0] :] = True
+            else:
+                raise ValueError("Invalid value for 'side' argument. Must be 'left' or 'right'.")
 
         return stacked, mask
 
@@ -187,6 +212,114 @@ class BatchGenerator:
             batch = {key: dataset[key][indices] for key in dataset.keys()}
             all_batches.append(batch)
             current_ep_start += num_interractions
+
+        # Turn the list of dict into a dict of list
+        dataset = {key: [batch[key] for batch in all_batches] for key in dataset.keys()}
+        # Stack the list of arrays into a single array of shape (batch_size, seq_len, ...).
+        # Use padding to fill when the sequence is shorter than others (happens when prompt is too short).
+        dataset = {key: self.stack_with_padding(dataset[key]) for key in dataset.keys()}  # dict of tuples (data, mask)
+
+        # Create a new entries for the masks
+        data = {key: value[0] for key, value in dataset.items()}
+        # We di about the attention mask for loss mask, since they are equal to the attention mask
+        # of the modality they are associated with.
+        attention_mask = {
+            f"{key}_attention_mask": value[1] for key, value in dataset.items() if not key.endswith("loss_mask")
+        }
+        # Small hack here, for image patches, we need to turn the attention mask into the right shape
+        if "image_observations_attention_mask" in attention_mask:
+            attention_mask.pop("image_observations_attention_mask")
+            mask = attention_mask.pop("patches_positions_attention_mask")
+            # From shape (batch_size, seq_len, num_patches, 2, 2) to (batch_size, seq_len, num_patches)
+            # Note that all the values are egals in the last two dimensions, so we can just take the first one
+            mask = mask[:, :, :, 0, 0]
+            attention_mask["image_observations_attention_mask"] = mask
+
+        return {**data, **attention_mask}
+
+    def generate_prompts(self, dataset: Dict[str, np.ndarray], batch_size: int) -> Dict[str, np.ndarray]:
+        """
+        Generate the prompts for the given dataset.
+
+        Args:
+            dataset (Dict[str, np.ndarray]): A dictionary containing the dataset. It must at least contain:
+                - One key for the observations. It can be either "discrete_observations", "continuous_observations",
+                    "image_observations", or "text_observations", depending on the type of observations. The dataset
+                    can contain multiple keys for the observations.
+                - One key for the actions. It can be either "discrete_actions", "continuous_actions", or
+                    "text_actions", depending on the type of actions. The dataset can only contain one key for the
+                    actions.
+                - The dones flags, with key "dones".
+
+        Returns:
+            Dict[str, np.ndarray]: A dictionary containing the prompts.
+        """
+        # Preprocess the dataset (tokenize and extract patches)
+        observation_keys = [key for key in dataset.keys() if key.endswith("observations")]
+        action_keys = [key for key in dataset.keys() if key.endswith("actions")]  # should be only one
+        dataset.update(self.processor({key: dataset[key] for key in observation_keys + action_keys}))
+
+        # Add loss mask: m = True if the token at index l is either from text or
+        # from the logged action of an agent, and 0 otherwise
+        for key in observation_keys + action_keys:
+            shape = dataset[key].shape[:2]  # (batch_size, seq_len)
+            if key.startswith("text") or key.endswith("actions"):
+                dataset[f"{key}_loss_mask"] = np.ones(shape, dtype=bool)
+            else:
+                dataset[f"{key}_loss_mask"] = np.zeros(shape, dtype=bool)
+        # First, we need to compute the number of embeddings needed for the observations and actions.
+        # At this point, there are 2 possibilities for the observations:
+        # 1. The observation is anything but an image, then the value is tokenized
+        # 2. The observation is an image, then the value is a tuple containing the patches and
+        #    the corresponding positions
+        # In both cases, the values are numpy arrays of shape (batch_size, seq_len, ...)
+        # We compute the total number of embeddings for the observations and actions
+        num_emb_per_interaction = sum(dataset[key].shape[1] for key in observation_keys + action_keys)
+
+        # Add one embedding for the separator token
+        if self.use_separator:
+            num_emb_per_interaction += 1
+
+        # Check that the sequence lenght is high enough to contain at least one interaction
+        if self.seq_len < num_emb_per_interaction:
+            raise ValueError(
+                f"The sequence length ({self.seq_len}) is too short to contain at least one interaction "
+                f"Use a sequence length of at least {num_emb_per_interaction}."
+            )
+
+        num_interractions_per_seq = self.seq_len // num_emb_per_interaction
+
+        # We require at least two interactions per sequence to be able to prompt. TODO: why?
+        # assert num_emb_per_interaction * 2 + 1 <= seq_len
+
+        # From the done flags, compute the indices of the start of each episode
+        ep_end_idxs = [i for i, done in enumerate(dataset["dones"]) if done]
+
+        # We create sequences of interactions one by one.
+        # In p_prompt % of the cases, we add a prompt at the beginning of the sequence.
+        # We iterate until we don't have enough interactions left to fill a sequence
+        all_batches = []
+        for _ in range(batch_size):
+            num_prompt_interactions = random.randint(1, num_interractions_per_seq)
+            prompt_ep_idx = random.randint(0, len(ep_end_idxs) - 1)
+            if random.random() < self.p_end:  # Prompt at the end of the episode
+                # Ensure that you don't take from the previous episode
+                prev_ep_end_idx = ep_end_idxs[prompt_ep_idx - 1] if prompt_ep_idx > 0 else -1
+                ep_end_idx = ep_end_idxs[prompt_ep_idx]
+                prompt_ep_length = ep_end_idx - prev_ep_end_idx
+                num_prompt_interactions = min(num_prompt_interactions, prompt_ep_length)
+                prompt_indices = np.arange(ep_end_idx - num_prompt_interactions + 1, ep_end_idx + 1)
+            else:  # Prompt anywhere in the episode
+                # Get the range for the possible start of the prompt
+                prev_ep_end_idx = ep_end_idxs[prompt_ep_idx - 1] if prompt_ep_idx > 0 else -1
+                ep_end_idx = ep_end_idxs[prompt_ep_idx]
+                prompt_ep_length = ep_end_idx - prev_ep_end_idx
+                num_prompt_interactions = min(num_prompt_interactions, prompt_ep_length)
+                prompt_start_idx = random.randint(prev_ep_end_idx + 1, ep_end_idx - num_prompt_interactions + 1)
+                prompt_indices = np.arange(prompt_start_idx, prompt_start_idx + num_prompt_interactions)
+
+            batch = {key: dataset[key][prompt_indices] for key in dataset.keys()}
+            all_batches.append(batch)
 
         # Turn the list of dict into a dict of list
         dataset = {key: [batch[key] for batch in all_batches] for key in dataset.keys()}
