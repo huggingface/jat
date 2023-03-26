@@ -261,6 +261,7 @@ class Embeddings(nn.Module):
             attention mask. The corresponding keys are "{key}_loss_mask" and "{key}_attention_mask" respectively.
             For example, for the "text_observations" key, the batch should contain "text_observations_loss_mask" and
             "text_observations_attention_mask".
+            The shapes of the tensors in the batch are expected to be (batch_size, seq_len, num_tokens).
 
     Outputs:
         Tensor: The embeddings of shape (batch_size, seq_len*L, embedding_dim) where L is the total number of
