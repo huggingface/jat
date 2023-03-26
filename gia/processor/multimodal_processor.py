@@ -134,11 +134,16 @@ class MultimodalProcessor:
         Then, the tensor is de-mu-law companded if needed.
 
         Args:
-            tokens (Tensor): Tokens
+            tokens (np.ndarray): Tokens of shape (..., 1)
 
         Returns:
-            Tensor: Reconstructed tensor
+            Tensor: Reconstructed array
         """
+        # The tokens array for continuous values are expected to have shape (..., 1), so we squeeze it
+        tokens = np.squeeze(tokens, axis=-1)
+
+        # Subtract token shift
+        tokens = tokens - self.token_shift
 
         # Maps tokens from [0, nb_bins-1] to [-1, 1]
         # We map the bin number to the center of the bin
