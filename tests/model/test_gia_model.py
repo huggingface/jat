@@ -9,7 +9,7 @@ def test_gia_model():
     args = Arguments()
     model = GiaModel(args)
 
-    dataset = BatchGenerator.load_batchified_dataset("mujoco-ant", load_from_cache_file=False)
+    dataset = BatchGenerator.load_batched_dataset("mujoco-ant", load_from_cache_file=False)
     dataloader = DataLoader(dataset)
 
     batch = next(iter(dataloader))

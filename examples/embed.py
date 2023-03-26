@@ -4,7 +4,7 @@ from tqdm import tqdm
 from gia.datasets.batch_generator import BatchGenerator
 from gia.model.embedding import Embeddings
 
-dataset = BatchGenerator.load_batchified_dataset("babyai-go-to")
+dataset = BatchGenerator.load_batched_dataset("babyai-go-to")
 dataloader = DataLoader(dataset)
 embeddings = Embeddings()
 for batch in tqdm(dataloader):

@@ -42,9 +42,9 @@ For details, see https://huggingface.co/datasets/gia-project/gia-dataset.
 Load the dataset for MuJoCo/Ant. The returned batch contain tokens for actions and observations.
 
 ```python
->>> from gia.datasets import load_gia_dataset
+>>> from gia.datasets.batch_generator import BatchGenerator
 >>> from torch.utils.data import DataLoader
->>> dataset = load_gia_dataset("mujoco-ant", seq_len=72)
+>>> dataset = BatchGenerator.load_batched_dataset("mujoco-ant", seq_len=72)
 >>> dataloader = DataLoader(dataset, batch_size=1)
 >>> batch = next(iter(dataloader))
 >>> batch.keys()

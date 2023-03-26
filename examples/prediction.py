@@ -5,7 +5,7 @@ from gia.config import Arguments
 from gia.datasets import BatchGenerator
 from gia.model import GiaModel
 
-dataset = BatchGenerator.load_batchified_dataset("mujoco-ant")
+dataset = BatchGenerator.load_batched_dataset("mujoco-ant")
 dataloader = DataLoader(dataset)
 model = GiaModel(Arguments())
 for batch in tqdm(dataloader):

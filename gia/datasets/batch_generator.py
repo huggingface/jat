@@ -244,7 +244,7 @@ class BatchGenerator:
         return {**data, **attention_mask}
 
     @classmethod
-    def load_batchified_dataset(
+    def load_batched_dataset(
         cls,
         task_name: str,
         seq_len: int = 1024,
