@@ -391,19 +391,3 @@ class Embeddings(nn.Module):
         attention_mask = attention_mask.reshape(batch_size, -1)
         tokens = tokens.reshape(batch_size, -1)
         return {"embeddings": embeddings, "loss_mask": loss_mask, "attention_mask": attention_mask, "tokens": tokens}
-
-
-if __name__ == "__main__":
-    from torch.utils.data import DataLoader
-    from tqdm import tqdm
-
-    from gia.datasets import load_gia_dataset
-
-    dataset = load_gia_dataset("babyai-go-to", load_from_cache_file=False)
-    dataloader = DataLoader(dataset)
-    embeddings = Embeddings()
-    for batch in tqdm(dataloader):
-        emb = embeddings(batch)
-        for key, value in emb.items():
-            tqdm.write(f"{key}: {value.shape} {value.dtype}")
-        tqdm.write("---")

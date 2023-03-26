@@ -37,17 +37,3 @@ class GiaModel(nn.Module):
         loss = loss.sum() / masks.float().sum()
 
         return loss
-
-
-if __name__ == "__main__":
-    from torch.utils.data import DataLoader
-    from tqdm import tqdm
-
-    from gia.datasets import load_gia_dataset
-
-    dataset = load_gia_dataset("mujoco-ant", load_from_cache_file=False)
-    dataloader = DataLoader(dataset)
-    model = GiaModel(Arguments())
-    for batch in tqdm(dataloader):
-        out = model(batch)
-        tqdm.write(str(out))
