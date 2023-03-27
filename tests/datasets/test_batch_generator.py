@@ -3,7 +3,7 @@ from typing import Dict
 import numpy as np
 import pytest
 
-from gia.datasets.batch_generator import BatchGenerator
+from gia.datasets.batch_generator import generate_batch, stack_with_padding
 
 BATCH_SIZE = 128
 C, H, W = 3, 16, 16
@@ -24,11 +24,8 @@ def dataset():
 
 @pytest.mark.parametrize("use_separator", [True, False])
 def test_batch_generator(dataset: Dict[str, np.ndarray], use_separator: bool):
-    # Initialize batch generator
-    batch_gen = BatchGenerator(seq_len=SEQ_LEN, patch_size=PATCH_SIZE, use_separator=use_separator)
-
-    # Call batch generator on dataset
-    batches = batch_gen(dataset)
+    # Generate batches
+    batches = generate_batch(dataset, seq_len=SEQ_LEN, patch_size=PATCH_SIZE, use_separator=use_separator)
 
     # Check output keys
     assert set(batches.keys()) == {
@@ -76,16 +73,13 @@ def test_batch_generator(dataset: Dict[str, np.ndarray], use_separator: bool):
 
 
 def test_batch_generator_no_prompt(dataset: Dict[str, np.ndarray]):
-    # Initialize batch generator
-    batch_gen = BatchGenerator(seq_len=SEQ_LEN, patch_size=PATCH_SIZE, p_prompt=0.0)
-
     exp_nb_patches = (W // PATCH_SIZE) * (H // PATCH_SIZE)  # Expected number of patches per image
     num_token_per_int = OBS_SIZE + exp_nb_patches + 1 + 1
     num_int_per_seq = SEQ_LEN // num_token_per_int
     num_seq = BATCH_SIZE // num_int_per_seq
 
-    # Call batch generator on dataset
-    batches = batch_gen(dataset)
+    # Generate batches
+    batches = generate_batch(dataset, seq_len=SEQ_LEN, patch_size=PATCH_SIZE, p_prompt=0.0)
 
     # Check output shapes
     assert batches["continuous_observations"].shape == (num_seq, num_int_per_seq, OBS_SIZE)
@@ -111,13 +105,13 @@ def test_batch_generator_no_prompt(dataset: Dict[str, np.ndarray]):
 def test_empty_list():
     # Test with an empty list
     with pytest.raises(ValueError):
-        BatchGenerator.stack_with_padding([])
+        stack_with_padding([])
 
 
 def test_padding_value():
     # Test with a non-zero padding value
     x = [np.ones((2, 2)), np.zeros((3, 2))]
-    stacked, mask = BatchGenerator.stack_with_padding(x, padding_value=-1)
+    stacked, mask = stack_with_padding(x, padding_value=-1)
     assert stacked.shape == (2, 3, 2)
     assert mask.shape == (2, 3, 2)
     target_stacked = np.array(
@@ -139,7 +133,7 @@ def test_padding_value():
 def test_same_shapes():
     # Test with arrays of same shapes
     x = [np.ones((2, 2)), np.zeros((2, 2))]
-    stacked, mask = BatchGenerator.stack_with_padding(x)
+    stacked, mask = stack_with_padding(x)
     assert stacked.shape == (2, 2, 2)
     assert mask.shape == (2, 2, 2)
     target_stacked = np.array([[[1, 1], [1, 1]], [[0, 0], [0, 0]]])
