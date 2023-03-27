@@ -1,3 +1,8 @@
+import functools
+import hashlib
+import os
+from typing import Callable
+
 import numpy as np
 import torch
 from gym import spaces
@@ -102,3 +107,40 @@ def inverse_mu_law(x: np.ndarray, mu: float = 100, M: float = 256) -> np.ndarray
         np.ndarray: Unnormalized array
     """
     return np.sign(x) * (np.exp(np.abs(x) * np.log(M * mu + 1.0)) - 1.0) / mu
+
+
+def cache_decorator(func: Callable) -> Callable:
+    """
+    A decorator to cache the output of a function that loads torch objects. When the decorated function is called
+    with the same parameters, the cached object is returned instead of calling the function again.
+
+    Args:
+        func (Callable): The function to be decorated.
+
+    Returns:
+        Callable: The decorated function with caching behavior.
+    """
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        # Get hash from the function parameters
+        load_from_cache_file = kwargs.pop("load_from_cache_file", True)
+        params = (func.__name__,) + args + tuple(kwargs.items())
+        h = hashlib.sha256("".join(str(elem) for elem in params).encode()).hexdigest()
+        cache_filename = f"gia-{h}"
+        dirname = os.path.expanduser("~/.cache/huggingface/datasets")
+        os.makedirs(dirname, exist_ok=True)
+        cache_path = os.path.join(dirname, cache_filename)
+
+        if load_from_cache_file and os.path.exists(cache_path):
+            print(f"Loading cache ({cache_path})")
+            return torch.load(cache_path)
+
+        result = func(*args, **kwargs)
+
+        # Save the result to cache
+        torch.save(result, cache_path)
+
+        return result
+
+    return wrapper
