@@ -9,45 +9,35 @@ from gia.datasets.dataset_dict import DatasetDict
 import numpy as np
 
 num_envs = 2
-int_per_seq = 20  # number of interactions per sequence
+int_per_seq = 20  # number of interactions per sequence. Hard-coded for now
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = GiaModel(Arguments()).to(device)
 env = gym.vector.make("Ant-v4", num_envs)
 
-# dataset = load_prompt_dataset("mujoco-ant") # dataset of tokens and patches
+# For mujoco, there is one token per component of the observation and action
 num_obs_tokens = env.observation_space.shape[1]
 num_act_tokens = env.action_space.shape[1]
 
 buffer = {
     "continuous_observations": torch.zeros((num_envs, int_per_seq, num_obs_tokens), dtype=torch.long, device=device),
-    "continuous_observations_loss_mask": torch.zeros(
-        (num_envs, int_per_seq, num_obs_tokens), dtype=torch.long, device=device
-    ),
-    "continuous_observations_attention_mask": torch.ones(
+    "continuous_observations_attention_mask": torch.zeros(
         (num_envs, int_per_seq, num_obs_tokens), dtype=torch.long, device=device
     ),
     "continuous_actions": torch.zeros((num_envs, int_per_seq, num_act_tokens), dtype=torch.long, device=device),
-    "continuous_actions_loss_mask": torch.zeros(
-        (num_envs, int_per_seq, num_act_tokens), dtype=torch.long, device=device
-    ),
-    "continuous_actions_attention_mask": torch.ones(
+    "continuous_actions_attention_mask": torch.zeros(
         (num_envs, int_per_seq, num_act_tokens), dtype=torch.long, device=device
     ),
 }
 
-processor = MultimodalProcessor()
-
-prompt_dataset = load_prompt_dataset("mujoco-ant", load_from_cache_file=False)
-prompt_dataset = {key: prompt_dataset[key] for key in ["continuous_observations", "continuous_actions"]}
-prompt_dataset = DatasetDict(processor(prompt_dataset))
-
+prompt_dataset = load_prompt_dataset("mujoco-ant")
 sampled_prompts_idxs = np.random.randint(0, len(prompt_dataset), size=num_envs)
 
 # Fill (right side) the buffer with the prompts. Truncate if necessary.
-for key in prompt_dataset.keys():
+for key in buffer.keys():
     l = min(buffer[key].shape[1], prompt_dataset[key][sampled_prompts_idxs].shape[1])
     buffer[key][:, -l:] = torch.from_numpy(prompt_dataset[key][sampled_prompts_idxs, -l:]).to(device)
 
+processor = MultimodalProcessor()
 
 obs, info = env.reset()
 for i in range(100):
@@ -61,7 +51,7 @@ for i in range(100):
     buffer["continuous_actions_attention_mask"][:, -1] = 0
 
     # Compute the output of the model
-    output = model(buffer)
+    output = model(buffer, eval=True)
     # TODO: use the output to sample an action
     # action = ...
     action = env.action_space.sample()
