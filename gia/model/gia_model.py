@@ -1,3 +1,4 @@
+import torch
 from torch import nn
 from transformers import AutoConfig, AutoModelForCausalLM
 
@@ -15,12 +16,20 @@ class GiaModel(nn.Module):
         config.embed_dim = self.model.base_model.embed_dim
         self.emb = Embeddings(config.embed_dim)
 
-    def forward(self, batch):
+    def forward(self, batch, eval=False):
+        # hotfix to allow eval in embedding. Try to make it cleaner later
+        # add loss_mask to batch
+        if eval:
+            keys = [key for key in batch.keys() if key.endswith(("observations", "actions"))]
+            for key in keys:
+                batch[key + "_loss_mask"] = torch.ones_like(batch[key + "_attention_mask"])
+
         embeds = self.emb(batch)
         # the model requires us to provide position ids, otherwise it will generate them
         # qgallouedec: I've removed position_ids=batch["local_position_ids"]. Is this a problem?
         out = self.model(inputs_embeds=embeds["embeddings"], attention_mask=embeds["attention_mask"])
-        out.loss = self.loss(out.logits, embeds["tokens"], embeds["loss_mask"])
+        if not eval:
+            out.loss = self.loss(out.logits, embeds["tokens"], embeds["loss_mask"])
         return out
 
     def loss(self, logits, tokens, masks):
