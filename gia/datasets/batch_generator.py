@@ -238,6 +238,12 @@ def load_prompt_dataset(task_name: str) -> DatasetDict:
     # Load the dataset
     dataset = load_gia_dataset(task_name)
 
+    processor = MultimodalProcessor()
+    # Preprocess the dataset (tokenize and extract patches)
+    observation_keys = [key for key in dataset.keys() if key.endswith("observations")]
+    action_keys = [key for key in dataset.keys() if key.endswith("actions")]  # should be only one
+    dataset.update(processor({key: dataset[key] for key in observation_keys + action_keys}))
+
     episode_ends = np.where(dataset["dones"])[0]
     episode_starts = np.concatenate([[0], episode_ends[:-1] + 1])
     episode_indices = [np.arange(start, end + 1) for start, end in zip(episode_starts, episode_ends)]
@@ -260,4 +266,4 @@ def load_prompt_dataset(task_name: str) -> DatasetDict:
         mask = mask[:, :, :, 0, 0]
         attention_mask["image_observations_attention_mask"] = mask
 
-    return {**data, **attention_mask}
+    return DatasetDict({**data, **attention_mask})
