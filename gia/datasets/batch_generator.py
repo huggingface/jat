@@ -1,16 +1,13 @@
-import hashlib
-import os
 import random
 from typing import Dict, List
 
 import numpy as np
-import torch
 
 from gia.processor.multimodal_processor import MultimodalProcessor
+from gia.utils.utils import cache_decorator
 
 from .dataset_dict import DatasetDict
 from .gia_dataset import load_gia_dataset
-from gia.utils.utils import cache_decorator
 
 
 def stack_with_padding(x: List[np.ndarray], padding_value: int = 0, side: str = "left") -> np.ndarray:
