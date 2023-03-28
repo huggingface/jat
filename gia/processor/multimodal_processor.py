@@ -173,22 +173,3 @@ class MultimodalProcessor:
 
             output[key] = tokens
         return output
-
-
-if __name__ == "__main__":
-    # import numpy as np
-
-    # tokenizer = MultimodalProcessor()
-    # inputs = {
-    #     "text_observations": np.array(["Go right", "Go left"]),
-    #     "image_observations": np.random.randint(0, 256, (2, 3, 32, 32), dtype=np.uint8),
-    #     "continuous_actions": np.array([2.1, 3.4]),
-    #     "discrete_actions": np.array([[9, 8, 6], [5, 9, 9]]),
-    # }
-    # encoding = tokenizer(inputs)
-    # for key in encoding:
-    #     print(key, encoding[key].shape)
-
-    import doctest
-
-    doctest.testmod()

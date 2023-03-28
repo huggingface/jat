@@ -47,9 +47,3 @@ class DatasetDict(dict, Dataset):
     def __iter__(self) -> Dict[str, Any]:
         for index in range(len(self)):
             yield self[index]
-
-
-if __name__ == "__main__":
-    import doctest
-
-    doctest.testmod()
