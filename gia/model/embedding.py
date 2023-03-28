@@ -225,11 +225,12 @@ class LocalPositionEncodings(nn.Module):
 
     def forward(self, shape: torch.Size, same: bool = False) -> Tensor:
         batch_size, seq_len, num_tokens, embedding_dim = shape
+        device = self.embedding.weight.device
         assert embedding_dim == self.embedding_dim
         if same:
-            pos_emb_idxs = torch.full((seq_len,), self.vocab_size - 1, dtype=torch.long)
+            pos_emb_idxs = torch.full((seq_len,), self.vocab_size - 1, dtype=torch.long, device=device)
         else:
-            pos_emb_idxs = torch.arange(seq_len)
+            pos_emb_idxs = torch.arange(seq_len, device=device)
         pos_emb_idxs = pos_emb_idxs.view(1, seq_len, 1)
         pos_emb_idxs = pos_emb_idxs.expand(batch_size, seq_len, num_tokens)
         return self.embedding(pos_emb_idxs)
@@ -325,6 +326,7 @@ class Embeddings(nn.Module):
         # to batch, because, if the prompt is too short, L is smaller than the maximum possible number
         # interactions in the batch.
         # First, handle observations: get the keys of tokens and images
+        device = self.embeddings.weight.device
         possible_tokenized_obs_keys = ["text_observations", "discrete_observations", "continuous_observations"]
         possible_action_keys = ["text_actions", "discrete_actions", "continuous_actions"]
         tokenized_obs_keys = [key for key in batch.keys() if key in possible_tokenized_obs_keys]
@@ -351,7 +353,7 @@ class Embeddings(nn.Module):
             obs_loss_mask = torch.cat((obs_loss_mask, batch["image_observations_loss_mask"]), dim=2)
             obs_attention_mask = torch.cat((obs_attention_mask, batch["image_observations_attention_mask"]), dim=2)
             # Add zeros to the tokenized observations (they are masked anyway)
-            fake_tokens = torch.zeros(image_embeddings.shape[:3], dtype=torch.int64)  # (batch_size, L, num_patches)
+            fake_tokens = torch.zeros(image_embeddings.shape[:3], dtype=torch.int64, device=device)
             obs_tokens = torch.cat((obs_tokens, fake_tokens), dim=2)
         obs_pos_embeddings = self.local_pos_embeddings(obs_embeddings.shape)
         obs_embeddings += obs_pos_embeddings
@@ -359,7 +361,9 @@ class Embeddings(nn.Module):
         # Create separator token
         batch_size, seq_len, _, embedding_dim = obs_embeddings.shape
         if self.use_separator:
-            separator_token = torch.full((batch_size, seq_len, 1), self.separator_token, dtype=torch.long)
+            separator_token = torch.full(
+                (batch_size, seq_len, 1), self.separator_token, dtype=torch.long, device=device
+            )
             separator_embeddings = self.embeddings(separator_token)
             separator_loss_mask = torch.ones((batch_size, seq_len, 1), dtype=torch.bool)
             separator_attention_mask = torch.ones((batch_size, seq_len, 1), dtype=torch.bool)

@@ -157,7 +157,7 @@ class MultimodalProcessor:
 
     def __call__(self, inputs: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
         output = {}
-        for key in inputs:
+        for key in inputs.keys():
             value = inputs[key]
             if key.startswith("text"):
                 tokens = self.tokenize_text(value)
