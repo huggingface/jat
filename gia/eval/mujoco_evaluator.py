@@ -28,8 +28,9 @@ def make_mujoco_env(env_name, render_mode=None):
 
 class MujocoEvaluator(Evaluator):
     def __init__(self, args: Arguments):
-        self.env_names = TASK_TO_ENV_MAPPING["mujoco"]
-        self.data_filepaths = DATASET_FILE_MAPPING["mujoco"]
+        self.task = "mujoco"
+        self.env_names = TASK_TO_ENV_MAPPING[self.task]
+        self.data_filepaths = DATASET_FILE_MAPPING[self.task]
         self.args: Arguments = args
         self.tokenizer = tokenize_np  # TODO: replace with Quentin's tokenizer
         self.inv_tokenizer = inverse_tokenize_np

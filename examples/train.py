@@ -250,7 +250,7 @@ def main():
             #     accelerator,
             # )
             accelerator.wait_for_everyone()
-            save_dir = os.path.join(args.save_dir, f"step_{step}")
+            save_dir = os.path.join(args.save_dir, "checkpoints", f"step_{step}")
             accelerator.save_state(save_dir)
             # if accelerator.is_main_process:
             #     hf_repo.push_to_hub(commit_message=f"step {step}")
