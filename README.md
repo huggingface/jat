@@ -1,4 +1,5 @@
 # General Intelligent Agents
+
 An open impementation of [GATO](https://www.deepmind.com/publications/a-generalist-agent)
 
 
@@ -6,9 +7,10 @@ dev install  (Linux)
 `pip install -e .[dev]`
 
 Steps:
-1. Creation of imitation learning data on the hub filter datasets for `prj_gia*` <- we are here
+
+1. Creation of imitation learning data on the hub filter datasets for `prj_gia*`
 2. Creation of tokenizer, model, training loop etc
-3. Single env learning, e.g all Atari envs -> evaluation
+3. Single env learning, e.g all Atari envs -> evaluation  <- we are here
 4. Multi task learning, e.g Atari + MassiveText -> evaluation
 5. Full tasks setting -> evaluation
 
@@ -56,5 +58,18 @@ tensor([[[32480, 32367, 32321, 32584, 32687, 32431, 32732, 32683],
          [32405, 32634, 32500, 32363, 32337, 32665, 32701, 32616]]])
 ```
 
-### Tokenize and embed
+### Load and embed
 
+```python
+from torch.utils.data import DataLoader
+from gia.datasets import load_batched_dataset
+from gia.model.embedding import Embeddings
+
+dataset = load_batched_dataset("babyai-go-to")
+dataloader = DataLoader(dataset)
+embeddings = Embeddings()
+batch = next(iter(dataloader))
+emb = embeddings(batch)
+for key, value in emb.items():
+    print(f"{key}: {value.shape} {value.dtype}")
+```
