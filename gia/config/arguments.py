@@ -52,7 +52,7 @@ class TrainingArguments:
 class ModelArguments:
     model_name: Optional[str] = field(default="EleutherAI/gpt-neo-125M", metadata={"help": "The name of the model"})
     vocab_size: Optional[int] = field(
-        default=1024 + 3,
+        default=32_000 + 1024 + 1,
         metadata={"help": "The size of the model vocabulary, including the tokenization of observations"},
     )
     max_position_embeddings: Optional[int] = field(

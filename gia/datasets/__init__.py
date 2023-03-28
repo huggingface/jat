@@ -1,4 +1,4 @@
-from .gia_dataset import GiaDataset
-from .mujoco_dataset import MujocoDataset, MujocoTaskDataset
+from .batch_generator import load_batched_dataset
+from .gia_dataset import load_gia_dataset
 
-__all__ = ["GiaDataset", "MujocoDataset", "MujocoTaskDataset"]
+__all__ = ["load_batched_dataset", "load_gia_dataset"]

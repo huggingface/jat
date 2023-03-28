@@ -1,28 +1,104 @@
-from gia.config import Arguments
-from gia.datasets.core import MultiTaskDataset
-from gia.datasets.mujoco_dataset import MujocoDataset
+from typing import Iterable
 
-DATASET_CLASS_MAPPING = {
-    "mujoco": MujocoDataset,
-    "atari": None,
-    # ...
-}
+import numpy as np
+from datasets import load_dataset
+
+from .dataset_dict import DatasetDict
 
 
-class GiaDataset(MultiTaskDataset):
-    def __init__(self, args: Arguments) -> None:
-        super().__init__()
-        self.task_datasets = []
+def is_text(x: Iterable) -> bool:
+    """
+    Check if input is text.
 
-        for task in args.tasks:
-            tasks_dataset_class = DATASET_CLASS_MAPPING[task]
-            self.task_datasets.append(tasks_dataset_class(task, args))
-
-        self.dataset_len = sum(len(d) for d in self.task_datasets)
+    It checks if the input a array of strings.
+    """
+    return all(isinstance(s, str) for s in x)
 
 
-if __name__ == "__main__":
-    args = Arguments()
-    dataset = GiaDataset(args)
+def is_image(x: np.ndarray) -> bool:
+    """
+    Check if input is an image.
 
-    print(dataset)
+    Returns True if the input has 4 dimensions.
+    """
+    return x.ndim == 4
+
+
+def is_continuous(x: np.ndarray) -> bool:
+    """
+    Check if input is continous.
+
+    Returns True if the dtype is float32 or float64.
+    """
+    return x.dtype in [np.float32, np.float64]
+
+
+def is_discrete(x: np.ndarray) -> bool:
+    """
+    Check if input is discrete.
+
+    Returns True if the dtype is int8, int16, int32, int64, uint8, uint16, uint32, or uint64.
+    """
+    return x.dtype in [np.int8, np.int16, np.int32, np.int64, np.uint8, np.uint16, np.uint32, np.uint64]
+
+
+def load_gia_dataset(task_name: str) -> DatasetDict:
+    """
+    Load a GIA dataset.
+
+    Args:
+        task_name (str): Name of the task to load. See the available tasks
+            in https://huggingface.co/datasets/gia-project/gia-dataset
+
+    Returns:
+        DatasetDict: A dictionary containing the dataset. The keys are
+            the type of the data (e.g. "continuous_observations", "discrete_actions", etc.)
+            and the values are the data.
+
+    Example:
+        >>> dataset = load_gia_dataset("mujoco-ant")
+        >>> dataset.keys()
+        dict_keys(['rewards', 'dones', 'continuous_observations', 'continuous_actions'])
+        >>> dataset["continuous_observations"].shape
+        (100000, 27)
+    """
+    dataset = load_dataset("gia-project/gia-dataset", task_name, split="train")
+    # Convert the dataset to numpy arrays
+    dataset = dataset.with_format("numpy")[:]
+
+    # TODO: remove this when a better solution is found
+    if "babyai" in task_name:
+        # remove the "image" column as it is not used
+        dataset.pop("images")
+
+    # Rename keys to get the format "[type]_[observations or actions]"
+    keys = list(dataset.keys())  # Avoid "Keys changed during iteration"
+    for key in keys:
+        if key not in ["actions", "dones", "rewards"]:
+            observations = dataset.pop(key)
+            if is_image(observations):
+                observations = observations.astype(np.uint8)
+                if np.argmin(observations.shape[1:]) == 2:  # channels last, make it channels first
+                    observations = np.transpose(observations, (0, 3, 1, 2))
+                assert np.argmin(observations.shape[1:]) == 0, "Channels error"
+                dataset["image_observations"] = observations
+            elif is_text(observations):
+                dataset["text_observations"] = observations
+            elif is_discrete(observations):
+                dataset["discrete_observations"] = observations
+            elif is_continuous(observations):
+                dataset["continuous_observations"] = observations
+            else:
+                raise ValueError(f"Unknown observation type for {key}")
+    # Do the same for actions.
+    actions = dataset.pop("actions")
+    if is_text(actions):
+        dataset["text_actions"] = actions
+    elif is_discrete(actions):
+        dataset["discrete_actions"] = actions
+    elif is_continuous(actions):
+        dataset["continuous_actions"] = actions
+    else:
+        raise ValueError("Unknown action type.")
+
+    return DatasetDict(dataset)  # convert to a DatasetDict
