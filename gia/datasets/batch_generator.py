@@ -3,6 +3,7 @@ from typing import Dict, List
 
 import numpy as np
 
+from gia.config import Arguments
 from gia.processor.multimodal_processor import MultimodalProcessor
 from gia.utils.utils import cache_decorator
 
@@ -52,18 +53,7 @@ def stack_with_padding(x: List[np.ndarray], padding_value: int = 0, side: str = 
     return stacked, mask
 
 
-def generate_batch(
-    dataset: Dict[str, np.ndarray],
-    seq_len: int = 1024,
-    p_prompt: float = 0.25,
-    p_end: float = 0.5,
-    patch_size: int = 16,
-    mu: float = 100,
-    M: float = 256,
-    nb_bins: int = 1024,
-    token_shift: int = 32_000,
-    use_separator: bool = True,
-) -> Dict[str, np.ndarray]:
+def generate_batch(dataset: Dict[str, np.ndarray], args: Arguments) -> Dict[str, np.ndarray]:
     """
     Generates a batch of sequences from a multimodal dataset by preprocessing and concatenating interactions.
     Optionally includes prompts at the beginning of sequences with a specified probability.
@@ -84,7 +74,7 @@ def generate_batch(
     Returns:
         Dict[str, np.ndarray]: A dictionary containing the preprocessed dataset with keys for observations and actions.
     """
-    processor = MultimodalProcessor(mu, M, nb_bins, patch_size, token_shift)
+    processor = MultimodalProcessor(args)
     # Preprocess the dataset (tokenize and extract patches)
     observation_keys = [key for key in dataset.keys() if key.endswith("observations")]
     action_keys = [key for key in dataset.keys() if key.endswith("actions")]  # should be only one
@@ -108,17 +98,17 @@ def generate_batch(
     num_emb_per_interaction = sum(dataset[key].shape[1] for key in observation_keys + action_keys)
 
     # Add one embedding for the separator token
-    if use_separator:
+    if args.use_separator:
         num_emb_per_interaction += 1
 
     # Check that the sequence lenght is high enough to contain at least one interaction
-    if seq_len < num_emb_per_interaction:
+    if args.seq_len < num_emb_per_interaction:
         raise ValueError(
-            f"The sequence length ({seq_len}) is too short to contain at least one interaction "
+            f"The sequence length ({args.seq_len}) is too short to contain at least one interaction "
             f"Use a sequence length of at least {num_emb_per_interaction}."
         )
 
-    num_interractions_per_seq = seq_len // num_emb_per_interaction
+    num_interractions_per_seq = args.seq_len // num_emb_per_interaction
 
     # We require at least two interactions per sequence to be able to prompt. TODO: why?
     # assert num_emb_per_interaction * 2 + 1 <= seq_len
@@ -132,11 +122,11 @@ def generate_batch(
     current_ep_start = 0
     all_batches = []
     while True:
-        if random.random() < p_prompt:
+        if random.random() < args.p_prompt:
             num_prompt_interactions = random.randint(1, num_interractions_per_seq)
             num_interractions = num_interractions_per_seq - num_prompt_interactions
             prompt_ep_idx = random.randint(0, len(ep_end_idxs) - 1)
-            if random.random() < p_end:  # Prompt at the end of the episode
+            if random.random() < args.p_end:  # Prompt at the end of the episode
                 # Ensure that you don't take from the previous episode
                 prev_ep_end_idx = ep_end_idxs[prompt_ep_idx - 1] if prompt_ep_idx > 0 else -1
                 ep_end_idx = ep_end_idxs[prompt_ep_idx]
@@ -192,18 +182,7 @@ def generate_batch(
 
 
 @cache_decorator
-def load_batched_dataset(
-    task_name: str,
-    seq_len: int = 1024,
-    p_prompt: float = 0.25,
-    p_end: float = 0.5,
-    patch_size: int = 16,
-    mu: float = 100,
-    M: float = 256,
-    nb_bins: int = 1024,
-    token_shift: int = 32_000,
-    use_sepatator: bool = True,
-) -> DatasetDict:
+def load_batched_dataset(args: Arguments) -> DatasetDict:
     """
     Load a GIA dataset, tokenize, and generate batches.
 
@@ -227,18 +206,18 @@ def load_batched_dataset(
         >>> dataset[0]["observations/image"].shape
         torch.Size([56, 3, 56, 56])
     """
-    dataset = load_gia_dataset(task_name)
-    dataset = generate_batch(dataset, seq_len, p_prompt, p_end, patch_size, mu, M, nb_bins, token_shift, use_sepatator)
+    dataset = load_gia_dataset(args.task_name)
+    dataset = generate_batch(dataset, args)
     return DatasetDict(dataset)
 
 
 @cache_decorator
-def load_prompt_dataset(task_name: str) -> DatasetDict:
+def load_prompt_dataset(task_name: str, args: Arguments) -> DatasetDict:
     """ """
     # Load the dataset
     dataset = load_gia_dataset(task_name)
 
-    processor = MultimodalProcessor()
+    processor = MultimodalProcessor(args)
     # Preprocess the dataset (tokenize and extract patches)
     observation_keys = [key for key in dataset.keys() if key.endswith("observations")]
     action_keys = [key for key in dataset.keys() if key.endswith("actions")]  # should be only one

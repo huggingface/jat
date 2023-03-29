@@ -24,7 +24,6 @@ from transformers.utils import logging
 # torch_to_numpy_dtype_dict = {value : key for (key, value) in numpy_to_torch_dtype_dict.items()}
 
 
-logging.set_verbosity_info()
 logger = logging.get_logger(__name__)
 logger.setLevel("INFO")
 

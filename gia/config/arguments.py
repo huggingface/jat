@@ -55,18 +55,68 @@ class ModelArguments:
         default=32_000 + 1024 + 1,
         metadata={"help": "The size of the model vocabulary, including the tokenization of observations"},
     )
+    seq_len: int = field(default=1024, metadata={"help": "The length (number of tokens) of a sequence."})
     max_position_embeddings: Optional[int] = field(
-        default=32, metadata={"help": "The size of the model vocabulary, including the tokenization of observations"}
+        default=32, metadata={"help": "The size of the model vocabulary for text."}
+    )
+    text_vocab_size: int = field(default=32_000, metadata={"help": "The size of the model vocabulary for text."})
+    nb_bins: int = field(
+        default=1024, metadata={"help": "The number of bins for the discretization of continuous observations."}
+    )
+    max_nb_observation_tokens: int = field(
+        default=512, metadata={"help": "The maximum number of tokens for one observation."}
+    )
+    use_separator: bool = field(
+        default=True, metadata={"help": "Whether to include a separator token between observations and actions."}
+    )
+    patch_size: int = field(
+        default=16, metadata={"help": "The size of the patches to extract from image observations."}
+    )
+    image_vocab_size: int = field(
+        default=128,
+        metadata={
+            "help": "The size of the model vocabulary for images. The maximum size for "
+            "an image is therefore patch_size*image_vocab_size."
+        },
+    )
+    num_res_channels: int = field(
+        default=256, metadata={"help": "The number of residual channels in the image patch encoder."}
+    )
+    num_groups: int = field(
+        default=32, metadata={"help": "The number of groups for the group normalization in the image patch encoder."}
     )
 
 
 @dataclass
 class DatasetArguments:
-    tasks: List[str] = field(
-        default_factory=lambda: ["mujoco"], metadata={"help": "A list of tasks/envs to load in the GiaDataset"}
+    task_name: str = field(default="mujoco-ant", metadata={"help": "The name of the task to load."})
+    seq_len: int = field(default=1024, metadata={"help": "The length (number of tokens) of a sequence."})
+    p_prompt: float = field(
+        default=0.25, metadata={"help": "The probability of including a prompt at the beginning of a sequence."}
     )
-    use_cache: Optional[bool] = field(
-        default=False, metadata={"help": "Whether to use a temporary cache to store the tokenized datasets"}
+    p_end: float = field(
+        default=0.5, metadata={"help": "The probability of taking a prompt from the end of an episode."}
+    )
+    patch_size: int = field(
+        default=16, metadata={"help": "The size of the patches to extract from image observations."}
+    )
+    mu: float = field(
+        default=100, metadata={"help": "The μ parameter for the μ-law companding of continuous observations."}
+    )
+    M: float = field(
+        default=256, metadata={"help": "The M parameter for the μ-law companding of continuous observations."}
+    )
+    nb_bins: int = field(
+        default=1024, metadata={"help": "The number of bins for the discretization of continuous observations."}
+    )
+    token_shift: int = field(
+        default=32_000, metadata={"help": "The token shift for continuous and discrete observations."}
+    )
+    use_separator: bool = field(
+        default=True, metadata={"help": "Whether to include a separator token between observations and actions."}
+    )
+    load_from_cache_file: Optional[bool] = field(
+        default=True, metadata={"help": "Whether to load the dataset from the cache files."}
     )
 
 

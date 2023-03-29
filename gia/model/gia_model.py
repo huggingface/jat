@@ -10,8 +10,11 @@ class GiaModel(nn.Module):
     def __init__(self, args: Arguments):
         super().__init__()
         config = AutoConfig.from_pretrained(args.model_name)
-        config.vocab_size = args.vocab_size
-        config.max_position_embeddings = args.seq_length  # this is a workaround for gpt-neo's local self attn
+        vocab_size = args.text_vocab_size + args.nb_bins
+        if args.use_separator:
+            vocab_size += 1
+        config.vocab_size = vocab_size
+        config.max_position_embeddings = args.seq_len  # this is a workaround for gpt-neo's local self attn
         self.model = AutoModelForCausalLM.from_config(config)
         config.embed_dim = self.model.base_model.embed_dim
         self.emb = Embeddings(config.embed_dim)

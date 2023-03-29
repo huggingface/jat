@@ -4,6 +4,7 @@ import torch
 import torch.nn.functional as F
 from torch import Tensor, nn
 
+from gia.config import Arguments
 
 class ImagePositionEncoding(nn.Module):
     """
@@ -282,39 +283,28 @@ class Embeddings(nn.Module):
         torch.Size([8, 640, 2048])
     """
 
-    def __init__(
-        self,
-        embedding_dim: int = 2048,
-        text_vocab_size: int = 32_000,
-        nb_bins: int = 1024,
-        max_nb_observation_tokens: int = 512,
-        use_separator: bool = True,
-        patch_size: int = 16,
-        image_vocab_size: int = 128,
-        num_res_channels: int = 256,
-        num_groups: int = 32,
-    ) -> None:
+    def __init__(self, args: Arguments) -> None:
         super().__init__()
         # Encoder for tokens
         # The total number of tokens is the number of tokens for text + the max number of bins
         # for the continuous and discrete values + 1 for the separator token
-        self.use_separator = use_separator
-        if use_separator:
-            self.embeddings = nn.Embedding(text_vocab_size + nb_bins + 1, embedding_dim)
-            self.separator_token = text_vocab_size + nb_bins
+        self.use_separator = args.use_separator
+        if args.use_separator:
+            self.embeddings = nn.Embedding(args.text_vocab_size + args.nb_bins + 1, embedding_dim)
+            self.separator_token = args.text_vocab_size + args.nb_bins
         else:
-            self.embeddings = nn.Embedding(text_vocab_size + nb_bins, embedding_dim)
+            self.embeddings = nn.Embedding(args.text_vocab_size + args.nb_bins, args.embedding_dim)
 
         # Encoder for the image patches
-        image_encoder = ImageEncoder(3, num_res_channels, embedding_dim, num_groups, patch_size)
+        image_encoder = ImageEncoder(3, args.num_res_channels, args.embedding_dim, args.num_groups, args.patch_size)
         self.image_encoder = MultiDimBatchWrapper(image_encoder, n_dims=3)
 
         # Learnable local position encodings for the image patches
-        self.image_pos_enc = MultiDimBatchWrapper(ImagePositionEncoding(image_vocab_size, embedding_dim), 3)
+        self.image_pos_enc = MultiDimBatchWrapper(ImagePositionEncoding(args.image_vocab_size, args.embedding_dim), 3)
 
         # Learnable local position encodings in the sequence
         # The total number of tokens is the number of observation tokens + 1 for the unique action token
-        self.local_pos_embeddings = LocalPositionEncodings(max_nb_observation_tokens + 1, embedding_dim)
+        self.local_pos_embeddings = LocalPositionEncodings(args.max_nb_observation_tokens + 1, args.embedding_dim)
 
     def forward(self, batch: Dict[str, Tensor]) -> Tensor:
         # Here, batch is a dictionary containing the following keys:
