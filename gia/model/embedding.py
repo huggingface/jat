@@ -111,7 +111,8 @@ class ImageEncoder(nn.Module):
     An image encoder module for extracting image features from a batch of images.
 
     Args:
-        in_channels (int): The number of channels in the input images.
+        in_channels (int): The number of channels in the input images. If the input images have less channels, they
+            are padded with zeros.
         num_res_channels (int): The number of channels in the residual blocks.
         out_features (int): The number of features in the output image features.
         num_groups (int): The number of groups for the GroupNorm layers.
@@ -120,7 +121,9 @@ class ImageEncoder(nn.Module):
     Structure:
 
     ```
-          Input image shape (in_channels, patch_size, patch_size)
+          Input image, shape (N, patch_size, patch_size)
+               |
+          Pad with zeros to shape (in_channels, patch_size, patch_size)
                |
           Conv2d(in_channels, num_res_channels, kernel_size=1)
         _____  |
@@ -145,11 +148,14 @@ class ImageEncoder(nn.Module):
         self, in_channels: int, num_res_channels: int, out_features: int, num_groups: int, patch_size: int
     ) -> None:
         super().__init__()
+        self.in_channels = in_channels
         self.conv = nn.Conv2d(in_channels, num_res_channels, kernel_size=1)
         self.residual_block = ResidualBlockV2(num_res_channels, num_groups)
         self.linear = nn.Linear(num_res_channels * patch_size * patch_size, out_features)
 
     def forward(self, x: Tensor) -> Tensor:
+        # Pad the input images with zeros if they have less channels than the encoder expects
+        x = F.pad(x, (0, 0, 0, 0, 0, self.in_channels - x.shape[1]))
         x = self.conv(x)
         x = self.residual_block(x)
         x = x.flatten(start_dim=1)
@@ -306,7 +312,7 @@ class Embeddings(nn.Module):
             self.embeddings = nn.Embedding(text_vocab_size + nb_bins, embedding_dim)
 
         # Encoder for the image patches
-        image_encoder = ImageEncoder(3, num_res_channels, embedding_dim, num_groups, patch_size)
+        image_encoder = ImageEncoder(4, num_res_channels, embedding_dim, num_groups, patch_size)
         self.image_encoder = MultiDimBatchWrapper(image_encoder, n_dims=3)
 
         # Learnable local position encodings for the image patches
