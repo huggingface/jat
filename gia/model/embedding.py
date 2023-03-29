@@ -228,10 +228,10 @@ class LocalPositionEncodings(nn.Module):
         device = self.embedding.weight.device
         assert embedding_dim == self.embedding_dim
         if same:
-            pos_emb_idxs = torch.full((seq_len,), self.vocab_size - 1, dtype=torch.long, device=device)
+            pos_emb_idxs = torch.full((num_tokens,), self.vocab_size - 1, dtype=torch.long, device=device)
         else:
-            pos_emb_idxs = torch.arange(seq_len, device=device)
-        pos_emb_idxs = pos_emb_idxs.view(1, seq_len, 1)
+            pos_emb_idxs = torch.arange(num_tokens, device=device)
+        pos_emb_idxs = pos_emb_idxs.view(1, 1, num_tokens)
         pos_emb_idxs = pos_emb_idxs.expand(batch_size, seq_len, num_tokens)
         return self.embedding(pos_emb_idxs)
 
