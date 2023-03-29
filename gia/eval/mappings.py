@@ -12,3 +12,17 @@ TASK_TO_ENV_MAPPING = {
     "atari": [],
     # ...
 }
+DATASET_FILE_MAPPING = {
+    "mujoco": [
+        "mujoco-ant",
+        "mujoco-halfcheetah",
+        "mujoco-hopper",
+        "mujoco-doublependulum",
+        "mujoco-pendulum",
+        "mujoco-reacher",
+        "mujoco-swimmer",
+        "mujoco-walker",
+    ],
+    "atari": [],
+    # ...
+}

@@ -28,32 +28,31 @@ def eval():
     model = GiaModel(args)
     model = model.to("cuda")
 
-    checkpoint_path = os.path.join(args.save_dir, "checkpoints")
-
-    current_checkpoints = set(os.listdir(checkpoint_path))
+    checkpoints_path = os.path.join(args.save_dir, "checkpoints")
+    evaluated_checkpoints = set()
 
     results = {}
 
     while True:
         time.sleep(1)
-        new_checkpoints = set(os.listdir(checkpoint_path))
-
-        for filename in new_checkpoints - current_checkpoints:
-            checkpoint_path = os.path.join(checkpoint_path, filename)
+        all_checkpoints = set(os.listdir(checkpoints_path))
+        if len(all_checkpoints - evaluated_checkpoints) == 0:
+            print("all checkpoints evaluated")
+        for filename in all_checkpoints - evaluated_checkpoints:
+            checkpoint_path = os.path.join(checkpoints_path, filename)
             # Log to wandb directly?
-            results[checkpoint_path] = eval_checkpoint(checkpoint_path, evaluators)
+            results[checkpoint_path] = eval_checkpoint(checkpoint_path, evaluators, model)
+            evaluated_checkpoints.add(filename)
 
 
 def eval_checkpoint(checkpoint_path: str, evaluators: List[Evaluator], model: torch.nn.Module):
-    print(checkpoint_path)
-    return
+    print("Evaluating checkpoint at:", checkpoint_path)
+
     state_dict = torch.load(os.path.join(checkpoint_path, "pytorch_model.bin"))
     model.load_state_dict(state_dict)
     model.eval()
-
     with torch.no_grad():
         results = {}
-
         for evaluator in evaluators:
             results[evaluator.task] = evaluator.evaluate(model)
 

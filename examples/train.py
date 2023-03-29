@@ -1,6 +1,6 @@
 # script from:
 # github.com/huggingface/transformers/blob/main/examples/research_projects/codeparrot/scripts/codeparrot_training.py
-from gia.model import GiaModel
+
 import logging
 import os
 
@@ -11,15 +11,15 @@ from pathlib import Path
 from torch.optim import AdamW
 from torch.utils.data.dataloader import DataLoader
 
-
-from gia.config import Arguments, parse_args
-from gia.datasets import GiaDataset
-
 import datasets
 
 import transformers
 from transformers import get_scheduler, set_seed
 from accelerate import Accelerator, DistributedType
+
+from gia.config import Arguments, parse_args
+from gia.datasets import load_batched_dataset
+from gia.model import GiaModel
 
 
 def setup_logging(args: Arguments, accelerator):
@@ -50,8 +50,7 @@ def setup_logging(args: Arguments, accelerator):
 
 def create_dataloaders(args: Arguments):
     # TODO
-    train_dataset = GiaDataset(args)
-
+    train_dataset = load_batched_dataset("mujoco-ant")
     train_dataloader = DataLoader(
         train_dataset,
         batch_size=args.train_batch_size,
