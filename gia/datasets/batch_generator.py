@@ -1,13 +1,16 @@
 import random
-from typing import Dict, List
+from typing import Dict, List, Union
 
 import numpy as np
+from datasets import get_dataset_config_names
+from torch.utils.data import DataLoader
 
 from gia.processor.multimodal_processor import MultimodalProcessor
 from gia.utils.utils import cache_decorator
 
 from .dataset_dict import DatasetDict
 from .gia_dataset import load_gia_dataset
+from .mixed_dataloader import MixedDataLoader
 
 
 def stack_with_padding(x: List[np.ndarray], padding_value: int = 0, side: str = "left") -> np.ndarray:
@@ -267,3 +270,75 @@ def load_prompt_dataset(task_name: str) -> DatasetDict:
         attention_mask["image_observations_attention_mask"] = mask
 
     return DatasetDict({**data, **attention_mask})
+
+
+def get_dataloader(
+    task_names: Union[str, List[str]] = "all",
+    batch_size: int = 1,
+    shuffle: bool = False,
+    seq_len: int = 1024,
+    p_prompt: float = 0.25,
+    p_end: float = 0.5,
+    patch_size: int = 16,
+    mu: float = 100,
+    M: float = 256,
+    nb_bins: int = 1024,
+    token_shift: int = 32_000,
+    use_sepatator: bool = True,
+) -> DataLoader:
+    """
+    Load a GIA dataset, tokenize, and generate batches.
+
+    Args:
+        task_names (Union[str, List[str]], optional): Name or list of names of the tasks to load. See the available
+            tasks in https://huggingface.co/datasets/gia-project/gia-dataset. If "all", load all the tasks.
+            Defaults to "all".
+        batch_size (int, optional): The size of the batch. Defaults to 1.
+        shuffle (bool, optional): Whether to shuffle the dataset. Defaults to True.
+        seq_len (int, optional): The length of the sequence of embeddings to be generated. Defaults to 1024.
+        p_prompt (float, optional): Probability of adding a prompt to a sequence. Defaults to 0.25.
+        p_end (float, optional): Probability that the prompt is the end of the episode. Defaults to 0.5.
+        patch_size (int, optional): The size of the square patch to be extracted from the image. Defaults to 16.
+        mu (float, optional): μ parameter for the μ-law companding. Defaults to 100.
+        nb_bins (int, optional): Number of bins for the discretization of continuous values. Defaults to 1024.
+        token_shift (int, optional): Shift for the discrete tokens. Defaults to 32_000.
+        use_sepatator (bool, optional): Whether to use a separator token between the observations and the actions.
+            Defaults to True.
+
+    Returns:
+        DataLoader: The dataloader.
+
+    Example:
+        >>> from gia.datasets import get_dataloader
+        >>> dataloader = get_dataloader(["babyai-go-to", "mujoco-ant"], shuffle=True, batch_size=2)
+        >>> iterator = iter(dataloader)
+        >>> batch = next(iterator)
+        >>> batch.keys()
+        dict_keys(['rewards', 'dones', 'continuous_observations', 'continuous_actions',
+            'continuous_observations_loss_mask', 'continuous_actions_loss_mask', 'rewards_attention_mask',
+            'dones_attention_mask', 'continuous_observations_attention_mask', 'continuous_actions_attention_mask'])
+        >>> batch["continuous_observations"].shape
+        torch.Size([2, 28, 27])
+        >>> batch = next(iterator)
+        >>> batch.keys()
+        dict_keys(['rewards', 'dones', 'text_observations', 'discrete_observations', 'image_observations',
+            'discrete_actions', 'patches_positions', 'text_observations_loss_mask', 'discrete_observations_loss_mask',
+            'image_observations_loss_mask', 'discrete_actions_loss_mask', 'rewards_attention_mask',
+            'dones_attention_mask', 'text_observations_attention_mask', 'discrete_observations_attention_mask',
+            'discrete_actions_attention_mask', 'image_observations_attention_mask'])
+        >>> batch["image_observations"].shape
+        torch.Size([2, 39, 16, 3, 16, 16])
+
+    """
+    if task_names == "all":
+        task_names = get_dataset_config_names("gia-project/gia-dataset")  # get all task names from gia dataset
+    elif isinstance(task_names, str):
+        task_names = [task_names]
+    datasets = [
+        load_batched_dataset(
+            task_name, seq_len, p_prompt, p_end, patch_size, mu, M, nb_bins, token_shift, use_sepatator
+        )
+        for task_name in task_names
+    ]
+    loaders = [DataLoader(dataset, batch_size=batch_size, shuffle=shuffle) for dataset in datasets]
+    return MixedDataLoader(loaders, shuffle=shuffle)
