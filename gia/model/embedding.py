@@ -51,8 +51,12 @@ class ImagePositionEncoding(nn.Module):
     def forward(self, patch_pos: Tensor, eval: bool = False) -> Tensor:
         # The row and column normalized intervals are then quantized into a vocabulary
         # size (we use 128) and are used to index a row and column table of learnable position encodings.
-        quant_row_intervals = (patch_pos[..., 0] * self.vocab_size).round().long()
-        quant_col_intervals = (patch_pos[..., 1] * self.vocab_size).round().long()
+        quant_row_intervals = (patch_pos[..., 0] * self.vocab_size).floor().long()
+        quant_col_intervals = (patch_pos[..., 1] * self.vocab_size).floor().long()
+
+        # Edge case (when the high value is 1.0) is handled by setting the high value to vocab_size - 1
+        quant_col_intervals[quant_col_intervals == self.vocab_size] = self.vocab_size - 1
+        quant_row_intervals[quant_row_intervals == self.vocab_size] = self.vocab_size - 1
 
         # The method in which the quantized row and column intervals are converted into indices depends
         # on whether we are training or evaluating the model: during training a random index is uniformly
@@ -64,11 +68,10 @@ class ImagePositionEncoding(nn.Module):
             sampled_row_idx = (quant_row_intervals[..., 0] + quant_row_intervals[..., 1]) // 2
             sampled_col_idx = (quant_col_intervals[..., 0] + quant_col_intervals[..., 1]) // 2
         else:
-            # low == high == 0 happens when timestep is masked, so we need to handle this case
             for idx, (low, high) in enumerate(quant_row_intervals):
-                sampled_row_idx[idx] = torch.randint(low, high, (1,)) if low != high else low
+                sampled_row_idx[idx] = torch.randint(low, high + 1, (1,))
             for idx, (low, high) in enumerate(quant_col_intervals):
-                sampled_col_idx[idx] = torch.randint(low, high, (1,)) if low != high else low
+                sampled_col_idx[idx] = torch.randint(low, high + 1, (1,))
 
         # The row and column indices are then used to look up the position encodings in the row and column tables.
         row_pos_encodings = self.row_embedding(sampled_row_idx)
