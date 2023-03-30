@@ -1,5 +1,6 @@
 import functools
 import hashlib
+import inspect
 import os
 from typing import Callable
 
@@ -122,9 +123,11 @@ def cache_decorator(func: Callable) -> Callable:
     """
 
     @functools.wraps(func)
-    def wrapper(*args, **kwargs):
+    def wrapper(*args, load_from_cache: bool = True, **kwargs):
+        if "load_from_cache" in inspect.getfullargspec(func).args:
+            # add it if the inner function allow this kwarg
+            kwargs["load_from_cache"] = load_from_cache
         # Get hash from the function parameters
-        load_from_cache_file = kwargs.pop("load_from_cache_file", True)
         params = (func.__name__,) + args + tuple(kwargs.items())
         h = hashlib.sha256("".join(str(elem) for elem in params).encode()).hexdigest()
         cache_filename = f"gia-{h}"
@@ -132,7 +135,7 @@ def cache_decorator(func: Callable) -> Callable:
         os.makedirs(dirname, exist_ok=True)
         cache_path = os.path.join(dirname, cache_filename)
 
-        if load_from_cache_file and os.path.exists(cache_path):
+        if load_from_cache and os.path.exists(cache_path):
             print(f"Loading cache ({cache_path})")
             return torch.load(cache_path)
 

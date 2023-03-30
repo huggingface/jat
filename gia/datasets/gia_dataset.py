@@ -42,7 +42,7 @@ def is_discrete(x: np.ndarray) -> bool:
     return x.dtype in [np.int8, np.int16, np.int32, np.int64, np.uint8, np.uint16, np.uint32, np.uint64]
 
 
-def load_gia_dataset(task_name: str) -> DatasetDict:
+def load_gia_dataset(task_name: str, load_from_cache: bool = True) -> DatasetDict:
     """
     Load a GIA dataset.
 
@@ -62,7 +62,8 @@ def load_gia_dataset(task_name: str) -> DatasetDict:
         >>> dataset["continuous_observations"].shape
         (100000, 27)
     """
-    dataset = load_dataset("gia-project/gia-dataset", task_name, split="train")
+    download_mode = "force_redownload" if not load_from_cache else None
+    dataset = load_dataset("gia-project/gia-dataset", task_name, split="train", download_mode=download_mode)
     # Convert the dataset to numpy arrays
     dataset = dataset.with_format("numpy")[:]
 
