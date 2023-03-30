@@ -147,8 +147,7 @@ def test_same_shapes():
 
 
 def test_get_dataloader():
-    # dataloader = get_dataloader(["babyai-go-to", "mujoco-ant"], shuffle=True, batch_size=2)
-    dataloader = get_dataloader(["mujoco-ant"], shuffle=True, batch_size=2)
+    dataloader = get_dataloader(["babyai-go-to", "mujoco-ant"], shuffle=True, batch_size=2)
     ant_keys = {
         "rewards",
         "dones",
@@ -180,16 +179,15 @@ def test_get_dataloader():
         "discrete_actions_attention_mask",
         "image_observations_attention_mask",
     }
-    # ant_sampled, go_to_sampled = False, False
-    ant_sampled, go_to_sampled = False, True
+    ant_sampled, go_to_sampled = False, False
     for batch in dataloader:
         if set(batch.keys()) == ant_keys:
             assert batch["continuous_observations"].shape[1:] == (28, 27)
-            assert batch["continuous_observations"].shape[0] <= 2 # usually 2, but sometimes 1 since drop_last=False
+            assert batch["continuous_observations"].shape[0] <= 2  # usually 2, but sometimes 1 since drop_last=False
             ant_sampled = True
         elif set(batch.keys()) == go_to_keys:
             assert batch["image_observations"].shape[:1] == (39, 16, 3, 16, 16)
-            assert batch["image_observations"].shape[0] <= 2 # usually 2, but sometimes 1 since drop_last=False
+            assert batch["image_observations"].shape[0] <= 2  # usually 2, but sometimes 1 since drop_last=False
             go_to_sampled = True
         else:
             raise ValueError(f"Unexpected keys {set(batch.keys())}")
