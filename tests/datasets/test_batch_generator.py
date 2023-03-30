@@ -3,7 +3,11 @@ from typing import Dict
 import numpy as np
 import pytest
 
-from gia.datasets.batch_generator import generate_batch, stack_with_padding
+from gia.datasets.batch_generator import (
+    generate_batch,
+    get_dataloader,
+    stack_with_padding,
+)
 
 BATCH_SIZE = 128
 C, H, W = 3, 16, 16
@@ -140,3 +144,50 @@ def test_same_shapes():
     target_mask = np.array([[[True, True], [True, True]], [[True, True], [True, True]]])
     assert np.array_equal(stacked, target_stacked)
     assert np.array_equal(mask, target_mask)
+
+
+def test_get_dataloader():
+    dataloader = get_dataloader(["babyai-go-to", "mujoco-ant"], shuffle=True, batch_size=2)
+    ant_keys = {
+        "rewards",
+        "dones",
+        "continuous_observations",
+        "continuous_actions",
+        "continuous_observations_loss_mask",
+        "continuous_actions_loss_mask",
+        "rewards_attention_mask",
+        "dones_attention_mask",
+        "continuous_observations_attention_mask",
+        "continuous_actions_attention_mask",
+    }
+    go_to_keys = {
+        "rewards",
+        "dones",
+        "text_observations",
+        "discrete_observations",
+        "image_observations",
+        "discrete_actions",
+        "patches_positions",
+        "text_observations_loss_mask",
+        "discrete_observations_loss_mask",
+        "image_observations_loss_mask",
+        "discrete_actions_loss_mask",
+        "rewards_attention_mask",
+        "dones_attention_mask",
+        "text_observations_attention_mask",
+        "discrete_observations_attention_mask",
+        "discrete_actions_attention_mask",
+        "image_observations_attention_mask",
+    }
+    ant_sampled, go_to_sampled = False, False
+    for batch in dataloader:
+        if set(batch.keys()) == ant_keys:
+            assert batch["continuous_observations"].shape == (2, 28, 27)
+            ant_sampled = True
+        elif set(batch.keys()) == go_to_keys:
+            assert batch["image_observations"].shape == (2, 39, 16, 3, 16, 16)
+            go_to_sampled = True
+        else:
+            raise ValueError(f"Unexpected keys {set(batch.keys())}")
+
+    assert ant_sampled and go_to_sampled
