@@ -206,6 +206,7 @@ def load_batched_dataset(
     nb_bins: int = 1024,
     token_shift: int = 32_000,
     use_sepatator: bool = True,
+    load_from_cache: bool = True,
 ) -> DatasetDict:
     """
     Load a GIA dataset, tokenize, and generate batches.
@@ -218,11 +219,12 @@ def load_batched_dataset(
         p_end (float, optional): Probability that the prompt is the end of the episode. Defaults to 0.5.
         patch_size (int, optional): The size of the square patch to be extracted from the image. Defaults to 16.
         mu (float, optional): μ parameter for the μ-law companding. Defaults to 100.
+        M (float, optional): M parameter for the μ-law companding. Defaults to 256.
         nb_bins (int, optional): Number of bins for the discretization of continuous values. Defaults to 1024.
         token_shift (int, optional): Shift for the discrete tokens. Defaults to 32_000.
-        load_from_cache_file (bool, optional): Whether to load the dataset from the cache. Defaults to True.
         use_sepatator (bool, optional): Whether to use a separator token between the observations and the actions.
             Defaults to True.
+        load_from_cache (bool, optional): Whether to load the dataset from the cache. Defaults to True.
 
     Example:
         >>> from gia.datasets import load_batched_dataset
@@ -230,16 +232,16 @@ def load_batched_dataset(
         >>> dataset[0]["observations/image"].shape
         torch.Size([56, 3, 56, 56])
     """
-    dataset = load_gia_dataset(task_name)
+    dataset = load_gia_dataset(task_name, load_from_cache)
     dataset = generate_batch(dataset, seq_len, p_prompt, p_end, patch_size, mu, M, nb_bins, token_shift, use_sepatator)
     return DatasetDict(dataset)
 
 
 @cache_decorator
-def load_prompt_dataset(task_name: str) -> DatasetDict:
+def load_prompt_dataset(task_name: str, load_from_cache: bool = True) -> DatasetDict:
     """ """
     # Load the dataset
-    dataset = load_gia_dataset(task_name)
+    dataset = load_gia_dataset(task_name, load_from_cache)
 
     processor = MultimodalProcessor()
     # Preprocess the dataset (tokenize and extract patches)
