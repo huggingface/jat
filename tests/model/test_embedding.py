@@ -1,7 +1,12 @@
 import pytest
 import torch
 
-from gia.model.embedding import Embeddings, ImageEncoder, LocalPositionEncodings, ImagePositionEncoding
+from gia.model.embedding import (
+    Embeddings,
+    ImageEncoder,
+    ImagePositionEncoding,
+    LocalPositionEncodings,
+)
 
 
 def random_positions(size):  # Ensure that min < max
