@@ -1,17 +1,15 @@
-import os
-import random
-import numpy as np
-
-import torch
 import gymnasium as gym
+import numpy as np
+import torch
 from tqdm import tqdm
-from gia.config.arguments import Arguments, parse_args
-from gia.model.gia_model import GiaModel
+
+from gia.config.arguments import Arguments
 from gia.datasets.batch_generator import load_prompt_dataset
+from gia.model.gia_model import GiaModel
 from gia.processor import MultimodalProcessor
 
 from .evaluator import Evaluator
-from .mappings import TASK_TO_ENV_MAPPING, DATASET_FILE_MAPPING
+from .mappings import DATASET_FILE_MAPPING, TASK_TO_ENV_MAPPING
 
 
 def make_mujoco_env(env_name, render_mode=None):
@@ -68,8 +66,8 @@ class MujocoEvaluator(Evaluator):
 
         # Fill (right side) the buffer with the prompts. Truncate if necessary.
         for key in buffer.keys():
-            l = min(buffer[key].shape[1], prompt_dataset[key][sampled_prompts_idxs].shape[1])
-            buffer[key][:, -l:] = torch.from_numpy(prompt_dataset[key][sampled_prompts_idxs, -l:]).to(device)
+            length = min(buffer[key].shape[1], prompt_dataset[key][sampled_prompts_idxs].shape[1])
+            buffer[key][:, -length:] = torch.from_numpy(prompt_dataset[key][sampled_prompts_idxs, -length:]).to(device)
 
         processor = MultimodalProcessor()
 
@@ -129,10 +127,10 @@ class MujocoEvaluator(Evaluator):
                         if "loss" in key:  # skip if this key in dict as the model modifies the dict TODO: fix this
                             continue
                         buffer[key][i] *= 0
-                        l = min(buffer[key].shape[1], prompt_dataset[key][sampled_prompts_idxs].shape[1])
-                        buffer[key][i, :, -l:] = torch.from_numpy(prompt_dataset[key][sampled_prompts_idxs, -l:]).to(
-                            device
-                        )
+                        length = min(buffer[key].shape[1], prompt_dataset[key][sampled_prompts_idxs].shape[1])
+                        buffer[key][i, :, -length:] = torch.from_numpy(
+                            prompt_dataset[key][sampled_prompts_idxs, -length:]
+                        ).to(device)
 
         pbar.close()
         env.close()

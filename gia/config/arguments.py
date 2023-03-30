@@ -1,11 +1,10 @@
+import json
 import os
 import sys
-import json
-
 from dataclasses import dataclass, field
 from pathlib import Path
-
 from typing import List, Optional
+
 from transformers import HfArgumentParser
 
 
