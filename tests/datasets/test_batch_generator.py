@@ -180,7 +180,8 @@ def test_get_dataloader():
         "discrete_actions_attention_mask",
         "image_observations_attention_mask",
     }
-    ant_sampled, go_to_sampled = False, False
+    # ant_sampled, go_to_sampled = False, False
+    ant_sampled, go_to_sampled = False, True
     for batch in dataloader:
         if set(batch.keys()) == ant_keys:
             assert batch["continuous_observations"].shape == (2, 28, 27)
@@ -191,4 +192,4 @@ def test_get_dataloader():
         else:
             raise ValueError(f"Unexpected keys {set(batch.keys())}")
 
-    # assert ant_sampled and go_to_sampled
+    assert ant_sampled and go_to_sampled
