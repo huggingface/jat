@@ -31,13 +31,13 @@ class ImagePositionEncoding(nn.Module):
     Example:
         >>> import torch
         >>> pos_enc = ImagePositionEncoding()
-        >>> images = torch.tensor(
+        >>> positions = torch.tensor(
         ...     [
         ...         [[0.0, 0.0], [0.2, 0.3]],
         ...         [[0.1, 0.3], [0.2, 0.4]],
         ...     ]
         ... )
-        >>> pos_encoding = pos_enc(images)
+        >>> pos_encoding = pos_enc(positions)
         >>> pos_encoding.shape
         torch.Size([2, 2048])
     """
@@ -51,8 +51,12 @@ class ImagePositionEncoding(nn.Module):
     def forward(self, patch_pos: Tensor, eval: bool = False) -> Tensor:
         # The row and column normalized intervals are then quantized into a vocabulary
         # size (we use 128) and are used to index a row and column table of learnable position encodings.
-        quant_row_intervals = (patch_pos[..., 0] * self.vocab_size).round().long()
-        quant_col_intervals = (patch_pos[..., 1] * self.vocab_size).round().long()
+        quant_row_intervals = (patch_pos[..., 0] * self.vocab_size).floor().long()
+        quant_col_intervals = (patch_pos[..., 1] * self.vocab_size).floor().long()
+
+        # Edge case (when the high value is 1.0) is handled by setting the high value to vocab_size - 1
+        quant_col_intervals[quant_col_intervals == self.vocab_size] = self.vocab_size - 1
+        quant_row_intervals[quant_row_intervals == self.vocab_size] = self.vocab_size - 1
 
         # The method in which the quantized row and column intervals are converted into indices depends
         # on whether we are training or evaluating the model: during training a random index is uniformly
@@ -64,11 +68,10 @@ class ImagePositionEncoding(nn.Module):
             sampled_row_idx = (quant_row_intervals[..., 0] + quant_row_intervals[..., 1]) // 2
             sampled_col_idx = (quant_col_intervals[..., 0] + quant_col_intervals[..., 1]) // 2
         else:
-            # low == high == 0 happens when timestep is masked, so we need to handle this case
             for idx, (low, high) in enumerate(quant_row_intervals):
-                sampled_row_idx[idx] = torch.randint(low, high, (1,)) if low != high else low
+                sampled_row_idx[idx] = torch.randint(low, high + 1, (1,))
             for idx, (low, high) in enumerate(quant_col_intervals):
-                sampled_col_idx[idx] = torch.randint(low, high, (1,)) if low != high else low
+                sampled_col_idx[idx] = torch.randint(low, high + 1, (1,))
 
         # The row and column indices are then used to look up the position encodings in the row and column tables.
         row_pos_encodings = self.row_embedding(sampled_row_idx)
@@ -339,28 +342,45 @@ class Embeddings(nn.Module):
         has_image = "image_observations" in batch.keys()
         action_key = [key for key in batch.keys() if key in possible_action_keys][0]
 
+        # Handle tokens observations: concatenate all tokenized observations and embed
+        if len(tokenized_obs_keys) > 0:
+            no_image_tokens = torch.cat([batch[key] for key in tokenized_obs_keys], dim=2)
+            no_image_embeddings = self.embeddings(
+                no_image_tokens
+            )  # shape (batch_size, L, n_obs_tokens, embedding_dim)
+            no_image_loss_mask = torch.cat([batch[f"{key}_loss_mask"] for key in tokenized_obs_keys], dim=2)
+            no_image_attention_mask = torch.cat([batch[f"{key}_attention_mask"] for key in tokenized_obs_keys], dim=2)
+
         # Handle images observations: normalize and embed, then add patch position embeddings
         if has_image:
             normalized_images = batch["image_observations"].float() * 2.0 / 255.0 - 1.0
             image_embeddings = self.image_encoder(normalized_images)
             patch_pos_embeddings = self.image_pos_enc(batch["patches_positions"])
             image_embeddings = image_embeddings + patch_pos_embeddings
-
-        # Handle tokens observations: concatenate all tokenized observations and embed
-        # FIXME: what happens when there is just image observations?
-        obs_tokens = torch.cat([batch[key] for key in tokenized_obs_keys], dim=2)
-        obs_embeddings = self.embeddings(obs_tokens)  # shape (batch_size, L, n_obs_tokens, embedding_dim)
-        obs_loss_mask = torch.cat([batch[f"{key}_loss_mask"] for key in tokenized_obs_keys], dim=2)
-        obs_attention_mask = torch.cat([batch[f"{key}_attention_mask"] for key in tokenized_obs_keys], dim=2)
+            image_loss_mask = batch["image_observations_loss_mask"]
+            image_attention_mask = batch["image_observations_attention_mask"]
+            # Fake image tokens (they are masked out anyway)
+            image_tokens = torch.zeros(image_embeddings.shape[:3], dtype=torch.int64, device=device)
 
         # Concatenate images embeddings with the other embeddings and add local position embeddings
-        if has_image:
-            obs_embeddings = torch.cat((obs_embeddings, image_embeddings), dim=2)
-            obs_loss_mask = torch.cat((obs_loss_mask, batch["image_observations_loss_mask"]), dim=2)
-            obs_attention_mask = torch.cat((obs_attention_mask, batch["image_observations_attention_mask"]), dim=2)
-            # Add zeros to the tokenized observations (they are masked anyway)
-            fake_tokens = torch.zeros(image_embeddings.shape[:3], dtype=torch.int64, device=device)
-            obs_tokens = torch.cat((obs_tokens, fake_tokens), dim=2)
+        if has_image and len(tokenized_obs_keys) > 0:
+            obs_embeddings = torch.cat((no_image_embeddings, image_embeddings), dim=2)
+            obs_loss_mask = torch.cat((no_image_loss_mask, image_loss_mask), dim=2)
+            obs_attention_mask = torch.cat((no_image_attention_mask, image_attention_mask), dim=2)
+            obs_tokens = torch.cat((no_image_tokens, image_tokens), dim=2)
+        elif has_image and len(tokenized_obs_keys) == 0:
+            obs_embeddings = image_embeddings
+            obs_loss_mask = image_loss_mask
+            obs_attention_mask = image_attention_mask
+            obs_tokens = image_tokens
+        elif not has_image and len(tokenized_obs_keys) > 0:
+            obs_embeddings = no_image_embeddings
+            obs_loss_mask = no_image_loss_mask
+            obs_attention_mask = no_image_attention_mask
+            obs_tokens = no_image_tokens
+        else:
+            raise ValueError("No observations in the batch")
+
         obs_pos_embeddings = self.local_pos_embeddings(obs_embeddings.shape)
         obs_embeddings += obs_pos_embeddings
 
@@ -384,15 +404,15 @@ class Embeddings(nn.Module):
 
         # Concatenate all embeddings
         if self.use_separator:
-            embeddings = torch.cat([obs_embeddings, action_embeddings], dim=2)
-            loss_mask = torch.cat([obs_loss_mask, action_loss_mask], dim=2)
-            attention_mask = torch.cat([obs_attention_mask, action_attention_mask], dim=2)
-            tokens = torch.cat([obs_tokens, action_tokens], dim=2)
-        else:
             embeddings = torch.cat([obs_embeddings, separator_embeddings, action_embeddings], dim=2)
             loss_mask = torch.cat([obs_loss_mask, separator_loss_mask, action_loss_mask], dim=2)
             attention_mask = torch.cat([obs_attention_mask, separator_attention_mask, action_attention_mask], dim=2)
             tokens = torch.cat([obs_tokens, separator_token, action_tokens], dim=2)
+        else:
+            embeddings = torch.cat([obs_embeddings, action_embeddings], dim=2)
+            loss_mask = torch.cat([obs_loss_mask, action_loss_mask], dim=2)
+            attention_mask = torch.cat([obs_attention_mask, action_attention_mask], dim=2)
+            tokens = torch.cat([obs_tokens, action_tokens], dim=2)
 
         # Flatten the embeddings into a single sequence of tokens of shape (batch_size, seq_len*L, embedding_dim)
         # Where L is the total number of tokens for one interaction (observation + separator + action)
