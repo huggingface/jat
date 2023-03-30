@@ -147,8 +147,10 @@ def test_same_shapes():
 
 
 def test_get_dataloader():
-    dataloader = get_dataloader(["babyai-go-to", "mujoco-ant"], shuffle=True, batch_size=2)
-    ant_keys = {
+    dataloader = get_dataloader(["metaworld-assembly-v2", "mujoco-ant"], shuffle=True, batch_size=2)
+    # It would be nice to test with two datasets with different keys, but currently
+    # Atari and BabyAI are too big to run in the CI.
+    expected_keys = {
         "rewards",
         "dones",
         "continuous_observations",
@@ -160,36 +162,16 @@ def test_get_dataloader():
         "continuous_observations_attention_mask",
         "continuous_actions_attention_mask",
     }
-    go_to_keys = {
-        "rewards",
-        "dones",
-        "text_observations",
-        "discrete_observations",
-        "image_observations",
-        "discrete_actions",
-        "patches_positions",
-        "text_observations_loss_mask",
-        "discrete_observations_loss_mask",
-        "image_observations_loss_mask",
-        "discrete_actions_loss_mask",
-        "rewards_attention_mask",
-        "dones_attention_mask",
-        "text_observations_attention_mask",
-        "discrete_observations_attention_mask",
-        "discrete_actions_attention_mask",
-        "image_observations_attention_mask",
-    }
-    ant_sampled, go_to_sampled = False, False
+    mujoco_sampled = False
+    metaworld_sampled = False
     for batch in dataloader:
-        if set(batch.keys()) == ant_keys:
-            assert batch["continuous_observations"].shape[1:] == (28, 27)
-            assert batch["continuous_observations"].shape[0] <= 2  # usually 2, but sometimes 1 since drop_last=False
-            ant_sampled = True
-        elif set(batch.keys()) == go_to_keys:
-            assert batch["image_observations"].shape[:1] == (39, 16, 3, 16, 16)
-            assert batch["image_observations"].shape[0] <= 2  # usually 2, but sometimes 1 since drop_last=False
-            go_to_sampled = True
+        assert set(batch.keys()) == expected_keys
+        shape = batch["continuous_observations"].shape
+        assert shape[0] <= 2  # usually 2, but sometimes 1 since drop_last=False
+        if shape[1:] == (28, 27):
+            mujoco_sampled = True
+        elif shape[1:] == (23, 39):
+            metaworld_sampled = True
         else:
-            raise ValueError(f"Unexpected keys {set(batch.keys())}")
-
-    assert ant_sampled and go_to_sampled
+            raise ValueError("Unexpected shape: {}".format(shape))
+    assert mujoco_sampled and metaworld_sampled
