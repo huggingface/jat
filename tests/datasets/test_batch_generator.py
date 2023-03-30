@@ -184,10 +184,12 @@ def test_get_dataloader():
     ant_sampled, go_to_sampled = False, True
     for batch in dataloader:
         if set(batch.keys()) == ant_keys:
-            assert batch["continuous_observations"].shape == (2, 28, 27)
+            assert batch["continuous_observations"].shape[1:] == (28, 27)
+            assert batch["continuous_observations"].shape[0] <= 2 # usually 2, but sometimes 1 since drop_last=False
             ant_sampled = True
         elif set(batch.keys()) == go_to_keys:
-            assert batch["image_observations"].shape == (2, 39, 16, 3, 16, 16)
+            assert batch["image_observations"].shape[:1] == (39, 16, 3, 16, 16)
+            assert batch["image_observations"].shape[0] <= 2 # usually 2, but sometimes 1 since drop_last=False
             go_to_sampled = True
         else:
             raise ValueError(f"Unexpected keys {set(batch.keys())}")
