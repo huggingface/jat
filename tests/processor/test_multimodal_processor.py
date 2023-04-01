@@ -8,7 +8,7 @@ def test_tokenize_continuous():
     processor = MultimodalProcessor(mu=100, M=256, nb_bins=1024)
 
     # Create sample tokens
-    x = np.linspace(-5.0, 5.0, 51)
+    x = np.linspace(-5.0, 5.0, 51).reshape(1, -1)  # Convert to batch of size 1
 
     # Call tokenize_continuous method
     tokens = processor.tokenize_continuous(x)

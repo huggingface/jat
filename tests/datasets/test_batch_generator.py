@@ -3,7 +3,11 @@ from typing import Dict
 import numpy as np
 import pytest
 
-from gia.datasets.batch_generator import generate_batch, stack_with_padding
+from gia.datasets.batch_generator import (
+    generate_batch,
+    get_dataloader,
+    stack_with_padding,
+)
 
 BATCH_SIZE = 128
 C, H, W = 3, 16, 16
@@ -140,3 +144,34 @@ def test_same_shapes():
     target_mask = np.array([[[True, True], [True, True]], [[True, True], [True, True]]])
     assert np.array_equal(stacked, target_stacked)
     assert np.array_equal(mask, target_mask)
+
+
+def test_get_dataloader():
+    dataloader = get_dataloader(["metaworld-assembly-v2", "mujoco-ant"], shuffle=True, batch_size=2)
+    # It would be nice to test with two datasets with different keys, but currently
+    # Atari and BabyAI are too big to run in the CI.
+    expected_keys = {
+        "rewards",
+        "dones",
+        "continuous_observations",
+        "continuous_actions",
+        "continuous_observations_loss_mask",
+        "continuous_actions_loss_mask",
+        "rewards_attention_mask",
+        "dones_attention_mask",
+        "continuous_observations_attention_mask",
+        "continuous_actions_attention_mask",
+    }
+    mujoco_sampled = False
+    metaworld_sampled = False
+    for batch in dataloader:
+        assert set(batch.keys()) == expected_keys
+        shape = batch["continuous_observations"].shape
+        assert shape[0] <= 2  # usually 2, but sometimes 1 since drop_last=False
+        if shape[1:] == (28, 27):
+            mujoco_sampled = True
+        elif shape[1:] == (23, 39):
+            metaworld_sampled = True
+        else:
+            raise ValueError("Unexpected shape: {}".format(shape))
+    assert mujoco_sampled and metaworld_sampled

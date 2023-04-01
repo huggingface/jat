@@ -111,10 +111,6 @@ class MultimodalProcessor:
         # Discretize tensors
         x = discretize(x, nb_bins=self.nb_bins)
 
-        # Unsqueeze when the input is a vector
-        if x.ndim == 1:
-            x = np.expand_dims(x, axis=1)
-
         # Unsqueeze if needed
         tokens = x + self.token_shift
         return tokens
@@ -127,14 +123,11 @@ class MultimodalProcessor:
         Then, the tensor is de-mu-law companded if needed.
 
         Args:
-            tokens (np.ndarray): Tokens of shape (..., 1)
+            tokens (np.ndarray): Tokens
 
         Returns:
             Tensor: Reconstructed array
         """
-        # The tokens array for continuous values are expected to have shape (..., 1), so we squeeze it
-        tokens = np.squeeze(tokens, axis=-1)
-
         # Subtract token shift
         tokens = tokens - self.token_shift
 
