@@ -83,12 +83,12 @@ def dummy_function(x: int) -> int:
 def test_cache_decorator_cache_hit(tmp_path):
     # First call to create the cache file
     x = 2 * torch.ones(1)
-    result = dummy_function(x, load_from_cache_file=False, cache_dir=str(tmp_path))
+    result = dummy_function(x, load_from_cache=False, cache_dir=str(tmp_path))
     torch.testing.assert_allclose(result, 4 * torch.ones(1))
 
     # Second call to load from the cache file
     with CaptureLogger(logger) as cl:
-        result = dummy_function(x, load_from_cache_file=True, cache_dir=str(tmp_path))
+        result = dummy_function(x, load_from_cache=True, cache_dir=str(tmp_path))
 
     torch.testing.assert_allclose(result, 4 * torch.ones(1))
     assert "Loading cache" in cl.out
@@ -99,12 +99,12 @@ def test_cache_decorator_cache_miss(tmp_path):
     # First call to create the cache file
     x = 2 * torch.ones(1)
     y = 3 * torch.ones(1)
-    result = dummy_function(x, load_from_cache_file=False, cache_dir=str(tmp_path))
+    result = dummy_function(x, load_from_cache=False, cache_dir=str(tmp_path))
     torch.testing.assert_allclose(result, 4 * torch.ones(1))
 
     # Second call to load from the cache file
     with CaptureLogger(logger) as cl:
-        result = dummy_function(y, load_from_cache_file=True, cache_dir=str(tmp_path))
+        result = dummy_function(y, load_from_cache=True, cache_dir=str(tmp_path))
 
     torch.testing.assert_allclose(result, 9 * torch.ones(1))
     assert "Loading cache" not in cl.out
@@ -113,12 +113,12 @@ def test_cache_decorator_cache_miss(tmp_path):
 def test_cache_decorator_cache_hit_no_cache(tmp_path):
     # First call to create the cache file
     x = 2 * torch.ones(1)
-    result = dummy_function(x, load_from_cache_file=False, cache_dir=str(tmp_path))
+    result = dummy_function(x, load_from_cache=False, cache_dir=str(tmp_path))
     torch.testing.assert_allclose(result, 4 * torch.ones(1))
 
     # Second call to load from the cache file
     with CaptureLogger(logger) as cl:
-        result = dummy_function(x, load_from_cache_file=False, cache_dir=str(tmp_path))
+        result = dummy_function(x, load_from_cache=False, cache_dir=str(tmp_path))
 
     torch.testing.assert_allclose(result, 4 * torch.ones(1))
     assert "Loading cache" not in cl.out
@@ -128,12 +128,12 @@ def test_cache_decorator_cache_miss_no_cache(tmp_path):
     # First call to create the cache file
     x = 2 * torch.ones(1)
     y = 3 * torch.ones(1)
-    result = dummy_function(x, load_from_cache_file=False, cache_dir=str(tmp_path))
+    result = dummy_function(x, load_from_cache=False, cache_dir=str(tmp_path))
     torch.testing.assert_allclose(result, 4 * torch.ones(1))
 
     # Second call to load from the cache file
     with CaptureLogger(logger) as cl:
-        result = dummy_function(y, load_from_cache_file=True, cache_dir=str(tmp_path))
+        result = dummy_function(y, load_from_cache=True, cache_dir=str(tmp_path))
 
     torch.testing.assert_allclose(result, 9 * torch.ones(1))
     assert "Loading cache" not in cl.out

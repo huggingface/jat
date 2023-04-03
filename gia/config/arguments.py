@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import List, Optional, Union
 
 
 @dataclass
@@ -50,14 +50,14 @@ class TrainingArguments:
 
 @dataclass
 class ModelArguments:
-    model_name: Optional[str] = field(default="EleutherAI/gpt-neo-125M", metadata={"help": "The name of the model"})
+    model_name: str = field(default="EleutherAI/gpt-neo-125M", metadata={"help": "The name of the model"})
     vocab_size: Optional[int] = field(
         default=32_000 + 1024 + 1,
         metadata={"help": "The size of the model vocabulary, including the tokenization of observations"},
     )
     seq_len: int = field(default=1024, metadata={"help": "The length (number of tokens) of a sequence."})
     max_position_embeddings: Optional[int] = field(
-        default=32, metadata={"help": "The size of the model vocabulary for text."}
+        default=32, metadata={"help": "The maximum number of position embeddings."}
     )
     text_vocab_size: int = field(default=32_000, metadata={"help": "The size of the model vocabulary for text."})
     nb_bins: int = field(
@@ -84,6 +84,10 @@ class ModelArguments:
     )
     num_groups: int = field(
         default=32, metadata={"help": "The number of groups for the group normalization in the image patch encoder."}
+    )
+    use_pretrained: bool = field(default=True, metadata={"help": "Whether to use a pretrained model or not."})
+    embed_dim: Union[int, str] = field(
+        default="auto", metadata={"help": "The embedding dimension. If auto, it is set to the model size."}
     )
 
 
@@ -115,7 +119,7 @@ class DatasetArguments:
     use_separator: bool = field(
         default=True, metadata={"help": "Whether to include a separator token between observations and actions."}
     )
-    load_from_cache_file: Optional[bool] = field(
+    load_from_cache: Optional[bool] = field(
         default=True, metadata={"help": "Whether to load the dataset from the cache files."}
     )
 

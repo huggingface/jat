@@ -7,7 +7,8 @@ from gia.model import GiaModel
 
 dataset = load_batched_dataset("mujoco-ant")
 dataloader = DataLoader(dataset)
-model = GiaModel(Arguments())
+args = Arguments()
+model = GiaModel(args)
 for batch in tqdm(dataloader):
     out = model(batch)
     tqdm.write(str(out))

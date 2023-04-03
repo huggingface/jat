@@ -11,7 +11,8 @@ import numpy as np
 num_envs = 2
 int_per_seq = 20  # number of interactions per sequence. Hard-coded for now
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = GiaModel(Arguments()).to(device)
+args = Arguments()
+model = GiaModel(args).to(device)
 env = gym.vector.make("Ant-v4", num_envs)
 
 # For mujoco, there is one token per component of the observation and action

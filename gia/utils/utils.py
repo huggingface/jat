@@ -133,9 +133,9 @@ def cache_decorator(func: Callable) -> Callable:
     Returns:
         Callable: The decorated function with caching behavior. The decorated function accepts two additional
             optional arguments:
-            - load_from_cache_file (bool): If True, attempts to load the result from the cache file if it
-                                            exists. If False, always calls the original function and saves
-                                            the result to the cache file. Default: True.
+            - load_from_cache (bool): If True, attempts to load the result from the cache file if it
+                                        exists. If False, always calls the original function and saves
+                                        the result to the cache file. Default: True.
             - cache_dir (str): The directory where cache files are stored. Default: "~/.cache/huggingface/datasets".
 
     Example:

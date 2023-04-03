@@ -7,6 +7,7 @@ from gia.model.embedding import (
     ImagePositionEncoding,
     LocalPositionEncodings,
 )
+from gia.config import Arguments
 
 
 def random_positions(size):  # Ensure that min < max
@@ -28,7 +29,7 @@ def test_image_position_encoding_shapes():
         ]
     )
 
-    pos_enc = ImagePositionEncoding(embedding_dim=128)
+    pos_enc = ImagePositionEncoding(embed_dim=128)
     pos_encoding = pos_enc(positions)
     assert pos_encoding.shape == (batch_size, 128)
 
@@ -64,9 +65,9 @@ def test_image_position_encoding_values_eval():
 
 def test_local_position_encodings():
     batch_size, seq_len, num_tokens = 8, 16, 20
-    vocab_size, embedding_dim = 128, 2048
-    pos_enc = LocalPositionEncodings(vocab_size, embedding_dim)
-    shape = torch.Size([batch_size, seq_len, num_tokens, embedding_dim])
+    vocab_size, embed_dim = 128, 2048
+    pos_enc = LocalPositionEncodings(vocab_size, embed_dim)
+    shape = torch.Size([batch_size, seq_len, num_tokens, embed_dim])
 
     # Test when same is False
     pos_emb = pos_enc(shape)
@@ -78,9 +79,9 @@ def test_local_position_encodings():
 
 def test_local_position_encodings_same():
     batch_size, seq_len, num_tokens = 8, 16, 20
-    vocab_size, embedding_dim = 128, 2048
-    pos_enc = LocalPositionEncodings(vocab_size, embedding_dim)
-    shape = torch.Size([batch_size, seq_len, num_tokens, embedding_dim])
+    vocab_size, embed_dim = 128, 2048
+    pos_enc = LocalPositionEncodings(vocab_size, embed_dim)
+    shape = torch.Size([batch_size, seq_len, num_tokens, embed_dim])
 
     # Test when same is False
     pos_emb = pos_enc(shape, same=True)
@@ -136,7 +137,8 @@ def test_embeddings(obs_modality, act_modality, use_seprator):
         f"{act_modality}_actions_loss_mask": torch.randint(0, 2, act_shape).bool(),
         f"{act_modality}_actions_attention_mask": torch.randint(0, 2, act_shape).bool(),
     }
-    embed = Embeddings(embedding_dim=32, use_separator=use_seprator)
+    args = Arguments(embed_dim=32, use_separator=use_seprator)
+    embed = Embeddings(args)
     embeddings = embed(batch)
     # observations and actions are concatenated
     num_tokens = num_obs_tokens + num_act_tokens
@@ -168,7 +170,7 @@ def test_embeddings_image(act_modality, use_seprator):
         f"{act_modality}_actions_loss_mask": torch.randint(0, 2, act_shape).bool(),
         f"{act_modality}_actions_attention_mask": torch.randint(0, 2, act_shape).bool(),
     }
-    embed = Embeddings(embedding_dim=32, use_separator=use_seprator)
+    embed = Embeddings(embed_dim=32, use_separator=use_seprator)
     embeddings = embed(batch)
     # observations and actions are concatenated
     num_tokens = num_patches + num_act_tokens
