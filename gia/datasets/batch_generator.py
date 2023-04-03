@@ -278,6 +278,7 @@ def get_dataloader(
     task_names: Union[str, List[str]] = "all",
     batch_size: int = 1,
     shuffle: bool = False,
+    drop_last: bool = False,
     seq_len: int = 1024,
     p_prompt: float = 0.25,
     p_end: float = 0.5,
@@ -297,6 +298,7 @@ def get_dataloader(
             Defaults to "all".
         batch_size (int, optional): The size of the batch. Defaults to 1.
         shuffle (bool, optional): Whether to shuffle the dataset. Defaults to True.
+        drop_last (bool, optional): Whether to drop the last batch if it is incomplete. Defaults to False.
         seq_len (int, optional): The length of the sequence of embeddings to be generated. Defaults to 1024.
         p_prompt (float, optional): Probability of adding a prompt to a sequence. Defaults to 0.25.
         p_end (float, optional): Probability that the prompt is the end of the episode. Defaults to 0.5.
@@ -342,5 +344,7 @@ def get_dataloader(
         )
         for task_name in task_names
     ]
-    loaders = [DataLoader(dataset, batch_size=batch_size, shuffle=shuffle) for dataset in datasets]
+    loaders = [
+        DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, drop_last=drop_last) for dataset in datasets
+    ]
     return MixedDataLoader(loaders, shuffle=shuffle)
