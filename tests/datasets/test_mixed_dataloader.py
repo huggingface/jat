@@ -58,3 +58,14 @@ def test_mixed_data_loader_shuffle():
     )
     if all_equal:
         pytest.fail("MixedDataLoader did not shuffle the order of DataLoaders")
+
+
+def test_multiple_epochs():
+    dataloaders = create_dataloaders()
+    mixed_dataloader = MixedDataLoader(dataloaders, shuffle=True)
+    count = 0
+    for epoch in range(2):
+        for batch in mixed_dataloader:
+            count += 1
+
+    assert count == 2 * len(mixed_dataloader)

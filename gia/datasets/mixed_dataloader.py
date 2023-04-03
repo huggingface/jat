@@ -40,12 +40,16 @@ class MixedDataLoader:
     """
 
     def __init__(self, dataloaders: List[DataLoader], shuffle: bool = False) -> None:
-        self.dataloader_iters = [iter(dataloader) for dataloader in dataloaders]
-        self.loader_idxs = torch.cat([torch.full((len(dataloader),), i) for i, dataloader in enumerate(dataloaders)])
-        if shuffle:
-            self.loader_idxs = self.loader_idxs[torch.randperm(len(self.loader_idxs))]
+        self.dataloaders = dataloaders
+        self.shuffle = shuffle
 
     def __iter__(self) -> "MixedDataLoader":
+        self.dataloader_iters = [iter(dataloader) for dataloader in self.dataloaders]
+        self.loader_idxs = torch.cat(
+            [torch.full((len(dataloader),), i) for i, dataloader in enumerate(self.dataloaders)]
+        )
+        if self.shuffle:
+            self.loader_idxs = self.loader_idxs[torch.randperm(len(self.loader_idxs))]
         return self
 
     def __len__(self) -> int:
