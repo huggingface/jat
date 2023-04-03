@@ -53,7 +53,7 @@ class MixedDataLoader:
         return self
 
     def __len__(self) -> int:
-        return sum(len(dataloader) for dataloader in self.dataloader_iters)
+        return sum(len(dataloader) for dataloader in self.dataloaders)
 
     def __next__(self):
         if len(self.loader_idxs) == 0:
