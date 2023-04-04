@@ -54,28 +54,26 @@ def create_babyai_dataset(name_env, hf_repo_name, max_num_frames=100000, push_to
 
     class BabyAIEnvDataset:
         def __init__(self):
-            self.observations = {"mission": [], "direction": [], "image": [], "rgb_image": []}
+            self.missions = []
+            self.directions = []
+            self.images = []
+            self.rgb_images = []
             self.actions = []
             self.dones = []
             self.rewards = []
 
         def add_observation(self, obs):
-            self.observations["mission"].append(obs["mission"])
-            self.observations["direction"].append(obs["direction"])
-            self.observations["image"].append(obs["image"])
-            self.observations["rgb_image"].append(obs["rgb_image"])
-
-        def _observations_to_ndarray(self):
-            return {
-                "mission": np.array(self.observations["mission"]),
-                "direction": np.array(self.observations["direction"]),
-                "image": np.array(self.observations["image"]),
-                "rgb_image": np.array(self.observations["rgb_image"]),
-            }
+            self.missions.append(obs["mission"])
+            self.directions.append(obs["direction"])
+            self.images.append(obs["image"])
+            self.rgb_images.append(obs["rgb_image"])
 
         def to_dict(self):
             return {
-                "observations": self._observations_to_ndarray(),
+                "missions": np.array(self.missions),
+                "directions": np.array(self.directions),
+                "images": np.array(self.images),
+                "rgb_images": np.array(self.rgb_images),
                 "actions": np.array(self.actions),
                 "dones": np.array(self.dones),
                 "rewards": np.array(self.rewards),
