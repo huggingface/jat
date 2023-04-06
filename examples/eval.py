@@ -11,13 +11,13 @@ from gia.eval.mujoco_evaluator import MujocoEvaluator
 from gia.model.gia_model import GiaModel
 
 
-EVAL_MAPPINGO = {
+EVAL_MAPPING = {
     "mujoco": MujocoEvaluator,
 }
 
 
 def create_evaluators(args: Arguments) -> List[Evaluator]:
-    return [EVAL_MAPPINGO[task](args) for task in args.tasks]
+    return [EVAL_MAPPING[task](args) for task in args.tasks]
 
 
 def eval():
