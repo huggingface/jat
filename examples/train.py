@@ -10,7 +10,7 @@ from pathlib import Path
 
 from torch.optim import AdamW
 from torch.utils.data.dataloader import DataLoader
-
+from gia.datasets import get_dataloader
 import datasets
 
 import transformers
@@ -50,13 +50,19 @@ def setup_logging(args: Arguments, accelerator):
 
 def create_dataloaders(args: Arguments):
     # TODO
-    train_dataset = load_batched_dataset("mujoco-ant")
-    train_dataloader = DataLoader(
-        train_dataset,
-        batch_size=args.train_batch_size,
+    train_dataloader = get_dataloader(
+        task_names=["mujoco-ant", "mujoco-hopper"],
+        batch_size=32,
         shuffle=True,
         drop_last=True,
     )
+    # train_dataset = load_batched_dataset("mujoco-ant")
+    # train_dataloader = DataLoader(
+    #     train_dataset,
+    #     batch_size=args.train_batch_size,
+    #     shuffle=True,
+    #     drop_last=True,
+    # )
     eval_dataloader = None
     return train_dataloader, eval_dataloader
 
@@ -127,7 +133,9 @@ def main():
     Arguments.save_args(args)
 
     # Accelerator
-    accelerator = Accelerator(log_with=["wandb", "tensorboard"], logging_dir=f"{args.save_dir}/log")
+    accelerator = Accelerator(
+        log_with=["wandb", "tensorboard"], logging_dir=f"{args.save_dir}/log", dispatch_batches=False
+    )
     acc_state = {str(k): str(v) for k, v in accelerator.state.__dict__.items()}
 
     args = Namespace(**vars(args), **acc_state)
