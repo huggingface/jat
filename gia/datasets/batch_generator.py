@@ -354,5 +354,7 @@ def get_dataloader(
         )
         for task_name in task_names
     ]
-    loaders = [DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, drop_last=drop_last) for dataset in datasets]
+    loaders = [
+        DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, drop_last=drop_last) for dataset in datasets
+    ]
     return MixedDataLoader(loaders, shuffle=shuffle)
