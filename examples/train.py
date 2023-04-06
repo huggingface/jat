@@ -52,7 +52,7 @@ def create_dataloaders(args: Arguments):
     # TODO
     train_dataloader = get_dataloader(
         task_names=["mujoco-ant", "mujoco-hopper"],
-        batch_size=32,
+        batch_size=args.train_batch_size,
         shuffle=True,
         drop_last=True,
     )
@@ -200,12 +200,17 @@ def main():
 
     # Train model
     model.train()
+    device = accelerator.device
     completed_steps = 0
     t_start = time.time()
     loss_tracking = 0
     for step, batch in enumerate(train_dataloader, start=1):
         if args.resume_from_checkpoint and step < resume_step:
             continue  # we need to skip steps until we reach the resumed step
+
+        for k, v in batch.items():
+            batch[k] = v.to(device)
+
         loss = model(batch).loss
         avg_loss = accelerator.gather(loss.repeat(args.train_batch_size)).mean()
         loss_tracking += avg_loss.item() / args.gradient_accumulation_steps

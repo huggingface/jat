@@ -345,9 +345,7 @@ class Embeddings(nn.Module):
         # Handle tokens observations: concatenate all tokenized observations and embed
         if len(tokenized_obs_keys) > 0:
             no_image_tokens = torch.cat([batch[key] for key in tokenized_obs_keys], dim=2)
-            no_image_embeddings = self.embeddings(
-                no_image_tokens
-            )  # shape (batch_size, L, n_obs_tokens, embedding_dim)
+            no_image_embeddings = self.embeddings(no_image_tokens)  # shape (batch_size, L, n_obs_tokens, embedding_dim)
             no_image_loss_mask = torch.cat([batch[f"{key}_loss_mask"] for key in tokenized_obs_keys], dim=2)
             no_image_attention_mask = torch.cat([batch[f"{key}_attention_mask"] for key in tokenized_obs_keys], dim=2)
 
@@ -391,8 +389,8 @@ class Embeddings(nn.Module):
                 (batch_size, seq_len, 1), self.separator_token, dtype=torch.long, device=device
             )
             separator_embeddings = self.embeddings(separator_token)
-            separator_loss_mask = torch.ones((batch_size, seq_len, 1), dtype=torch.bool)
-            separator_attention_mask = torch.ones((batch_size, seq_len, 1), dtype=torch.bool)
+            separator_loss_mask = torch.ones((batch_size, seq_len, 1), dtype=torch.bool, device=device)
+            separator_attention_mask = torch.ones((batch_size, seq_len, 1), dtype=torch.bool, device=device)
 
         # Handle action: embed and add local position embeddings
         action_tokens = batch[action_key]
