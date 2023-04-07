@@ -5,7 +5,8 @@ import numpy as np
 from transformers import AutoTokenizer
 
 from gia.utils.utils import discretize, inverse_mu_law, mu_law
-from gia.config import Arguments
+from gia.config import DatasetArguments
+
 
 class MultimodalProcessor:
     """
@@ -37,7 +38,7 @@ class MultimodalProcessor:
         token_shift (int, optional): Shift for the discrete tokens. Defaults to 32_000.
     """
 
-    def __init__(self, args: Arguments) -> None:
+    def __init__(self, args: DatasetArguments) -> None:
         super().__init__()
         self.mu = args.mu
         self.M = args.M
