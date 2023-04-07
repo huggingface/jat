@@ -5,7 +5,7 @@ import numpy as np
 from datasets import get_dataset_config_names
 from torch.utils.data import DataLoader
 
-from gia.config import Arguments
+from gia.config import DatasetArguments
 from gia.processor.multimodal_processor import MultimodalProcessor
 from gia.utils.utils import cache_decorator
 
@@ -56,23 +56,14 @@ def stack_with_padding(x: List[np.ndarray], padding_value: int = 0, side: str = 
     return stacked, mask
 
 
-def generate_batch(dataset: Dict[str, np.ndarray], args: Arguments) -> Dict[str, np.ndarray]:
+def generate_batch(dataset: Dict[str, np.ndarray], args: DatasetArguments) -> Dict[str, np.ndarray]:
     """
     Generates a batch of sequences from a multimodal dataset by preprocessing and concatenating interactions.
     Optionally includes prompts at the beginning of sequences with a specified probability.
 
     Args:
         dataset (Dict[str, np.ndarray]): A dictionary containing the dataset with keys for observations and actions.
-        seq_len (int, optional): The length of each sequence in the batch. Default is 1024.
-        p_prompt (float, optional): The probability of including a prompt at the beginning of a sequence. Default is
-            0.25.
-        p_end (float, optional): The probability of taking a prompt from the end of an episode. Default is 0.5.
-        patch_size (int, optional): The size of image patches for the MultimodalProcessor. Default is 16.
-        mu (float, optional): The mu parameter for the MultimodalProcessor. Default is 100.
-        M (float, optional): The M parameter for the MultimodalProcessor. Default is 256.
-        nb_bins (int, optional): The number of bins for the MultimodalProcessor. Default is 1024.
-        token_shift (int, optional): The token shift for the MultimodalProcessor. Default is 32_000.
-        use_separator (bool, optional): Whether to include a separator token between interactions. Default is True.
+        args (DatasetArguments): The dataset arguments.
 
     Returns:
         Dict[str, np.ndarray]: A dictionary containing the preprocessed dataset with keys for observations and actions.
@@ -185,30 +176,32 @@ def generate_batch(dataset: Dict[str, np.ndarray], args: Arguments) -> Dict[str,
 
 
 @cache_decorator
-def load_batched_dataset(task_name, args: Arguments) -> DatasetDict:
+def load_batched_dataset(task_name: str, args: DatasetArguments) -> DatasetDict:
     """
     Load a GIA dataset, tokenize, and generate batches.
 
     Args:
         task_name (str): Name of the task to load. See the available tasks
             in https://huggingface.co/datasets/gia-project/gia-dataset
-        seq_len (int, optional): The length of the sequence of embeddings to be generated. Defaults to 1024.
-        p_prompt (float, optional): Probability of adding a prompt to a sequence. Defaults to 0.25.
-        p_end (float, optional): Probability that the prompt is the end of the episode. Defaults to 0.5.
-        patch_size (int, optional): The size of the square patch to be extracted from the image. Defaults to 16.
-        mu (float, optional): μ parameter for the μ-law companding. Defaults to 100.
-        M (float, optional): M parameter for the μ-law companding. Defaults to 256.
-        nb_bins (int, optional): Number of bins for the discretization of continuous values. Defaults to 1024.
-        token_shift (int, optional): Shift for the discrete tokens. Defaults to 32_000.
-        use_sepatator (bool, optional): Whether to use a separator token between the observations and the actions.
-            Defaults to True.
-        load_from_cache (bool, optional): Whether to load the dataset from the cache. Defaults to True.
+        args (DatasetArguments): The dataset arguments.
+    
+    Returns:
+        DatasetDict: The dataset.
 
     Example:
         >>> from gia.datasets import load_batched_dataset
-        >>> dataset = load_batched_dataset("babyai-go-to")
-        >>> dataset[0]["observations/image"].shape
-        torch.Size([56, 3, 56, 56])
+        >>> from gia.config import DatasetArguments
+        >>> args = DatasetArguments()
+        >>> dataset = load_batched_dataset("mujoco-ant", args)
+        >>> len(dataset)
+        4074
+        >>> dataset.keys()
+        dict_keys(['rewards', 'dones', 'continuous_observations', 'continuous_actions',
+                   'continuous_observations_loss_mask', 'continuous_actions_loss_mask', 'rewards_attention_mask',
+                   'dones_attention_mask', 'continuous_observations_attention_mask',
+                   'continuous_actions_attention_mask'])
+        >>> dataset["continuous_observations"].shape
+        (4074, 28, 27)
     """
     dataset = load_gia_dataset(task_name, args.load_from_cache)
     dataset = generate_batch(dataset, args)
@@ -216,8 +209,21 @@ def load_batched_dataset(task_name, args: Arguments) -> DatasetDict:
 
 
 @cache_decorator
-def load_prompt_dataset(task_name: str, args: Arguments) -> DatasetDict:
-    """ """
+def load_prompt_dataset(task_name: str, args: DatasetArguments) -> DatasetDict:
+    """
+    Generate a dataset of prompts.
+
+    Args:
+        task_name (str): Name of the task to load. See the available tasks
+            in https://huggingface.co/datasets/gia-project/gia-dataset
+        args (DatasetArguments): The dataset arguments.
+    
+    Returns:
+        
+
+    Example:
+
+    """
     # Load the dataset
     dataset = load_gia_dataset(task_name, args.load_from_cache)
 
@@ -252,32 +258,21 @@ def load_prompt_dataset(task_name: str, args: Arguments) -> DatasetDict:
     return DatasetDict({**data, **attention_mask})
 
 
-def get_dataloader(args: Arguments) -> DataLoader:
+def get_dataloader(args: DatasetArguments) -> DataLoader:
     """
-    Load a GIA dataset, tokenize, and generate batches.
+    Get the dataloader for the tokenized datasets.
 
     Args:
-        task_names (Union[str, List[str]], optional): Name or list of names of the tasks to load. See the available
-            tasks in https://huggingface.co/datasets/gia-project/gia-dataset. If "all", load all the tasks.
-            Defaults to "all".
-        batch_size (int, optional): The size of the batch. Defaults to 1.
-        shuffle (bool, optional): Whether to shuffle the dataset. Defaults to True.
-        seq_len (int, optional): The length of the sequence of embeddings to be generated. Defaults to 1024.
-        p_prompt (float, optional): Probability of adding a prompt to a sequence. Defaults to 0.25.
-        p_end (float, optional): Probability that the prompt is the end of the episode. Defaults to 0.5.
-        patch_size (int, optional): The size of the square patch to be extracted from the image. Defaults to 16.
-        mu (float, optional): μ parameter for the μ-law companding. Defaults to 100.
-        nb_bins (int, optional): Number of bins for the discretization of continuous values. Defaults to 1024.
-        token_shift (int, optional): Shift for the discrete tokens. Defaults to 32_000.
-        use_sepatator (bool, optional): Whether to use a separator token between the observations and the actions.
-            Defaults to True.
+        args (DatasetArguments): The dataset arguments.
 
     Returns:
         DataLoader: The dataloader.
 
     Example:
         >>> from gia.datasets import get_dataloader
-        >>> dataloader = get_dataloader(["babyai-go-to", "mujoco-ant"], shuffle=True, batch_size=2)
+        >>> from gia.config import DatasetArguments
+        >>> args = DatasetArguments(task_names=["babyai-go-to", "mujoco-ant"], shuffle=True, batch_size=2)
+        >>> dataloader = get_dataloader(args)
         >>> iterator = iter(dataloader)
         >>> batch = next(iterator)
         >>> batch.keys()
@@ -299,7 +294,7 @@ def get_dataloader(args: Arguments) -> DataLoader:
     """
     if args.task_names == "all":
         task_names = get_dataset_config_names("gia-project/gia-dataset")  # get all task names from gia dataset
-    elif isinstance(task_names, str):
+    elif isinstance(args.task_names, str):
         task_names = [args.task_names]
     else:
         task_names = args.task_names
