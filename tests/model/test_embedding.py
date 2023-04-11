@@ -1,13 +1,13 @@
 import pytest
 import torch
 
+from gia.config import Arguments
 from gia.model.embedding import (
     Embeddings,
     ImageEncoder,
     ImagePositionEncoding,
     LocalPositionEncodings,
 )
-from gia.config import Arguments
 
 
 def random_positions(size):  # Ensure that min < max
@@ -170,7 +170,8 @@ def test_embeddings_image(act_modality, use_seprator):
         f"{act_modality}_actions_loss_mask": torch.randint(0, 2, act_shape).bool(),
         f"{act_modality}_actions_attention_mask": torch.randint(0, 2, act_shape).bool(),
     }
-    embed = Embeddings(embed_dim=32, use_separator=use_seprator)
+    args = Arguments(embed_dim=32, use_separator=use_seprator)
+    embed = Embeddings(args)
     embeddings = embed(batch)
     # observations and actions are concatenated
     num_tokens = num_patches + num_act_tokens

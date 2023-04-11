@@ -1,7 +1,7 @@
 import numpy as np
 
-from gia.processor.multimodal_processor import MultimodalProcessor
 from gia.config import Arguments
+from gia.processor.multimodal_processor import MultimodalProcessor
 
 
 def test_tokenize_continuous():

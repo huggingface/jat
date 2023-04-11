@@ -4,8 +4,8 @@ import cv2
 import numpy as np
 from transformers import AutoTokenizer
 
-from gia.utils.utils import discretize, inverse_mu_law, mu_law
 from gia.config import DatasetArguments
+from gia.utils.utils import discretize, inverse_mu_law, mu_law
 
 
 class MultimodalProcessor:

@@ -2,8 +2,8 @@ import json
 import os
 import sys
 from dataclasses import dataclass, field
-from typing import List, Optional, Union
 from pathlib import Path
+from typing import List, Optional, Union
 
 from transformers import HfArgumentParser
 

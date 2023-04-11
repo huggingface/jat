@@ -184,7 +184,7 @@ def load_batched_dataset(task_name: str, args: DatasetArguments) -> DatasetDict:
         task_name (str): Name of the task to load. See the available tasks
             in https://huggingface.co/datasets/gia-project/gia-dataset
         args (DatasetArguments): The dataset arguments.
-    
+
     Returns:
         DatasetDict: The dataset.
 
@@ -217,12 +217,18 @@ def load_prompt_dataset(task_name: str, args: DatasetArguments) -> DatasetDict:
         task_name (str): Name of the task to load. See the available tasks
             in https://huggingface.co/datasets/gia-project/gia-dataset
         args (DatasetArguments): The dataset arguments.
-    
+
     Returns:
-        
+        DatasetDict: The dataset.
 
     Example:
 
+        >>> from gia.datasets.batch_generator import load_prompt_dataset
+        >>> from gia.config import DatasetArguments
+        >>> args = DatasetArguments()
+        >>> dataset = load_prompt_dataset("mujoco-ant", args)
+        >>> dataset["continuous_observations"].shape
+        (104, 1000, 27)
     """
     # Load the dataset
     dataset = load_gia_dataset(task_name, args.load_from_cache)

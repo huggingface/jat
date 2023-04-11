@@ -336,9 +336,7 @@ class Embeddings(nn.Module):
         # Handle tokens observations: concatenate all tokenized observations and embed
         if len(tokenized_obs_keys) > 0:
             no_image_tokens = torch.cat([batch[key] for key in tokenized_obs_keys], dim=2)
-            no_image_embeddings = self.embeddings(
-                no_image_tokens
-            )  # shape (batch_size, L, n_obs_tokens, embed_dim)
+            no_image_embeddings = self.embeddings(no_image_tokens)  # shape (batch_size, L, n_obs_tokens, embed_dim)
             no_image_loss_mask = torch.cat([batch[f"{key}_loss_mask"] for key in tokenized_obs_keys], dim=2)
             no_image_attention_mask = torch.cat([batch[f"{key}_attention_mask"] for key in tokenized_obs_keys], dim=2)
 
