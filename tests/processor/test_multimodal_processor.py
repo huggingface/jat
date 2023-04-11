@@ -1,12 +1,12 @@
 import numpy as np
 
-from gia.config import Arguments
+from gia.config import DatasetArguments
 from gia.processor.multimodal_processor import MultimodalProcessor
 
 
 def test_tokenize_continuous():
     # Instantiate MultimodalProcessor
-    args = Arguments(mu=10, M=25, nb_bins=1024)
+    args = DatasetArguments(mu=10, M=25, nb_bins=1024)
     processor = MultimodalProcessor(args)
 
     # Create sample tokens
@@ -19,11 +19,11 @@ def test_tokenize_continuous():
     expected_result = processor.inverse_tokenize_continuous(tokens)
 
     # Assert that the result is close to the expected result
-    np.testing.assert_allclose(x, expected_result, atol=1e-1)
+    np.testing.assert_close(x, expected_result, atol=1e-1)
 
 
 def test_continuous_processing():
-    args = Arguments(nb_bins=16, token_shift=256)
+    args = DatasetArguments(nb_bins=16, token_shift=256)
     processor = MultimodalProcessor(args)
     observations = np.random.rand(10, 9) * 20 - 10  # Random array in [-10, 10]
     actions = np.random.rand(10, 3) * 20 - 10  # Random array in [-10, 10]
@@ -41,7 +41,7 @@ def test_continuous_processing():
 
 
 def test_discrete_tokenizer():
-    args = Arguments(nb_bins=1, token_shift=256)
+    args = DatasetArguments(nb_bins=1, token_shift=256)
     processor = MultimodalProcessor(args)
     observations = np.random.randint(0, 10, (10, 9))  # Random array in [0, 10]
     actions = np.random.randint(0, 10, (10, 3))  # Random array in [0, 10]

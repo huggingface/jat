@@ -2,12 +2,12 @@ import torch
 from torch import nn
 from transformers import AutoConfig, AutoModelForCausalLM
 
-from gia.config import Arguments
+from gia.config import ModelArguments
 from gia.model.embedding import Embeddings
 
 
 class GiaModel(nn.Module):
-    def __init__(self, args: Arguments):
+    def __init__(self, args: ModelArguments):
         super().__init__()
         if not args.use_pretrained:
             raise NotImplementedError("Training from scratch is not implemented yet.")

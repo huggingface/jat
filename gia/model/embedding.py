@@ -4,7 +4,7 @@ import torch
 import torch.nn.functional as F
 from torch import Tensor, nn
 
-from gia.config import Arguments
+from gia.config import ModelArguments
 
 
 class ImagePositionEncoding(nn.Module):
@@ -293,7 +293,7 @@ class Embeddings(nn.Module):
         torch.Size([8, 640, 2048])
     """
 
-    def __init__(self, args: Arguments) -> None:
+    def __init__(self, args: ModelArguments) -> None:
         super().__init__()
         # Encoder for tokens
         # The total number of tokens is the number of tokens for text + the max number of bins
