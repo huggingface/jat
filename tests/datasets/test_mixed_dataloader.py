@@ -2,6 +2,7 @@ from itertools import chain
 
 import pytest
 import torch
+from accelerate import Accelerator
 from torch.utils.data import DataLoader, TensorDataset
 
 from gia.datasets.mixed_dataloader import MixedDataLoader
@@ -58,3 +59,23 @@ def test_mixed_data_loader_shuffle():
     )
     if all_equal:
         pytest.fail("MixedDataLoader did not shuffle the order of DataLoaders")
+
+
+def test_multiple_epochs():
+    dataloaders = create_dataloaders()
+    mixed_dataloader = MixedDataLoader(dataloaders, shuffle=True)
+    count = 0
+    for epoch in range(2):
+        for batch in mixed_dataloader:
+            count += 1
+
+    assert count == 2 * len(mixed_dataloader)
+
+
+def test_accelerate_compatibillity():
+    dataloaders = create_dataloaders()
+    mixed_dataloader = MixedDataLoader(dataloaders, shuffle=True)
+    accelerator = Accelerator()
+    dataloader = accelerator.prepare(mixed_dataloader)
+    for batch in dataloader:
+        pass

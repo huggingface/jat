@@ -290,14 +290,21 @@ def get_dataloader(args: DatasetArguments) -> DataLoader:
             'discrete_actions_attention_mask', 'image_observations_attention_mask'])
         >>> batch["image_observations"].shape
         torch.Size([2, 39, 16, 3, 16, 16])
-
     """
-    if args.task_names == "all":
-        task_names = get_dataset_config_names("gia-project/gia-dataset")  # get all task names from gia dataset
-    elif isinstance(args.task_names, str):
-        task_names = [args.task_names]
-    else:
-        task_names = args.task_names
+    task_names = [args.task_names] if isinstance(args.task_names, str) else args.task_names
+    all_tasks = set(get_dataset_config_names("gia-project/gia-dataset"))  # get all task names from gia dataset
+    all_domains = set(task_name.split("-")[0] for task_name in all_tasks)
+    # If the task name is a domain, load all the tasks of that domain
+    for task_name in task_names:
+        if task_name in all_domains:
+            task_names.extend([t for t in all_tasks if t.startswith(task_name)])
+            task_names.remove(task_name)
+        elif task_name == "all":
+            task_names.extend(all_tasks)
+            task_names.remove("all")
+        elif task_name not in all_tasks:
+            raise ValueError(f"Task {task_name} not found in the dataset.")
+
     datasets = [load_batched_dataset(task_name, args) for task_name in task_names]
     loaders = [DataLoader(dataset, batch_size=args.batch_size, shuffle=args.shuffle) for dataset in datasets]
     return MixedDataLoader(loaders, shuffle=args.shuffle)

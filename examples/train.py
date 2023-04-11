@@ -1,27 +1,25 @@
 # script from:
 # github.com/huggingface/transformers/blob/main/examples/research_projects/codeparrot/scripts/codeparrot_training.py
-from gia.model import GiaModel
+
 import logging
 import os
-import sys
+
 import time
 from argparse import Namespace
 from pathlib import Path
 
-
-from huggingface_hub import Repository
 from torch.optim import AdamW
 from torch.utils.data.dataloader import DataLoader
-
-
-from gia.config import Arguments
-from gia.datasets import GiaDataset
-
+from gia.datasets import get_dataloader
 import datasets
 
 import transformers
-from transformers import HfArgumentParser, get_scheduler, set_seed
+from transformers import get_scheduler, set_seed
 from accelerate import Accelerator, DistributedType
+
+from gia.config import Arguments, parse_args
+from gia.datasets import load_batched_dataset
+from gia.model import GiaModel
 
 
 def setup_logging(args: Arguments, accelerator):
@@ -52,14 +50,19 @@ def setup_logging(args: Arguments, accelerator):
 
 def create_dataloaders(args: Arguments):
     # TODO
-    train_dataset = GiaDataset(args)
-
-    train_dataloader = DataLoader(
-        train_dataset,
-        batch_size=args.train_batch_size,
+    train_dataloader = get_dataloader(
+        task_names=["mujoco-ant", "mujoco-hopper"],
+        batch_size=32,
         shuffle=True,
         drop_last=True,
     )
+    # train_dataset = load_batched_dataset("mujoco-ant")
+    # train_dataloader = DataLoader(
+    #     train_dataset,
+    #     batch_size=args.train_batch_size,
+    #     shuffle=True,
+    #     drop_last=True,
+    # )
     eval_dataloader = None
     return train_dataloader, eval_dataloader
 
@@ -124,18 +127,15 @@ def log_metrics(step, metrics, logger, accelerator):
 
 
 def main():
-    parser = HfArgumentParser(Arguments)
-    if len(sys.argv) == 2 and sys.argv[1].endswith(".yaml"):
-        # If we pass only one argument to the script and it's the path to a YAML file,
-        # let's parse it to get our arguments.
-        args = parser.parse_yaml_file(os.path.abspath(sys.argv[1]))
-    else:
-        args = parser.parse_args()
+    args = parse_args()
 
     args.use_cache = True  # for debugging
+    Arguments.save_args(args)
 
     # Accelerator
-    accelerator = Accelerator(log_with=["wandb", "tensorboard"], logging_dir=f"{args.save_dir}/log")
+    accelerator = Accelerator(
+        log_with=["wandb", "tensorboard"], logging_dir=f"{args.save_dir}/log", dispatch_batches=False
+    )
     acc_state = {str(k): str(v) for k, v in accelerator.state.__dict__.items()}
 
     args = Namespace(**vars(args), **acc_state)
@@ -257,7 +257,7 @@ def main():
             #     accelerator,
             # )
             accelerator.wait_for_everyone()
-            save_dir = os.path.join(args.save_dir, f"step_{step}")
+            save_dir = os.path.join(args.save_dir, "checkpoints", f"step_{step}")
             accelerator.save_state(save_dir)
             # if accelerator.is_main_process:
             #     hf_repo.push_to_hub(commit_message=f"step {step}")
