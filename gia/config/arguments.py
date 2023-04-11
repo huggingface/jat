@@ -88,8 +88,8 @@ class ModelArguments:
         default=32, metadata={"help": "The number of groups for the group normalization in the image patch encoder."}
     )
     use_pretrained: bool = field(default=True, metadata={"help": "Whether to use a pretrained model or not."})
-    embed_dim: Union[int, str] = field(
-        default="auto", metadata={"help": "The embedding dimension. If auto, it is set to the model size."}
+    embed_dim: int = field(
+        default=-1, metadata={"help": "The embedding dimension. If -1, it is set to the model size."}
     )
 
 
