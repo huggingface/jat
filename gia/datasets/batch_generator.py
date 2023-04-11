@@ -294,8 +294,8 @@ def get_dataloader(
 
     Args:
         task_names (Union[str, List[str]], optional): Name or list of names of the tasks to load. See the available
-            tasks in https://huggingface.co/datasets/gia-project/gia-dataset. If "all", load all the tasks.
-            Defaults to "all".
+            tasks in https://huggingface.co/datasets/gia-project/gia-dataset. You can also use domain names
+            (e.g. "babyai"). If "all", load all the tasks. Defaults to "all".
         batch_size (int, optional): The size of the batch. Defaults to 1.
         shuffle (bool, optional): Whether to shuffle the dataset. Defaults to True.
         drop_last (bool, optional): Whether to drop the last batch if it is incomplete. Defaults to False.
@@ -332,12 +332,22 @@ def get_dataloader(
             'discrete_actions_attention_mask', 'image_observations_attention_mask'])
         >>> batch["image_observations"].shape
         torch.Size([2, 39, 16, 3, 16, 16])
-
     """
-    if task_names == "all":
-        task_names = get_dataset_config_names("gia-project/gia-dataset")  # get all task names from gia dataset
-    elif isinstance(task_names, str):
+    if isinstance(task_names, str):
         task_names = [task_names]
+    all_tasks = set(get_dataset_config_names("gia-project/gia-dataset"))  # get all task names from gia dataset
+    all_domains = set(task_name.split("-")[0] for task_name in all_tasks)
+    # If the task name is a domain, load all the tasks of that domain
+    for task_name in task_names:
+        if task_name in all_domains:
+            task_names.extend([t for t in all_tasks if t.startswith(task_name)])
+            task_names.remove(task_name)
+        elif task_name == "all":
+            task_names.extend(all_tasks)
+            task_names.remove("all")
+        elif task_name not in all_tasks:
+            raise ValueError(f"Task {task_name} not found in the dataset.")
+
     datasets = [
         load_batched_dataset(
             task_name, seq_len, p_prompt, p_end, patch_size, mu, M, nb_bins, token_shift, use_sepatator
