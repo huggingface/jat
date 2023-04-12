@@ -391,8 +391,8 @@ class Embeddings(nn.Module):
                 (batch_size, seq_len, 1), self.separator_token, dtype=torch.long, device=device
             )
             separator_embeddings = self.embeddings(separator_token)
-            separator_loss_mask = torch.ones((batch_size, seq_len, 1), dtype=torch.bool)
-            separator_attention_mask = torch.ones((batch_size, seq_len, 1), dtype=torch.bool)
+            separator_loss_mask = torch.ones((batch_size, seq_len, 1), dtype=torch.bool, device=device)
+            separator_attention_mask = torch.ones((batch_size, seq_len, 1), dtype=torch.bool, device=device)
 
         # Handle action: embed and add local position embeddings
         action_tokens = batch[action_key]
