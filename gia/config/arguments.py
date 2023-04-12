@@ -65,6 +65,7 @@ class ModelArguments:
     nb_bins: int = field(
         default=1024, metadata={"help": "The number of bins for the discretization of continuous observations."}
     )
+    seq_len: int = field(default=1024, metadata={"help": "The length (number of tokens) of a sequence."})
     max_nb_observation_tokens: int = field(
         default=512, metadata={"help": "The maximum number of tokens for one observation."}
     )
@@ -167,8 +168,13 @@ def parse_args():
     if len(sys.argv) == 2 and sys.argv[1].endswith(".yaml"):
         # If we pass only one argument to the script and it's the path to a YAML file,
         # let's parse it to get our arguments.
-        args = parser.parse_yaml_file(os.path.abspath(sys.argv[1]))
+        args = parser.parse_yaml_file(os.path.abspath(sys.argv[1]))[0]  # [0] because we only have one group of args
     else:
         args = parser.parse_args()
 
     return args
+
+
+if __name__ == "__main__":
+    args = parse_args()
+    Arguments.save_args(args)

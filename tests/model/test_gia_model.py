@@ -1,12 +1,12 @@
 from torch.utils.data import DataLoader
 
-from gia.config import ModelArguments
+from gia.config import Arguments
 from gia.datasets import load_batched_dataset
 from gia.model import GiaModel
 
 
 def test_gia_model():
-    args = ModelArguments()
+    args = Arguments()
     model = GiaModel(args)
     dataset = load_batched_dataset("mujoco-ant", args)
     dataloader = DataLoader(dataset)
