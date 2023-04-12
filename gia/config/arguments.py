@@ -9,46 +9,45 @@ from transformers import HfArgumentParser
 
 
 @dataclass
-class TrainingArguments:
-    """
-    Arguments related to training and evaluation.
-    """
-
-    model_ckpt: str = field(default="", metadata={"help": "Model name or path of model to be trained."})
-    save_dir: str = field(
-        default="./runs/run01",
-        metadata={"help": "Save dir where model repo is cloned and models updates are saved to."},
-    )
-    dataset_name_train: str = field(default="", metadata={"help": "Name or path of training dataset."})
-    dataset_name_valid: str = field(default="", metadata={"help": "Name or path of validation dataset."})
-    train_batch_size: int = field(default=8, metadata={"help": "Batch size for training."})
-    valid_batch_size: int = field(default=2, metadata={"help": "Batch size for evaluation."})
-    weight_decay: float = field(default=0.1, metadata={"help": "Value of weight decay."})
-    learning_rate: float = field(default=2e-4, metadata={"help": "Learning rate fo training."})
-    lr_scheduler_type: str = field(default="cosine", metadata={"help": "Learning rate scheduler type."})
-    num_warmup_steps: int = field(
-        default=750,
+class DatasetArguments:
+    task_names: Union[str, List[str]] = field(
+        default="all",
         metadata={
-            "help": "The number of warmup steps to do. This is not required by all schedulers (hence the argument "
-            "being  optional), the function will raise an error if it's unset and the scheduler type requires it."
+            "help": "Name or list of names of the tasks to load. See the available tasks in "
+            "https://huggingface.co/datasets/gia-project/gia-dataset. If 'all', load all the tasks. Defaults to 'all'."
         },
     )
-    gradient_accumulation_steps: int = field(default=16, metadata={"help": "Number of gradient accumulation steps."})
-    gradient_checkpointing: bool = field(
-        default=False, metadata={"help": "Use gradient checkpointing to reduce memory footprint."}
+    seq_len: int = field(default=1024, metadata={"help": "The length (number of tokens) of a sequence."})
+    p_prompt: float = field(
+        default=0.25, metadata={"help": "The probability of including a prompt at the beginning of a sequence."}
     )
-    max_train_steps: int = field(default=50000, metadata={"help": "Maximum number of training steps."})
-    max_eval_steps: int = field(
-        default=-1, metadata={"help": "Maximum number of evaluation steps. If -1 the full dataset is evaluated."}
+    p_end: float = field(
+        default=0.5, metadata={"help": "The probability of taking a prompt from the end of an episode."}
     )
-    seed: int = field(default=1, metadata={"help": "Training seed."})
-    save_checkpoint_steps: int = field(
-        default=1024,
-        metadata={"help": "Interval to save checkpoints. Measured as number of forward passes not training steps."},
+    patch_size: int = field(
+        default=16, metadata={"help": "The size of the patches to extract from image observations."}
     )
-    resume_from_checkpoint: str = field(
-        default=None, metadata={"help": "States path if the training should continue from a checkpoint folder."}
+    mu: float = field(
+        default=100, metadata={"help": "The μ parameter for the μ-law companding of continuous observations."}
     )
+    M: float = field(
+        default=256, metadata={"help": "The M parameter for the μ-law companding of continuous observations."}
+    )
+    nb_bins: int = field(
+        default=1024, metadata={"help": "The number of bins for the discretization of continuous observations."}
+    )
+    token_shift: int = field(
+        default=32_000, metadata={"help": "The token shift for continuous and discrete observations."}
+    )
+    use_separator: bool = field(
+        default=True, metadata={"help": "Whether to include a separator token between observations and actions."}
+    )
+    load_from_cache: Optional[bool] = field(
+        default=True, metadata={"help": "Whether to load the dataset from the cache files."}
+    )
+    shuffle: bool = field(default=True, metadata={"help": "Whether to shuffle the dataset. Defaults to True."})
+    # Is batch_size confusing when we have train_batch_size and valid_batch_size?
+    batch_size: int = field(default=8, metadata={"help": "The batch size."})
 
 
 @dataclass
@@ -95,49 +94,48 @@ class ModelArguments:
 
 
 @dataclass
-class DatasetArguments:
-    task_names: Union[str, List[str]] = field(
-        default="all",
+class TrainingArguments(DatasetArguments, ModelArguments):
+    """
+    Arguments related to training and evaluation.
+    """
+
+    model_ckpt: str = field(default="", metadata={"help": "Model name or path of model to be trained."})
+    save_dir: str = field(
+        default="./runs/run01",
+        metadata={"help": "Save dir where model repo is cloned and models updates are saved to."},
+    )
+    dataset_name_train: str = field(default="", metadata={"help": "Name or path of training dataset."})
+    dataset_name_valid: str = field(default="", metadata={"help": "Name or path of validation dataset."})
+    weight_decay: float = field(default=0.1, metadata={"help": "Value of weight decay."})
+    learning_rate: float = field(default=2e-4, metadata={"help": "Learning rate fo training."})
+    lr_scheduler_type: str = field(default="cosine", metadata={"help": "Learning rate scheduler type."})
+    num_warmup_steps: int = field(
+        default=750,
         metadata={
-            "help": "Name or list of names of the tasks to load. See the available tasks in "
-            "https://huggingface.co/datasets/gia-project/gia-dataset. If 'all', load all the tasks. Defaults to 'all'."
+            "help": "The number of warmup steps to do. This is not required by all schedulers (hence the argument "
+            "being  optional), the function will raise an error if it's unset and the scheduler type requires it."
         },
     )
-    seq_len: int = field(default=1024, metadata={"help": "The length (number of tokens) of a sequence."})
-    p_prompt: float = field(
-        default=0.25, metadata={"help": "The probability of including a prompt at the beginning of a sequence."}
+    gradient_accumulation_steps: int = field(default=16, metadata={"help": "Number of gradient accumulation steps."})
+    gradient_checkpointing: bool = field(
+        default=False, metadata={"help": "Use gradient checkpointing to reduce memory footprint."}
     )
-    p_end: float = field(
-        default=0.5, metadata={"help": "The probability of taking a prompt from the end of an episode."}
+    max_train_steps: int = field(default=50000, metadata={"help": "Maximum number of training steps."})
+    max_eval_steps: int = field(
+        default=-1, metadata={"help": "Maximum number of evaluation steps. If -1 the full dataset is evaluated."}
     )
-    patch_size: int = field(
-        default=16, metadata={"help": "The size of the patches to extract from image observations."}
+    seed: int = field(default=1, metadata={"help": "Training seed."})
+    save_checkpoint_steps: int = field(
+        default=1024,
+        metadata={"help": "Interval to save checkpoints. Measured as number of forward passes not training steps."},
     )
-    mu: float = field(
-        default=100, metadata={"help": "The μ parameter for the μ-law companding of continuous observations."}
+    resume_from_checkpoint: str = field(
+        default=None, metadata={"help": "States path if the training should continue from a checkpoint folder."}
     )
-    M: float = field(
-        default=256, metadata={"help": "The M parameter for the μ-law companding of continuous observations."}
-    )
-    nb_bins: int = field(
-        default=1024, metadata={"help": "The number of bins for the discretization of continuous observations."}
-    )
-    token_shift: int = field(
-        default=32_000, metadata={"help": "The token shift for continuous and discrete observations."}
-    )
-    use_separator: bool = field(
-        default=True, metadata={"help": "Whether to include a separator token between observations and actions."}
-    )
-    load_from_cache: Optional[bool] = field(
-        default=True, metadata={"help": "Whether to load the dataset from the cache files."}
-    )
-    shuffle: bool = field(default=True, metadata={"help": "Whether to shuffle the dataset. Defaults to True."})
-    # Is batch_size confusing when we have train_batch_size and valid_batch_size?
-    batch_size: int = field(default=8, metadata={"help": "The batch size."})
 
 
 @dataclass
-class EvalArguments:
+class EvalArguments(TrainingArguments):
     n_episodes: Optional[int] = field(default=10, metadata={"help": "The number of eval episodes to perform"})
 
 
