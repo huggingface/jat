@@ -130,7 +130,7 @@ def main():
     args = parse_args()
 
     args.use_cache = True  # for debugging
-    Arguments.save_args(args)
+    Arguments.save(args)
 
     # Accelerator
     accelerator = Accelerator(

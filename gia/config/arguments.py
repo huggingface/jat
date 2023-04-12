@@ -140,25 +140,19 @@ class EvalArguments(TrainingArguments):
 
 
 @dataclass
-class Arguments(TrainingArguments, ModelArguments, DatasetArguments, EvalArguments):
-    @staticmethod
-    def save_args(args):
-        output_dir = args.save_dir
-        os.makedirs(args.save_dir, exist_ok=True)
-        out_path = Path(output_dir) / "args.json"
-
+class Arguments(EvalArguments):
+    def save(self) -> None:
+        os.makedirs(self.save_dir, exist_ok=True)
+        out_path = Path(self.save_dir) / "args.json"
         with open(out_path, "w") as outfile:
-            json.dump(args.__dict__, outfile, indent=2)
+            json.dump(self.__dict__, outfile, indent=2)
 
-    @staticmethod
-    def load_args(args):
-        # TODO: add checking / overwriting of non-default args?
-        input_dir = args.save_dir
-        input_path = Path(input_dir) / "args.json"
-        with open(input_path, "r") as f:
-            args.__dict__ = json.load(f)
-
-        return args
+    @classmethod
+    def load(cls, load_dir: str) -> "Arguments":
+        in_path = Path(load_dir) / "args.json"
+        with open(in_path, "r") as infile:
+            loaded_args = json.load(infile)
+        return cls(**loaded_args)
 
 
 def parse_args():
@@ -168,11 +162,11 @@ def parse_args():
         # let's parse it to get our arguments.
         args = parser.parse_yaml_file(os.path.abspath(sys.argv[1]))[0]  # [0] because we only have one group of args
     else:
-        args = parser.parse_args()
+        args = parser.parse_args_into_dataclasses()[0]
 
     return args
 
 
 if __name__ == "__main__":
     args = parse_args()
-    Arguments.save_args(args)
+    Arguments.save(args)
