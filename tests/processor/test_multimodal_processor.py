@@ -19,7 +19,7 @@ def test_tokenize_continuous():
     expected_result = processor.inverse_tokenize_continuous(tokens)
 
     # Assert that the result is close to the expected result
-    np.testing.assert_close(x, expected_result, atol=1e-1)
+    np.testing.assert_allclose(x, expected_result, atol=1e-1)
 
 
 def test_continuous_processing():
