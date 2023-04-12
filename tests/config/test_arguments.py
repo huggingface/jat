@@ -1,10 +1,10 @@
+import json
 import os
 import subprocess
 import sys
 
 import gia.config.arguments
 from gia.config import Arguments
-import json
 
 EXEC_PATH = os.path.abspath(gia.config.arguments.__file__)
 
