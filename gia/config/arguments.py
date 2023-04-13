@@ -22,7 +22,12 @@ class DatasetArguments:
             "https://huggingface.co/datasets/gia-project/gia-dataset. If 'all', load all the tasks. Defaults to 'all'."
         },
     )
+    batch_size: int = field(default=8, metadata={"help": "The batch size."})
+    shuffle: bool = field(default=True, metadata={"help": "Whether to shuffle the dataset. Defaults to True."})
     seq_len: int = field(default=1024, metadata={"help": "The length (number of tokens) of a sequence."})
+    use_separator: bool = field(
+        default=True, metadata={"help": "Whether to include a separator token between observations and actions."}
+    )
     p_prompt: float = field(
         default=0.25, metadata={"help": "The probability of including a prompt at the beginning of a sequence."}
     )
@@ -31,6 +36,9 @@ class DatasetArguments:
     )
     patch_size: int = field(
         default=16, metadata={"help": "The size of the patches to extract from image observations."}
+    )
+    token_shift: int = field(
+        default=32_000, metadata={"help": "The token shift for continuous and discrete observations."}
     )
     mu: float = field(
         default=100, metadata={"help": "The μ parameter for the μ-law companding of continuous observations."}
@@ -41,17 +49,9 @@ class DatasetArguments:
     nb_bins: int = field(
         default=1024, metadata={"help": "The number of bins for the discretization of continuous observations."}
     )
-    token_shift: int = field(
-        default=32_000, metadata={"help": "The token shift for continuous and discrete observations."}
-    )
-    use_separator: bool = field(
-        default=True, metadata={"help": "Whether to include a separator token between observations and actions."}
-    )
     load_from_cache: Optional[bool] = field(
         default=True, metadata={"help": "Whether to load the dataset from the cache files."}
     )
-    shuffle: bool = field(default=True, metadata={"help": "Whether to shuffle the dataset. Defaults to True."})
-    batch_size: int = field(default=8, metadata={"help": "The batch size."})
 
 
 @dataclass
@@ -62,16 +62,19 @@ class ModelArguments:
 
     model_name: str = field(default="EleutherAI/gpt-neo-125M", metadata={"help": "The name of the model"})
     use_pretrained: bool = field(default=True, metadata={"help": "Whether to use a pretrained model or not."})
-    text_vocab_size: int = field(default=32_000, metadata={"help": "The size of the model vocabulary for text."})
-    nb_bins: int = field(
-        default=1024, metadata={"help": "The number of bins for the discretization of continuous observations."}
+    embed_dim: int = field(
+        default=-1, metadata={"help": "The embedding dimension. If -1, it is set to the model size."}
     )
     seq_len: int = field(default=1024, metadata={"help": "The length (number of tokens) of a sequence."})
+    use_separator: bool = field(
+        default=True, metadata={"help": "Whether to include a separator token between observations and actions."}
+    )
     max_nb_observation_tokens: int = field(
         default=512, metadata={"help": "The maximum number of tokens for one observation."}
     )
-    use_separator: bool = field(
-        default=True, metadata={"help": "Whether to include a separator token between observations and actions."}
+    text_vocab_size: int = field(default=32_000, metadata={"help": "The size of the model vocabulary for text."})
+    nb_bins: int = field(
+        default=1024, metadata={"help": "The number of bins for the discretization of continuous observations."}
     )
     patch_size: int = field(
         default=16, metadata={"help": "The size of the patches to extract from image observations."}
@@ -89,9 +92,6 @@ class ModelArguments:
     num_groups: int = field(
         default=32, metadata={"help": "The number of groups for the group normalization in the image patch encoder."}
     )
-    embed_dim: int = field(
-        default=-1, metadata={"help": "The embedding dimension. If -1, it is set to the model size."}
-    )
 
 
 @dataclass
@@ -108,8 +108,9 @@ class TrainingArguments:
             "be set to ./runs/run_{highest_run_index + 1}."
         },
     )
-    weight_decay: float = field(default=0.1, metadata={"help": "Value of weight decay."})
+    max_train_steps: int = field(default=50_000, metadata={"help": "Maximum number of training steps."})
     learning_rate: float = field(default=2e-4, metadata={"help": "Learning rate fo training."})
+    weight_decay: float = field(default=0.1, metadata={"help": "Value of weight decay."})
     lr_scheduler_type: str = field(default="cosine", metadata={"help": "Learning rate scheduler type."})
     num_warmup_steps: int = field(
         default=750,
@@ -122,13 +123,12 @@ class TrainingArguments:
     gradient_checkpointing: bool = field(
         default=False, metadata={"help": "Use gradient checkpointing to reduce memory footprint."}
     )
-    max_train_steps: int = field(default=50_000, metadata={"help": "Maximum number of training steps."})
     seed: int = field(default=1, metadata={"help": "Training seed."})
     save_checkpoint_steps: int = field(
         default=1024,
         metadata={"help": "Interval to save checkpoints. Measured as number of forward passes not training steps."},
     )
-    resume_from_checkpoint: str = field(
+    resume_from_checkpoint: str = field(  # FIXME:
         default=None, metadata={"help": "States path if the training should continue from a checkpoint folder."}
     )
 
@@ -147,7 +147,7 @@ class TrainingArguments:
 
 @dataclass
 class EvalArguments:
-    n_episodes: Optional[int] = field(default=10, metadata={"help": "The number of eval episodes to perform"})
+    n_episodes: int = field(default=10, metadata={"help": "The number of eval episodes to perform"})
 
 
 @dataclass
