@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -10,6 +11,10 @@ from transformers import HfArgumentParser
 
 @dataclass
 class DatasetArguments:
+    """
+    Arguments related to the dataset.
+    """
+
     task_names: Union[str, List[str]] = field(
         default="all",
         metadata={
@@ -46,7 +51,6 @@ class DatasetArguments:
         default=True, metadata={"help": "Whether to load the dataset from the cache files."}
     )
     shuffle: bool = field(default=True, metadata={"help": "Whether to shuffle the dataset. Defaults to True."})
-    # Is batch_size confusing when we have train_batch_size and valid_batch_size?
     batch_size: int = field(default=8, metadata={"help": "The batch size."})
 
 
@@ -57,9 +61,7 @@ class ModelArguments:
     """
 
     model_name: str = field(default="EleutherAI/gpt-neo-125M", metadata={"help": "The name of the model"})
-    max_position_embeddings: Optional[int] = field(
-        default=32, metadata={"help": "The maximum number of position embeddings."}
-    )
+    use_pretrained: bool = field(default=True, metadata={"help": "Whether to use a pretrained model or not."})
     text_vocab_size: int = field(default=32_000, metadata={"help": "The size of the model vocabulary for text."})
     nb_bins: int = field(
         default=1024, metadata={"help": "The number of bins for the discretization of continuous observations."}
@@ -87,25 +89,25 @@ class ModelArguments:
     num_groups: int = field(
         default=32, metadata={"help": "The number of groups for the group normalization in the image patch encoder."}
     )
-    use_pretrained: bool = field(default=True, metadata={"help": "Whether to use a pretrained model or not."})
     embed_dim: int = field(
         default=-1, metadata={"help": "The embedding dimension. If -1, it is set to the model size."}
     )
 
 
 @dataclass
-class TrainingArguments(DatasetArguments, ModelArguments):
+class TrainingArguments:
     """
     Arguments related to training and evaluation.
     """
 
     model_ckpt: str = field(default="", metadata={"help": "Model name or path of model to be trained."})
     save_dir: str = field(
-        default="./runs/run01",
-        metadata={"help": "Save dir where model repo is cloned and models updates are saved to."},
+        default="",
+        metadata={
+            "help": "The directory where the model predictions and checkpoints will be written. If not set, it will "
+            "be set to ./runs/run_{highest_run_index + 1}."
+        },
     )
-    dataset_name_train: str = field(default="", metadata={"help": "Name or path of training dataset."})
-    dataset_name_valid: str = field(default="", metadata={"help": "Name or path of validation dataset."})
     weight_decay: float = field(default=0.1, metadata={"help": "Value of weight decay."})
     learning_rate: float = field(default=2e-4, metadata={"help": "Learning rate fo training."})
     lr_scheduler_type: str = field(default="cosine", metadata={"help": "Learning rate scheduler type."})
@@ -120,10 +122,7 @@ class TrainingArguments(DatasetArguments, ModelArguments):
     gradient_checkpointing: bool = field(
         default=False, metadata={"help": "Use gradient checkpointing to reduce memory footprint."}
     )
-    max_train_steps: int = field(default=50000, metadata={"help": "Maximum number of training steps."})
-    max_eval_steps: int = field(
-        default=-1, metadata={"help": "Maximum number of evaluation steps. If -1 the full dataset is evaluated."}
-    )
+    max_train_steps: int = field(default=50_000, metadata={"help": "Maximum number of training steps."})
     seed: int = field(default=1, metadata={"help": "Training seed."})
     save_checkpoint_steps: int = field(
         default=1024,
@@ -133,14 +132,26 @@ class TrainingArguments(DatasetArguments, ModelArguments):
         default=None, metadata={"help": "States path if the training should continue from a checkpoint folder."}
     )
 
+    def __post_init__(self):
+        if self.save_dir == "":
+            base_dir = "./runs/"
+            # Create the base directory if it doesn't exist
+            os.makedirs(base_dir, exist_ok=True)
+            existing_run_dirs = [d.name for d in Path(base_dir).iterdir() if d.is_dir()]
+            run_indices = [
+                int(match.group(1)) for run_dir in existing_run_dirs if (match := re.match(r"run_(\d+)", run_dir))
+            ]
+            highest_idx = max(run_indices, default=0)
+            self.save_dir = f"{base_dir}run_{highest_idx + 1}"
+
 
 @dataclass
-class EvalArguments(TrainingArguments):
+class EvalArguments:
     n_episodes: Optional[int] = field(default=10, metadata={"help": "The number of eval episodes to perform"})
 
 
 @dataclass
-class Arguments(EvalArguments):
+class Arguments(DatasetArguments, ModelArguments, TrainingArguments, EvalArguments):
     def save(self) -> None:
         os.makedirs(self.save_dir, exist_ok=True)
         out_path = Path(self.save_dir) / "args.json"

@@ -36,7 +36,7 @@ class MujocoEvaluator(Evaluator):
         env = gym.vector.make(env_name, num_envs)
         num_obs_tokens = env.observation_space.shape[1]
         num_act_tokens = env.action_space.shape[1]
-        int_per_seq = self.args.seq_length // (num_obs_tokens + num_act_tokens)
+        int_per_seq = self.args.seq_len // (num_obs_tokens + num_act_tokens)
 
         buffer = {
             "continuous_observations": torch.zeros(
