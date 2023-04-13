@@ -2,19 +2,33 @@ import torch
 from torch import nn
 from transformers import AutoConfig, AutoModelForCausalLM
 
-from gia.config import Arguments
+from gia.config import ModelArguments
 from gia.model.embedding import Embeddings
 
 
 class GiaModel(nn.Module):
-    def __init__(self, args: Arguments):
+    def __init__(self, args: ModelArguments):
         super().__init__()
-        config = AutoConfig.from_pretrained(args.model_name)
-        config.vocab_size = args.vocab_size
-        config.max_position_embeddings = args.seq_length  # this is a workaround for gpt-neo's local self attn
-        self.model = AutoModelForCausalLM.from_config(config)
-        config.embed_dim = self.model.base_model.embed_dim
-        self.emb = Embeddings(config.embed_dim)
+        vocab_size = args.text_vocab_size + args.nb_bins
+        if args.use_separator:
+            vocab_size += 1
+        if args.use_pretrained:
+            config = AutoConfig.from_pretrained(args.model_name)
+            config.vocab_size = vocab_size
+            config.max_position_embeddings = args.seq_len  # this is a workaround for gpt-neo's local self attn
+            self.model = AutoModelForCausalLM.from_config(config)
+            if args.embed_dim != -1 and self.model.base_model.embed_dim != args.embed_dim:
+                raise ValueError(
+                    f"When loading a pretrained model, the embedding dimension ({args.embed_dim}) must be the same as "
+                    f"the pretrained model ({self.model.base_model.embed_dim}). Use either --embed_dim -1 or "
+                    f"--embed_dim {self.model.base_model.embed_dim}."
+                )
+        else:
+            raise NotImplementedError("Training from scratch is not implemented yet.")
+
+        if args.embed_dim == -1:
+            args.embed_dim = self.model.base_model.embed_dim
+        self.emb = Embeddings(args)
 
     def forward(self, batch, eval=False):
         # hotfix to allow eval in embedding. Try to make it cleaner later

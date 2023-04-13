@@ -4,6 +4,7 @@ import cv2
 import numpy as np
 from transformers import AutoTokenizer
 
+from gia.config import DatasetArguments
 from gia.utils.utils import discretize, inverse_mu_law, mu_law
 
 
@@ -37,20 +38,13 @@ class MultimodalProcessor:
         token_shift (int, optional): Shift for the discrete tokens. Defaults to 32_000.
     """
 
-    def __init__(
-        self,
-        mu: float = 100,
-        M: float = 256,
-        nb_bins: int = 1024,
-        patch_size: int = 16,
-        token_shift: int = 32_000,
-    ) -> None:
+    def __init__(self, args: DatasetArguments) -> None:
         super().__init__()
-        self.mu = mu
-        self.M = M
-        self.nb_bins = nb_bins
-        self.patch_size = patch_size
-        self.token_shift = token_shift
+        self.mu = args.mu
+        self.M = args.M
+        self.nb_bins = args.nb_bins
+        self.patch_size = args.patch_size
+        self.token_shift = args.token_shift
 
         self.mu_law_compand = True
         self.text_tokenizer = AutoTokenizer.from_pretrained("albert-base-v2")

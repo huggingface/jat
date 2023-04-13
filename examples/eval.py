@@ -22,7 +22,7 @@ def create_evaluators(args: Arguments) -> List[Evaluator]:
 
 def eval():
     args = parse_args()  # only need to specify the run directory
-    args: Arguments = Arguments.load_args(args)  # loads all the args from the run directory
+    args = Arguments.load(args.save_dir)  # loads all the args from the run directory
     evaluators = create_evaluators(args)
 
     model = GiaModel(args)

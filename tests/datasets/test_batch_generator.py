@@ -3,6 +3,7 @@ from typing import Dict
 import numpy as np
 import pytest
 
+from gia.config import DatasetArguments
 from gia.datasets.batch_generator import (
     generate_batch,
     get_dataloader,
@@ -29,7 +30,8 @@ def dataset():
 @pytest.mark.parametrize("use_separator", [True, False])
 def test_batch_generator(dataset: Dict[str, np.ndarray], use_separator: bool):
     # Generate batches
-    batches = generate_batch(dataset, seq_len=SEQ_LEN, patch_size=PATCH_SIZE, use_separator=use_separator)
+    args = DatasetArguments(seq_len=SEQ_LEN, patch_size=PATCH_SIZE, use_separator=use_separator)
+    batches = generate_batch(dataset, args)
 
     # Check output keys
     assert set(batches.keys()) == {
@@ -83,7 +85,8 @@ def test_batch_generator_no_prompt(dataset: Dict[str, np.ndarray]):
     num_seq = BATCH_SIZE // num_int_per_seq
 
     # Generate batches
-    batches = generate_batch(dataset, seq_len=SEQ_LEN, patch_size=PATCH_SIZE, p_prompt=0.0)
+    args = DatasetArguments(seq_len=SEQ_LEN, patch_size=PATCH_SIZE, p_prompt=0.0)
+    batches = generate_batch(dataset, args)
 
     # Check output shapes
     assert batches["continuous_observations"].shape == (num_seq, num_int_per_seq, OBS_SIZE)
@@ -147,7 +150,8 @@ def test_same_shapes():
 
 
 def test_get_dataloader():
-    dataloader = get_dataloader(["metaworld-assembly-v2", "mujoco-ant"], shuffle=True, batch_size=2)
+    args = DatasetArguments(task_names=["metaworld-assembly-v2", "mujoco-ant"], shuffle=True, batch_size=2)
+    dataloader = get_dataloader(args)
     # It would be nice to test with two datasets with different keys, but currently
     # Atari and BabyAI are too big to run in the CI.
     expected_keys = {

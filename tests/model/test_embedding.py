@@ -1,6 +1,7 @@
 import pytest
 import torch
 
+from gia.config import ModelArguments
 from gia.model.embedding import (
     Embeddings,
     ImageEncoder,
@@ -28,7 +29,7 @@ def test_image_position_encoding_shapes():
         ]
     )
 
-    pos_enc = ImagePositionEncoding(embedding_dim=128)
+    pos_enc = ImagePositionEncoding(embed_dim=128)
     pos_encoding = pos_enc(positions)
     assert pos_encoding.shape == (batch_size, 128)
 
@@ -46,7 +47,7 @@ def test_image_position_encoding_values():
     )
     pos_enc = ImagePositionEncoding(vocab_size=4)
     pos_encoding = pos_enc(positions)
-    assert torch.allclose(pos_encoding[0], pos_encoding[1])
+    torch.testing.assert_close(pos_encoding[0], pos_encoding[1])
 
 
 def test_image_position_encoding_values_eval():
@@ -59,35 +60,36 @@ def test_image_position_encoding_values_eval():
     )
     pos_enc = ImagePositionEncoding(vocab_size=10)
     pos_encoding = pos_enc(positions, eval=True)
-    assert torch.allclose(pos_encoding[0], pos_encoding[1])
+    torch.testing.assert_close(pos_encoding[0], pos_encoding[1])
 
 
 def test_local_position_encodings():
     batch_size, seq_len, num_tokens = 8, 16, 20
-    vocab_size, embedding_dim = 128, 2048
-    pos_enc = LocalPositionEncodings(vocab_size, embedding_dim)
-    shape = torch.Size([batch_size, seq_len, num_tokens, embedding_dim])
+    vocab_size, embed_dim = 128, 2048
+    pos_enc = LocalPositionEncodings(vocab_size, embed_dim)
+    shape = torch.Size([batch_size, seq_len, num_tokens, embed_dim])
 
     # Test when same is False
     pos_emb = pos_enc(shape)
     assert pos_emb.shape == shape, f"Expected shape {shape}, got {pos_emb.shape}"
-    assert torch.allclose(pos_emb[1:], pos_emb[-1:]), "Position encodings should not depend on batch index"
-    assert torch.allclose(pos_emb[:, 1:], pos_emb[:, -1:]), "Position encodings should not depend on timestep"
-    assert not torch.allclose(pos_emb[:, :, 1:], pos_emb[:, :, -1:]), "Position encodings should vary locally"
+    torch.testing.assert_close(pos_emb[1:], pos_emb[:-1], msg="Position encodings should not depend on batch index")
+    torch.testing.assert_close(pos_emb[:, 1:], pos_emb[:, :-1], msg="Position encodings should not depend on timestep")
+    with pytest.raises(AssertionError):
+        torch.testing.assert_close(pos_emb[:, :, 1:], pos_emb[:, :, :-1], msg="Position encodings should vary locally")
 
 
 def test_local_position_encodings_same():
     batch_size, seq_len, num_tokens = 8, 16, 20
-    vocab_size, embedding_dim = 128, 2048
-    pos_enc = LocalPositionEncodings(vocab_size, embedding_dim)
-    shape = torch.Size([batch_size, seq_len, num_tokens, embedding_dim])
+    vocab_size, embed_dim = 128, 2048
+    pos_enc = LocalPositionEncodings(vocab_size, embed_dim)
+    shape = torch.Size([batch_size, seq_len, num_tokens, embed_dim])
 
     # Test when same is False
     pos_emb = pos_enc(shape, same=True)
     assert pos_emb.shape == shape, f"Expected shape {shape}, got {pos_emb.shape}"
-    assert torch.allclose(pos_emb[1:], pos_emb[-1:]), "Position encodings should not depend on batch index"
-    assert torch.allclose(pos_emb[:, 1:], pos_emb[:, -1:]), "Position encodings should not depend on timestep"
-    assert torch.allclose(pos_emb[:, :, 1:], pos_emb[:, :, -1:]), "Position encodings should not vary locally"
+    torch.testing.assert_close(pos_emb[1:], pos_emb[:-1], msg="Position encodings should not depend on batch index")
+    torch.testing.assert_close(pos_emb[:, 1:], pos_emb[:, :-1], msg="Position encodings should not depend on timestep")
+    torch.testing.assert_close(pos_emb[:, :, 1:], pos_emb[:, :, :-1], msg="Position encodings should not vary locally")
 
 
 def test_image_encoder():
@@ -136,7 +138,8 @@ def test_embeddings(obs_modality, act_modality, use_seprator):
         f"{act_modality}_actions_loss_mask": torch.randint(0, 2, act_shape).bool(),
         f"{act_modality}_actions_attention_mask": torch.randint(0, 2, act_shape).bool(),
     }
-    embed = Embeddings(embedding_dim=32, use_separator=use_seprator)
+    args = ModelArguments(embed_dim=32, use_separator=use_seprator)
+    embed = Embeddings(args)
     embeddings = embed(batch)
     # observations and actions are concatenated
     num_tokens = num_obs_tokens + num_act_tokens
@@ -168,7 +171,8 @@ def test_embeddings_image(act_modality, use_seprator):
         f"{act_modality}_actions_loss_mask": torch.randint(0, 2, act_shape).bool(),
         f"{act_modality}_actions_attention_mask": torch.randint(0, 2, act_shape).bool(),
     }
-    embed = Embeddings(embedding_dim=32, use_separator=use_seprator)
+    args = ModelArguments(embed_dim=32, use_separator=use_seprator)
+    embed = Embeddings(args)
     embeddings = embed(batch)
     # observations and actions are concatenated
     num_tokens = num_patches + num_act_tokens

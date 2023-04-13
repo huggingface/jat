@@ -1,4 +1,3 @@
-from .arguments import Arguments, parse_args
-from .config import Config
+from .arguments import Arguments, DatasetArguments, ModelArguments, parse_args
 
-__all__ = ["Arguments", "Config", "parse_args"]
+__all__ = ["Arguments", "DatasetArguments", "ModelArguments", "parse_args"]
