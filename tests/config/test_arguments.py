@@ -4,8 +4,9 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-import yaml
+
 import pytest
+import yaml
 
 import gia.config.arguments
 from gia.config import Arguments, parse_args
