@@ -21,7 +21,7 @@ class MujocoEvaluator(Evaluator):
         self.task = "mujoco"
         self.env_names = TASK_TO_ENV_MAPPING[self.task]
         self.data_filepaths = DATASET_FILE_MAPPING[self.task]
-        self.args: Arguments = args
+        self.args = args
 
     def evaluate(self, model: GiaModel):
         stats = {}

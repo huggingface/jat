@@ -9,22 +9,23 @@ from gia.model.embedding import Embeddings
 class GiaModel(nn.Module):
     def __init__(self, args: ModelArguments):
         super().__init__()
-        if not args.use_pretrained:
-            raise NotImplementedError("Training from scratch is not implemented yet.")
-        config = AutoConfig.from_pretrained(args.model_name)
         vocab_size = args.text_vocab_size + args.nb_bins
         if args.use_separator:
             vocab_size += 1
-        config.vocab_size = vocab_size
-        config.max_position_embeddings = args.seq_len  # this is a workaround for gpt-neo's local self attn
-        self.model = AutoModelForCausalLM.from_config(config)
+        if args.use_pretrained:
+            config = AutoConfig.from_pretrained(args.model_name)
+            config.vocab_size = vocab_size
+            config.max_position_embeddings = args.seq_len  # this is a workaround for gpt-neo's local self attn
+            self.model = AutoModelForCausalLM.from_config(config)
+            if args.embed_dim != -1 and self.model.base_model.embed_dim != args.embed_dim:
+                raise ValueError(
+                    f"When loading a pretrained model, the embedding dimension ({args.embed_dim}) must be the same as "
+                    f"the pretrained model ({self.model.base_model.embed_dim}). Use either --embed_dim -1 or "
+                    f"--embed_dim {self.model.base_model.embed_dim}."
+                )
+        else:
+            raise NotImplementedError("Training from scratch is not implemented yet.")
 
-        if args.embed_dim != -1 and self.model.base_model.embed_dim != args.embed_dim:
-            raise ValueError(
-                f"When loading a pretrained model, the embedding dimension ({args.embed_dim}) must be the same as "
-                f"the pretrained model ({self.model.base_model.embed_dim}). Use either --embed_dim -1 or "
-                f"--embed_dim {self.model.base_model.embed_dim}."
-            )
         if args.embed_dim == -1:
             args.embed_dim = self.model.base_model.embed_dim
         self.emb = Embeddings(args)
