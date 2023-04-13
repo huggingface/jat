@@ -49,7 +49,6 @@ def test_batch_generator(dataset: Dict[str, np.ndarray], use_separator: bool):
         "patches_positions",
         # Dones
         "dones",
-        "dones_attention_mask",
     }
     exp_nb_patches = (W // PATCH_SIZE) * (H // PATCH_SIZE)  # Expected number of patches per image
     # tokens + patches + sperator + actions
@@ -75,7 +74,6 @@ def test_batch_generator(dataset: Dict[str, np.ndarray], use_separator: bool):
     assert batches["image_observations_loss_mask"].shape == (num_seq, num_int_per_seq, exp_nb_patches)
     assert batches["patches_positions"].shape == (num_seq, num_int_per_seq, exp_nb_patches, 2, 2)
     assert batches["dones"].shape == (num_seq, num_int_per_seq)
-    assert batches["dones_attention_mask"].shape == (num_seq, num_int_per_seq)
 
 
 def test_batch_generator_no_prompt(dataset: Dict[str, np.ndarray]):
@@ -100,7 +98,6 @@ def test_batch_generator_no_prompt(dataset: Dict[str, np.ndarray]):
     assert batches["image_observations_loss_mask"].shape == (num_seq, num_int_per_seq, exp_nb_patches)
     assert batches["patches_positions"].shape == (num_seq, num_int_per_seq, exp_nb_patches, 2, 2)
     assert batches["dones"].shape == (num_seq, num_int_per_seq)
-    assert batches["dones_attention_mask"].shape == (num_seq, num_int_per_seq)
 
     # Check values
     for i in range(num_seq):
@@ -118,35 +115,24 @@ def test_empty_list():
 def test_padding_value():
     # Test with a non-zero padding value
     x = [np.ones((2, 2)), np.zeros((3, 2))]
-    stacked, mask = stack_with_padding(x, padding_value=-1)
+    stacked = stack_with_padding(x, padding_value=-1)
     assert stacked.shape == (2, 3, 2)
-    assert mask.shape == (2, 3, 2)
     target_stacked = np.array(
         [
             [[1, 1], [1, 1], [-1, -1]],
             [[0, 0], [0, 0], [0, 0]],
         ]
     )
-    target_mask = np.array(
-        [
-            [[True, True], [True, True], [False, False]],
-            [[True, True], [True, True], [True, True]],
-        ]
-    )
     assert np.array_equal(stacked, target_stacked)
-    assert np.array_equal(mask, target_mask)
 
 
 def test_same_shapes():
     # Test with arrays of same shapes
     x = [np.ones((2, 2)), np.zeros((2, 2))]
-    stacked, mask = stack_with_padding(x)
+    stacked = stack_with_padding(x)
     assert stacked.shape == (2, 2, 2)
-    assert mask.shape == (2, 2, 2)
     target_stacked = np.array([[[1, 1], [1, 1]], [[0, 0], [0, 0]]])
-    target_mask = np.array([[[True, True], [True, True]], [[True, True], [True, True]]])
     assert np.array_equal(stacked, target_stacked)
-    assert np.array_equal(mask, target_mask)
 
 
 def test_get_dataloader():

@@ -40,20 +40,17 @@ def stack_with_padding(x: List[np.ndarray], padding_value: int = 0, side: str = 
 
     # Initialize the stacked array with padding_value
     stacked = np.full((len(x), *shape), padding_value, dtype=x[0].dtype)
-    mask = np.zeros((len(x), *shape), dtype=bool)
 
     # Fill the stacked array with input arrays
     for idx, arr in enumerate(x):
         if side == "left":
             stacked[idx, : arr.shape[0]] = arr
-            mask[idx, : arr.shape[0]] = True
         elif side == "right":
             stacked[idx, -arr.shape[0] :] = arr
-            mask[idx, -arr.shape[0] :] = True
         else:
             raise ValueError("Invalid value for 'side' argument. Must be 'left' or 'right'.")
 
-    return stacked, mask
+    return stacked
 
 
 def generate_batch(dataset: Dict[str, np.ndarray], args: DatasetArguments) -> Dict[str, np.ndarray]:
@@ -79,7 +76,7 @@ def generate_batch(dataset: Dict[str, np.ndarray], args: DatasetArguments) -> Di
     for key in observation_keys + action_keys:
         shape = dataset[key].shape[:2]  # (batch_size, seq_len)
         if key.startswith("text") or key.endswith("actions"):
-            dataset[f"{key}_loss_mask"] = np.ones(shape, dtype=bool)
+            dataset[f"{key}_loss_mask"] = dataset[f"{key}_attention_mask"]
         else:
             dataset[f"{key}_loss_mask"] = np.zeros(shape, dtype=bool)
     # First, we need to compute the number of embeddings needed for the observations and actions.
@@ -155,24 +152,7 @@ def generate_batch(dataset: Dict[str, np.ndarray], args: DatasetArguments) -> Di
     # Stack the list of arrays into a single array of shape (batch_size, seq_len, ...).
     # Use padding to fill when the sequence is shorter than others (happens when prompt is too short).
     dataset = {key: stack_with_padding(dataset[key]) for key in dataset.keys()}  # dict of tuples (data, mask)
-
-    # Create a new entries for the masks
-    data = {key: value[0] for key, value in dataset.items()}
-    # We di about the attention mask for loss mask, since they are equal to the attention mask
-    # of the modality they are associated with.
-    attention_mask = {
-        f"{key}_attention_mask": value[1] for key, value in dataset.items() if not key.endswith("loss_mask")
-    }
-    # Small hack here, for image patches, we need to turn the attention mask into the right shape
-    if "image_observations_attention_mask" in attention_mask:
-        attention_mask.pop("image_observations_attention_mask")
-        mask = attention_mask.pop("patches_positions_attention_mask")
-        # From shape (batch_size, seq_len, num_patches, 2, 2) to (batch_size, seq_len, num_patches)
-        # Note that all the values are egals in the last two dimensions, so we can just take the first one
-        mask = mask[:, :, :, 0, 0]
-        attention_mask["image_observations_attention_mask"] = mask
-
-    return {**data, **attention_mask}
+    return dataset
 
 
 @cache_decorator
@@ -243,7 +223,7 @@ def load_prompt_dataset(task_name: str, args: DatasetArguments) -> DatasetDict:
     episode_starts = np.concatenate([[0], episode_ends[:-1] + 1])
     episode_indices = [np.arange(start, end + 1) for start, end in zip(episode_starts, episode_ends)]
     batch = {key: [value[episode] for episode in episode_indices] for key, value in dataset.items()}
-    batch = {key: stack_with_padding(value, side="right") for key, value in batch.items()}
+    batch = {key: stack_with_padding(value) for key, value in batch.items()}
 
     # Create a new entries for the masks
     data = {key: value[0] for key, value in batch.items()}
