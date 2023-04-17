@@ -1,5 +1,7 @@
+from typing import Dict, List
+
 import torch
-from torch import nn
+from torch import Tensor, nn
 from transformers import AutoConfig, AutoModelForCausalLM
 
 from gia.config import ModelArguments
@@ -7,7 +9,7 @@ from gia.model.embedding import Embeddings
 
 
 class GiaModel(nn.Module):
-    def __init__(self, args: ModelArguments):
+    def __init__(self, args: ModelArguments) -> None:
         super().__init__()
         if args.use_pretrained:
             raise NotImplementedError("Pretrained models are not supported yet.")
@@ -23,7 +25,7 @@ class GiaModel(nn.Module):
 
         self.emb = Embeddings(args)
 
-    def forward(self, batch, eval=False):
+    def forward(self, batch: List[Dict[str, Tensor]], eval=False):
         # hotfix to allow eval in embedding. Try to make it cleaner later
         # add loss_mask to batch
         if eval:
@@ -31,8 +33,20 @@ class GiaModel(nn.Module):
             for key in keys:
                 batch[key + "_loss_mask"] = torch.ones_like(batch[key + "_attention_mask"])
 
-        embeds = self.emb(batch)
-        # the model requires us to provide position ids, otherwise it will generate them
+        # The batch is a list of dicts, each dict value is a tensor.
+        # We need to unsqueeze these tensors to add a batch dimension.
+        embeds = []
+        for sample in batch:
+            for key, value in sample.items():
+                sample[key] = value.unsqueeze(0)
+            embeds.append(self.emb(sample))
+        
+        # embeds is a list of dicts whose keys are "embeddings", "attention_mask", "tokens", "loss_mask"
+        # We need to concatenate all the tensors along the batch dimension.
+        # FIXME: pretty sure this won't work for multiple size, we need to pad here.
+        embeds = {key: torch.cat([embed[key] for embed in embeds], dim=0) for key in embeds[0].keys()}
+
+        # The model requires us to provide position ids, otherwise it will generate them
         # qgallouedec: I've removed position_ids=batch["local_position_ids"]. Is this a problem?
         out = self.model(inputs_embeds=embeds["embeddings"], attention_mask=embeds["attention_mask"])
         if not eval:
