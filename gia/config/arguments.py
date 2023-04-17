@@ -4,7 +4,7 @@ import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import Optional
 
 from transformers import HfArgumentParser
 
@@ -15,10 +15,10 @@ class DatasetArguments:
     Arguments related to the dataset.
     """
 
-    task_names: Union[str, List[str]] = field(
+    task_names: str = field(
         default="all",
         metadata={
-            "help": "Name or list of names of the tasks to load. See the available tasks in "
+            "help": "Comma-separated list of tasks to load. See the available tasks in "
             "https://huggingface.co/datasets/gia-project/gia-dataset. If 'all', load all the tasks. Defaults to 'all'."
         },
     )
@@ -61,10 +61,8 @@ class ModelArguments:
     """
 
     model_name: str = field(default="EleutherAI/gpt-neo-125M", metadata={"help": "The name of the model"})
-    use_pretrained: bool = field(default=True, metadata={"help": "Whether to use a pretrained model or not."})
-    embed_dim: int = field(
-        default=-1, metadata={"help": "The embedding dimension. If -1, it is set to the model size."}
-    )
+    use_pretrained: bool = field(default=False, metadata={"help": "Whether to use a pretrained model or not."})
+    embed_dim: int = field(default=768, metadata={"help": "The embedding dimension."})
     seq_len: int = field(default=1024, metadata={"help": "The length (number of tokens) of a sequence."})
     use_separator: bool = field(
         default=True, metadata={"help": "Whether to include a separator token between observations and actions."}
@@ -100,6 +98,8 @@ class TrainingArguments:
     Arguments related to training and evaluation.
     """
 
+    base_dir = "./runs/"
+
     model_ckpt: str = field(default="", metadata={"help": "Model name or path of model to be trained."})
     save_dir: str = field(
         default="",
@@ -132,17 +132,25 @@ class TrainingArguments:
         default=None, metadata={"help": "States path if the training should continue from a checkpoint folder."}
     )
 
-    def __post_init__(self):
-        if self.save_dir == "":
-            base_dir = "./runs/"
-            # Create the base directory if it doesn't exist
-            os.makedirs(base_dir, exist_ok=True)
-            existing_run_dirs = [d.name for d in Path(base_dir).iterdir() if d.is_dir()]
+    @classmethod
+    def _generate_save_dir(cls) -> str:
+        # If it doesn't exist, use idx = 0
+        if not os.path.exists(cls.base_dir):
+            idx = 0
+        # Otherwise, find the highest index and use that
+        else:
+            existing_run_dirs = [d.name for d in Path(cls.base_dir).iterdir() if d.is_dir()]
             run_indices = [
                 int(match.group(1)) for run_dir in existing_run_dirs if (match := re.match(r"run_(\d+)", run_dir))
             ]
-            highest_idx = max(run_indices, default=0)
-            self.save_dir = f"{base_dir}run_{highest_idx + 1}"
+            idx = max(run_indices, default=0) + 1
+        return f"{cls.base_dir}run_{idx}"
+
+    def __post_init__(self):
+        if self.save_dir == "":
+            self.save_dir = self._generate_save_dir()
+        if isinstance(self.task_names, str):
+            self.task_names = self.task_names.split(",")
 
 
 @dataclass
@@ -166,7 +174,7 @@ class Arguments(DatasetArguments, ModelArguments, TrainingArguments, EvalArgumen
         return cls(**loaded_args)
 
 
-def parse_args():
+def parse_args() -> Arguments:
     parser = HfArgumentParser(Arguments)
     if len(sys.argv) == 2 and sys.argv[1].endswith(".yaml"):
         # If we pass only one argument to the script and it's the path to a YAML file,
