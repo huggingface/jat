@@ -2,7 +2,7 @@ import gym
 import torch
 
 from gia.config import Arguments
-from gia.datasets.batch_generator import load_prompt_dataset
+from gia.datasets import load_prompt_dataset
 from gia.model.gia_model import GiaModel
 from gia.processor import MultimodalProcessor
 import numpy as np

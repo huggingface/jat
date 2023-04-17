@@ -1,59 +1,85 @@
 import random
-from typing import Dict, List
+from typing import Dict
 
 import numpy as np
-from datasets import get_dataset_config_names
-from torch.utils.data import DataLoader
+from datasets import get_dataset_config_names, load_dataset
+from torch.utils.data import ConcatDataset, Dataset
 
 from gia.config import DatasetArguments
 from gia.processor.multimodal_processor import MultimodalProcessor
 from gia.utils.utils import cache_decorator
 
-from .dataset_dict import DatasetDict
-from .gia_dataset import load_gia_dataset
-from .mixed_dataloader import MixedDataLoader
+from .utils import (
+    DatasetDict,
+    is_continuous,
+    is_discrete,
+    is_image,
+    is_text,
+    stack_with_padding,
+)
 
 
-def stack_with_padding(x: List[np.ndarray], padding_value: int = 0, side: str = "left") -> np.ndarray:
+def load_task_dataset(task_name: str, load_from_cache: bool = True) -> DatasetDict:
     """
-    Stack a list of numpy arrays with padding along the first dimension.
+    Load the dataset for a single task.
 
     Args:
-        x (List[np.ndarray]): A list of numpy arrays to be stacked.
-        padding_value (int, optional): The value to use for padding the arrays. Defaults to 0.
-        side (str, optional): The side of the arrays to pad. Can be either "left" or "right". Defaults to "left".
+        task_name (str): Name of the task to load. See the available tasks
+            in https://huggingface.co/datasets/gia-project/gia-dataset
 
     Returns:
-        A tuple of two numpy arrays:
-        - stacked: The stacked array with padding.
-        - mask: A boolean mask indicating which values in the stacked array correspond to original input
-            arrays (True) or padding (False).
+        DatasetDict: A dictionary containing the dataset. The keys are
+            the type of the data (e.g. "continuous_observations", "discrete_actions", etc.)
+            and the values are the data.
 
-    Raises:
-        AssertionError: If the input arrays have different dimensions except for the first one.
+    Example:
+        >>> dataset = load_task_dataset("mujoco-ant")
+        >>> dataset.keys()
+        dict_keys(['rewards', 'dones', 'continuous_observations', 'continuous_actions'])
+        >>> dataset["continuous_observations"].shape
+        (100000, 27)
     """
-    # Check that all array have the same dimensions except the first one
-    assert all(arr.shape[1:] == x[0].shape[1:] for arr in x)
+    download_mode = "force_redownload" if not load_from_cache else None
+    dataset = load_dataset("gia-project/gia-dataset", task_name, split="train", download_mode=download_mode)
+    # Convert the dataset to numpy arrays
+    dataset = dataset.with_format("numpy")[:]
 
-    # Get the shape in the first dimension
-    shape = (max(arr.shape[0] for arr in x), *x[0].shape[1:])
+    # TODO: remove this when a better solution is found
+    if "babyai" in task_name:
+        # remove the "image" column as it is not used
+        dataset.pop("images")
 
-    # Initialize the stacked array with padding_value
-    stacked = np.full((len(x), *shape), padding_value, dtype=x[0].dtype)
-    mask = np.zeros((len(x), *shape), dtype=bool)
+    # Rename keys to get the format "[type]_[observations or actions]"
+    keys = list(dataset.keys())  # Avoid "Keys changed during iteration"
+    for key in keys:
+        if key not in ["actions", "dones", "rewards"]:
+            observations = dataset.pop(key)
+            if is_image(observations):
+                observations = observations.astype(np.uint8)
+                if np.argmin(observations.shape[1:]) == 2:  # channels last, make it channels first
+                    observations = np.transpose(observations, (0, 3, 1, 2))
+                assert np.argmin(observations.shape[1:]) == 0, "Channels error"
+                dataset["image_observations"] = observations
+            elif is_text(observations):
+                dataset["text_observations"] = observations
+            elif is_discrete(observations):
+                dataset["discrete_observations"] = observations
+            elif is_continuous(observations):
+                dataset["continuous_observations"] = observations
+            else:
+                raise ValueError(f"Unknown observation type for {key}")
+    # Do the same for actions.
+    actions = dataset.pop("actions")
+    if is_text(actions):
+        dataset["text_actions"] = actions
+    elif is_discrete(actions):
+        dataset["discrete_actions"] = actions
+    elif is_continuous(actions):
+        dataset["continuous_actions"] = actions
+    else:
+        raise ValueError("Unknown action type.")
 
-    # Fill the stacked array with input arrays
-    for idx, arr in enumerate(x):
-        if side == "left":
-            stacked[idx, : arr.shape[0]] = arr
-            mask[idx, : arr.shape[0]] = True
-        elif side == "right":
-            stacked[idx, -arr.shape[0] :] = arr
-            mask[idx, -arr.shape[0] :] = True
-        else:
-            raise ValueError("Invalid value for 'side' argument. Must be 'left' or 'right'.")
-
-    return stacked, mask
+    return DatasetDict(dataset)  # convert to a DatasetDict
 
 
 def generate_batch(dataset: Dict[str, np.ndarray], args: DatasetArguments) -> Dict[str, np.ndarray]:
@@ -81,7 +107,7 @@ def generate_batch(dataset: Dict[str, np.ndarray], args: DatasetArguments) -> Di
         if key.startswith("text") or key.endswith("actions"):
             dataset[f"{key}_loss_mask"] = np.ones(shape, dtype=bool)
         else:
-            dataset[f"{key}_loss_mask"] = np.zeros(shape, dtype=bool)
+            dataset[f"{key}_loss_mask"] = dataset[f"{key}_attention_mask"]
     # First, we need to compute the number of embeddings needed for the observations and actions.
     # At this point, there are 2 possibilities for the observations:
     # 1. The observation is anything but an image, then the value is tokenized
@@ -154,31 +180,14 @@ def generate_batch(dataset: Dict[str, np.ndarray], args: DatasetArguments) -> Di
     dataset = {key: [batch[key] for batch in all_batches] for key in dataset.keys()}
     # Stack the list of arrays into a single array of shape (batch_size, seq_len, ...).
     # Use padding to fill when the sequence is shorter than others (happens when prompt is too short).
-    dataset = {key: stack_with_padding(dataset[key]) for key in dataset.keys()}  # dict of tuples (data, mask)
-
-    # Create a new entries for the masks
-    data = {key: value[0] for key, value in dataset.items()}
-    # We di about the attention mask for loss mask, since they are equal to the attention mask
-    # of the modality they are associated with.
-    attention_mask = {
-        f"{key}_attention_mask": value[1] for key, value in dataset.items() if not key.endswith("loss_mask")
-    }
-    # Small hack here, for image patches, we need to turn the attention mask into the right shape
-    if "image_observations_attention_mask" in attention_mask:
-        attention_mask.pop("image_observations_attention_mask")
-        mask = attention_mask.pop("patches_positions_attention_mask")
-        # From shape (batch_size, seq_len, num_patches, 2, 2) to (batch_size, seq_len, num_patches)
-        # Note that all the values are egals in the last two dimensions, so we can just take the first one
-        mask = mask[:, :, :, 0, 0]
-        attention_mask["image_observations_attention_mask"] = mask
-
-    return {**data, **attention_mask}
+    dataset = {key: stack_with_padding(dataset[key]) for key in dataset.keys()}
+    return dataset
 
 
 @cache_decorator
 def load_batched_dataset(task_name: str, args: DatasetArguments) -> DatasetDict:
     """
-    Load a GIA dataset, tokenize, and generate batches.
+    Load the dataset for a single task and generate batches.
 
     Args:
         task_name (str): Name of the task to load. See the available tasks
@@ -197,13 +206,12 @@ def load_batched_dataset(task_name: str, args: DatasetArguments) -> DatasetDict:
         4074
         >>> dataset.keys()
         dict_keys(['rewards', 'dones', 'continuous_observations', 'continuous_actions',
-                   'continuous_observations_loss_mask', 'continuous_actions_loss_mask', 'rewards_attention_mask',
-                   'dones_attention_mask', 'continuous_observations_attention_mask',
-                   'continuous_actions_attention_mask'])
+                   'continuous_observations_loss_mask', 'continuous_actions_loss_mask',
+                   'continuous_observations_attention_mask', 'continuous_actions_attention_mask'])
         >>> dataset["continuous_observations"].shape
         (4074, 28, 27)
     """
-    dataset = load_gia_dataset(task_name, args.load_from_cache)
+    dataset = load_task_dataset(task_name, args.load_from_cache)
     dataset = generate_batch(dataset, args)
     return DatasetDict(dataset)
 
@@ -211,7 +219,7 @@ def load_batched_dataset(task_name: str, args: DatasetArguments) -> DatasetDict:
 @cache_decorator
 def load_prompt_dataset(task_name: str, args: DatasetArguments) -> DatasetDict:
     """
-    Generate a dataset of prompts.
+    Generate a dataset of prompts for a single task.
 
     Args:
         task_name (str): Name of the task to load. See the available tasks
@@ -231,7 +239,7 @@ def load_prompt_dataset(task_name: str, args: DatasetArguments) -> DatasetDict:
         (104, 1000, 27)
     """
     # Load the dataset
-    dataset = load_gia_dataset(task_name, args.load_from_cache)
+    dataset = load_task_dataset(task_name, args.load_from_cache)
 
     processor = MultimodalProcessor(args)
     # Preprocess the dataset (tokenize and extract patches)
@@ -242,60 +250,42 @@ def load_prompt_dataset(task_name: str, args: DatasetArguments) -> DatasetDict:
     episode_ends = np.where(dataset["dones"])[0]
     episode_starts = np.concatenate([[0], episode_ends[:-1] + 1])
     episode_indices = [np.arange(start, end + 1) for start, end in zip(episode_starts, episode_ends)]
-    batch = {key: [value[episode] for episode in episode_indices] for key, value in dataset.items()}
-    batch = {key: stack_with_padding(value, side="right") for key, value in batch.items()}
-
-    # Create a new entries for the masks
-    data = {key: value[0] for key, value in batch.items()}
-    # We don't care about the attention mask for loss mask, since they are equal
-    # to the attention mask of the modality they are associated with.
-    attention_mask = {
-        f"{key}_attention_mask": value[1] for key, value in batch.items() if not key.endswith("loss_mask")
-    }
-    # Small hack here, for image patches, we need to turn the attention mask into the right shape
-    if "image_observations_attention_mask" in attention_mask:
-        attention_mask.pop("image_observations_attention_mask")
-        mask = attention_mask.pop("patches_positions_attention_mask")
-        # From shape (batch_size, seq_len, num_patches, 2, 2) to (batch_size, seq_len, num_patches)
-        # Note that all the values are egals in the last two dimensions, so we can just take the first one
-        mask = mask[:, :, :, 0, 0]
-        attention_mask["image_observations_attention_mask"] = mask
-
-    return DatasetDict({**data, **attention_mask})
+    dataset = {key: [value[episode] for episode in episode_indices] for key, value in dataset.items()}
+    dataset = {key: stack_with_padding(value, side="right") for key, value in dataset.items()}
+    return DatasetDict(dataset)
 
 
-def get_dataloader(args: DatasetArguments) -> DataLoader:
+def load_mixed_dataset(args: DatasetArguments) -> Dataset:
     """
-    Get the dataloader for the tokenized datasets.
+    Load a dataset with multiple tasks.
 
     Args:
         args (DatasetArguments): The dataset arguments.
 
     Returns:
-        DataLoader: The dataloader.
+        Dataset: The dataset.
 
     Example:
-        >>> from gia.datasets import get_dataloader
+        >>> from gia.datasets import load_mixed_dataset
         >>> from gia.config import DatasetArguments
-        >>> args = DatasetArguments(task_names=["babyai-go-to", "mujoco-ant"], shuffle=True, batch_size=2)
-        >>> dataloader = get_dataloader(args)
-        >>> iterator = iter(dataloader)
-        >>> batch = next(iterator)
-        >>> batch.keys()
+        >>> args = DatasetArguments(task_names=["mujoco-ant", "babyai-go-to"])
+        >>> dataset = load_mixed_dataset(args)
+        >>> len(dataset)
+        6981
+        >>> dataset[0].keys()
         dict_keys(['rewards', 'dones', 'continuous_observations', 'continuous_actions',
-            'continuous_observations_loss_mask', 'continuous_actions_loss_mask', 'rewards_attention_mask',
-            'dones_attention_mask', 'continuous_observations_attention_mask', 'continuous_actions_attention_mask'])
-        >>> batch["continuous_observations"].shape
-        torch.Size([2, 28, 27])
-        >>> batch = next(iterator)
-        >>> batch.keys()
+            'continuous_observations_attention_mask', 'continuous_actions_attention_mask',
+            'continuous_observations_loss_mask', 'continuous_actions_loss_mask'])
+        >>> dataset[0]["continuous_observations"].shape
+        (28, 27)
+        >>> dataset[5000].keys()
         dict_keys(['rewards', 'dones', 'text_observations', 'discrete_observations', 'image_observations',
-            'discrete_actions', 'patches_positions', 'text_observations_loss_mask', 'discrete_observations_loss_mask',
-            'image_observations_loss_mask', 'discrete_actions_loss_mask', 'rewards_attention_mask',
-            'dones_attention_mask', 'text_observations_attention_mask', 'discrete_observations_attention_mask',
-            'discrete_actions_attention_mask', 'image_observations_attention_mask'])
-        >>> batch["image_observations"].shape
-        torch.Size([2, 39, 16, 3, 16, 16])
+            'discrete_actions', 'text_observations_attention_mask', 'discrete_observations_attention_mask',
+            'patches_positions', 'image_observations_attention_mask', 'discrete_actions_attention_mask',
+            'text_observations_loss_mask', 'discrete_observations_loss_mask', 'image_observations_loss_mask',
+            'discrete_actions_loss_mask'])
+        >>> dataset[5000]["continuous_observations"]["image_observations"].shape
+        (39, 16, 3, 16, 16)
     """
     task_names = [args.task_names] if isinstance(args.task_names, str) else args.task_names
     all_tasks = set(get_dataset_config_names("gia-project/gia-dataset"))  # get all task names from gia dataset
@@ -312,5 +302,4 @@ def get_dataloader(args: DatasetArguments) -> DataLoader:
             raise ValueError(f"Task {task_name} not found in the dataset.")
 
     datasets = [load_batched_dataset(task_name, args) for task_name in task_names]
-    loaders = [DataLoader(dataset, batch_size=args.batch_size, shuffle=args.shuffle) for dataset in datasets]
-    return MixedDataLoader(loaders, shuffle=args.shuffle)
+    return ConcatDataset(datasets)
