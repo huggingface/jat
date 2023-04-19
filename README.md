@@ -23,44 +23,68 @@ More details to come!
 Load the dataset for MuJoCo/Ant and BabyAI/GoTo. The returned batch contain tokens for actions and observations.
 
 ```python
->>> from gia.datasets import get_dataloader
+>>> from torch.utils.data import DataLoader
 >>> from gia.config import DatasetArguments
+>>> from gia.datasets import load_mixed_dataset, collate_fn
 >>> args = DatasetArguments(task_names=["babyai-go-to", "mujoco-ant"])
->>> dataloader = get_dataloader(args)
->>> iterator = iter(dataloader)
->>> batch = next(iterator)
->>> batch.keys()
+>>> dataset = load_mixed_dataset(args)
+>>> dataloader = DataLoader(dataset, shuffle=True, collate_fn=collate_fn)
+>>> batch = next(iter(dataloader))
+>>> batch[0].keys()
 dict_keys(['rewards', 'dones', 'continuous_observations', 'continuous_actions', 'continuous_observations_loss_mask',
    'continuous_actions_loss_mask', 'rewards_attention_mask', 'dones_attention_mask',
    'continuous_observations_attention_mask', 'continuous_actions_attention_mask'])
->>> batch["continuous_observations"].shape
+>>> batch[0]["continuous_observations"].shape
 torch.Size([8, 28, 27])
->>> batch = next(iterator)
->>> batch.keys()
+>>> batch[1].keys()
 dict_keys(['rewards', 'dones', 'text_observations', 'discrete_observations', 'image_observations',
     'discrete_actions', 'patches_positions', 'text_observations_loss_mask', 'discrete_observations_loss_mask',
     'image_observations_loss_mask', 'discrete_actions_loss_mask', 'rewards_attention_mask',
     'dones_attention_mask', 'text_observations_attention_mask', 'discrete_observations_attention_mask',
     'discrete_actions_attention_mask', 'image_observations_attention_mask'])
->>> batch["image_observations"].shape
+>>> batch[1]["image_observations"].shape
 torch.Size([8, 39, 16, 3, 16, 16])
 ```
 
 ### Embed
 
 ```python
+>>> from torch.utils.data import DataLoader
 >>> from gia.config import Arguments
->>> from gia.datasets import get_dataloader
+>>> from gia.datasets import collate_fn, load_mixed_dataset
 >>> from gia.model.embedding import Embeddings
 >>> args = Arguments(task_names=["babyai-go-to"], embed_dim=128)
->>> dataloader = get_dataloader(args)
+>>> dataset = load_mixed_dataset(args)
+>>> dataloader = DataLoader(dataset, batch_size=args.batch_size, collate_fn=collate_fn)
 >>> embeddings = Embeddings(args)
 >>> batch = next(iter(dataloader))
->>> for key, value in embeddings(batch).items():
+>>> embeds = [embeddings(sample) for sample in batch]
+>>> len(embeds)
+8
+>>> for key, value in embeds[0].items():
 ...     print(f"{key}: {value.shape} {value.dtype}")
 ... 
-embeddings: torch.Size([8, 1014, 128]) torch.float32
-loss_mask: torch.Size([8, 1014]) torch.bool
-attention_mask: torch.Size([8, 1014]) torch.bool
-tokens: torch.Size([8, 1014]) torch.int64
+embeddings: torch.Size([1, 1014, 128]) torch.float32
+loss_mask: torch.Size([1, 1014]) torch.bool
+attention_mask: torch.Size([1, 1014]) torch.bool
+tokens: torch.Size([1, 1014]) torch.int64
+```
+
+### Use the GIA model
+
+```python
+>>> from torch.utils.data import DataLoader
+>>> from gia.config import Arguments
+>>> from gia.datasets import collate_fn, load_mixed_dataset
+>>> from gia.model import GiaModel
+>>> args = Arguments(task_names=["babyai-go-to", "mujoco-ant"], batch_size=1)
+>>> dataset = load_mixed_dataset(args)
+>>> dataloader = DataLoader(dataset, shuffle=True, collate_fn=collate_fn)
+>>> model = GiaModel(args)
+>>> batch = next(iter(dataloader))
+>>> output = model(batch)
+>>> output.logits.shape
+torch.Size([1, 1014, 33025])
+>>> output.loss
+tensor(10.7401, grad_fn=<DivBackward0>)
 ```
