@@ -1,7 +1,8 @@
 import random
-from typing import Dict
+from typing import Any, Dict, List, Sequence
 
 import numpy as np
+import torch
 from datasets import get_dataset_config_names, load_dataset
 from torch.utils.data import ConcatDataset, Dataset
 
@@ -303,3 +304,17 @@ def load_mixed_dataset(args: DatasetArguments) -> Dataset:
 
     datasets = [load_batched_dataset(task_name, args) for task_name in task_names]
     return ConcatDataset(datasets)
+
+
+def collate_fn(batch: List[Dict[str, Any]]) -> Sequence[Dict[str, torch.Tensor]]:
+    """
+    Collate function for the dataloader. It converts the batch to list of a dictionaries of tensors.
+
+    Args:
+        batch (List[Dict[str, Any]]): The batch to collate.
+
+    Returns:
+        Sequence[Dict[str, torch.Tensor]]: The collated batch.
+    """
+    batch = [{key: torch.tensor(value) for key, value in d.items()} for d in batch]
+    return batch
