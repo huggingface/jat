@@ -4,7 +4,12 @@ from torch.utils.data import DataLoader
 
 from gia.config import Arguments, ModelArguments
 from gia.datasets import collate_fn, load_mixed_dataset
-from gia.model.embedding import Embeddings, ImageEncoder, ImagePositionEncoding, LocalPositionEncodings
+from gia.model.embedding import (
+    Embeddings,
+    ImageEncoder,
+    ImagePositionEncoding,
+    LocalPositionEncodings,
+)
 
 
 def random_positions(size):  # Ensure that min < max

@@ -1,15 +1,21 @@
+import pytest
+from accelerate import Accelerator
 from torch.utils.data import DataLoader
 
 from gia.config import Arguments
-from gia.datasets import load_batched_dataset
+from gia.datasets import collate_fn, load_mixed_dataset
 from gia.model import GiaModel
 
 
-def test_gia_model():
-    args = Arguments()
+@pytest.mark.parametrize("use_accelerate", [True, False])
+def test_gia_accelerate(use_accelerate):
+    args = Arguments(task_names=["mujoco-ant"], embed_dim=48)
+    dataset = load_mixed_dataset(args)
+    dataloader = DataLoader(dataset, batch_size=args.batch_size, collate_fn=collate_fn)
     model = GiaModel(args)
-    dataset = load_batched_dataset("mujoco-ant", args)
-    dataloader = DataLoader(dataset)
+    if use_accelerate:
+        accelerator = Accelerator()
+        model, dataloader = accelerator.prepare(model, dataloader)
     batch = next(iter(dataloader))
-    out = model(batch)
-    assert out.loss.item() > 0.0
+    output = model(batch)
+    assert output.loss.item() > 0.0
