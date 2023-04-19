@@ -13,12 +13,12 @@ def pad_and_cat(tensor_list: List[Tensor], max_len: int) -> Tensor:
     Pad right with zeros, in the 2nd dimension and concatenate.
 
     Args:
-        tensor_list (List[Tensor]): List of tensors to pad. Each tensor must have the shape (N, X, ...) where X can vary.
+        tensor_list (List[Tensor]): List of tensors to pad. Shapes must be (N, X, ...) where X can vary.
         max_len (int): The output tensor will have the shape (N, max_len, ...).
 
     Returns:
         Tensor: The padded and concatenated tensor.
-    
+
     Example:
         >>> x = [torch.rand(1, 10, 3), torch.rand(1, 5, 3), torch.rand(1, 15, 3)]
         >>> pad_and_cat(x, 20).shape
