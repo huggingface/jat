@@ -40,7 +40,7 @@ class GiaModel(nn.Module):
             for key, value in sample.items():
                 sample[key] = value.unsqueeze(0)
             embeds.append(self.emb(sample))
-        
+
         # embeds is a list of dicts whose keys are "embeddings", "attention_mask", "tokens", "loss_mask"
         # We need to concatenate all the tensors along the batch dimension.
         # FIXME: pretty sure this won't work for multiple size, we need to pad here.

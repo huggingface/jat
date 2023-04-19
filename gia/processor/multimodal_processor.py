@@ -30,7 +30,7 @@ class MultimodalProcessor:
         >>> encodings = processor(inputs)
         >>> for key, value in encodings.items():
         ...     print(f"{key}: {value.shape}")
-        ... 
+        ...
         text_observations: (2, 4)
         text_observations_attention_mask: (2, 4)
         patches_positions: (2, 4, 2, 2)
