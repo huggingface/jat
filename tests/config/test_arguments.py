@@ -93,7 +93,6 @@ batch_size: 2
 
 
 def test_generate_save_dir():
-
     base_dir = "./runs/"
     os.makedirs(base_dir, exist_ok=True)
     existing_run_dirs = [d.name for d in Path(base_dir).iterdir() if d.is_dir()]
