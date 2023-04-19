@@ -315,6 +315,13 @@ def collate_fn(batch: List[Dict[str, Any]]) -> Sequence[Dict[str, torch.Tensor]]
 
     Returns:
         Sequence[Dict[str, torch.Tensor]]: The collated batch.
+
+    Example:
+        >>> import numpy as np
+        >>> x = [{"a": np.array([1, 2, 3]), "b": 4},
+        ...      {"a": np.array([7, 8, 9]), "c": np.array([10, 11, 12])}]
+        >>> collate_fn(x)
+        [{'a': tensor([[1, 2, 3]]), 'b': tensor([4])}, {'a': tensor([[7, 8, 9]]), 'c': tensor([[10, 11, 12]])}]
     """
     batch = [{key: torch.tensor(value).unsqueeze(0) for key, value in d.items()} for d in batch]
     return batch
