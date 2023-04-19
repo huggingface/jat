@@ -1,13 +1,10 @@
 import pytest
 import torch
+from torch.utils.data import DataLoader
 
-from gia.config import ModelArguments
-from gia.model.embedding import (
-    Embeddings,
-    ImageEncoder,
-    ImagePositionEncoding,
-    LocalPositionEncodings,
-)
+from gia.config import Arguments, ModelArguments
+from gia.datasets import collate_fn, load_mixed_dataset
+from gia.model.embedding import Embeddings, ImageEncoder, ImagePositionEncoding, LocalPositionEncodings
 
 
 def random_positions(size):  # Ensure that min < max
@@ -183,3 +180,18 @@ def test_embeddings_image(act_modality, use_seprator):
     assert embeddings["attention_mask"].shape == expected_shape
     assert embeddings["loss_mask"].shape == expected_shape
     assert embeddings["embeddings"].shape == (*expected_shape, 32)
+
+
+def test_embed_real_data():
+    args = Arguments(task_names=["mujoco-ant"], embed_dim=128)
+    dataset = load_mixed_dataset(args)
+    dataloader = DataLoader(dataset, batch_size=args.batch_size, collate_fn=collate_fn)
+    embeddings = Embeddings(args)
+    batch = next(iter(dataloader))
+    embeds = []
+    for sample in batch:
+        for key, value in sample.items():
+            sample[key] = value.unsqueeze(0)  # add batch dimension
+        embeds.append(embeddings(sample))
+    assert len(embeds) == args.batch_size
+    assert set(embeds[0].keys()) == set(["embeddings", "loss_mask", "attention_mask", "tokens"])
