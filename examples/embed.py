@@ -9,10 +9,6 @@ dataset = load_mixed_dataset(args)
 dataloader = DataLoader(dataset, batch_size=args.batch_size, collate_fn=collate_fn)
 embeddings = Embeddings(args)
 batch = next(iter(dataloader))
-embeds = []
-for sample in batch:
-    for key, value in sample.items():
-        sample[key] = value.unsqueeze(0)  # add batch dimension
-    embeds.append(embeddings(sample))
+embeds = [embeddings(sample) for sample in batch]
 print(len(embeds))  # 8 (= batch_size)
 print(embeds[0].keys())  # dict_keys(['embeddings', 'loss_mask', 'attention_mask', 'tokens'])
