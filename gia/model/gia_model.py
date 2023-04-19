@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict, List, Union
 
 import torch
 from torch import Tensor, nn
@@ -48,20 +48,24 @@ class GiaModel(nn.Module):
 
         self.emb = Embeddings(args)
 
-    def forward(self, batch: List[Dict[str, Tensor]], eval=False):
+    def forward(self, batch: Union[List[Dict[str, Tensor]], Dict[str, Tensor]], eval=False):
+        if isinstance(batch, Dict):  # To allow that the input only a single dict
+            batch = [batch]
+
         # hotfix to allow eval in embedding. Try to make it cleaner later
         # add loss_mask to batch
         if eval:
-            keys = [key for key in batch.keys() if key.endswith(("observations", "actions"))]
-            for key in keys:
-                batch[key + "_loss_mask"] = torch.ones_like(batch[key + "_attention_mask"])
+            for sample in batch:
+                keys = [key for key in sample.keys() if key.endswith(("observations", "actions"))]
+                for key in keys:
+                    sample[key + "_loss_mask"] = torch.ones_like(sample[key + "_attention_mask"])
 
         # The batch is a list of dicts, each dict value is a tensor.
         # We need to unsqueeze these tensors to add a batch dimension.
         embed_list = []
         for sample in batch:
-            for key, value in sample.items():
-                sample[key] = value.unsqueeze(0)
+            # for key, value in sample.items():
+            #     sample[key] = value.unsqueeze(0)
             embed_list.append(self.emb(sample))
 
         # embed_list is a list of dicts whose keys are "embeddings", "attention_mask", "tokens", "loss_mask"

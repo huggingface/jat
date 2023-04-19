@@ -316,5 +316,5 @@ def collate_fn(batch: List[Dict[str, Any]]) -> Sequence[Dict[str, torch.Tensor]]
     Returns:
         Sequence[Dict[str, torch.Tensor]]: The collated batch.
     """
-    batch = [{key: torch.tensor(value) for key, value in d.items()} for d in batch]
+    batch = [{key: torch.tensor(value).unsqueeze(0) for key, value in d.items()} for d in batch]
     return batch
