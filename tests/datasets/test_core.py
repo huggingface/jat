@@ -3,10 +3,16 @@ from typing import Dict
 import numpy as np
 import pytest
 import torch
+from accelerate import Accelerator
 from torch.utils.data import DataLoader
 
 from gia.config import DatasetArguments
-from gia.datasets import load_batched_dataset, load_mixed_dataset, load_task_dataset
+from gia.datasets import (
+    collate_fn,
+    load_batched_dataset,
+    load_mixed_dataset,
+    load_task_dataset,
+)
 from gia.datasets.core import generate_batch
 
 BATCH_SIZE = 128
@@ -142,8 +148,6 @@ def test_load_batched_dataset():
         "continuous_actions_loss_mask",
         "continuous_observations_attention_mask",
         "continuous_actions_attention_mask",
-        "dones_attention_mask",
-        "rewards_attention_mask",
     }
     sample = dataset[0]
     assert sample["rewards"].shape == (28,)
@@ -154,8 +158,6 @@ def test_load_batched_dataset():
     assert sample["continuous_actions_loss_mask"].shape == (28, 8)
     assert sample["continuous_observations_attention_mask"].shape == (28, 27)
     assert sample["continuous_actions_attention_mask"].shape == (28, 8)
-    assert sample["dones_attention_mask"].shape == (28,)
-    assert sample["rewards_attention_mask"].shape == (28,)
 
 
 def test_load_mixed_dataset():
@@ -179,7 +181,7 @@ def test_load_mixed_dataset():
     for batch in dataloader:
         assert set(batch.keys()) == expected_keys
         shape = batch["continuous_observations"].shape
-        assert shape[0] <= 2  # usually 2, but sometimes 1 since drop_last=False
+        assert shape[0] == 1  # batch_size = 1
         if shape[1:] == (28, 27):
             mujoco_sampled = True
         elif shape[1:] == (23, 39):
@@ -187,3 +189,33 @@ def test_load_mixed_dataset():
         else:
             raise ValueError("Unexpected shape: {}".format(shape))
     assert mujoco_sampled and metaworld_sampled
+
+
+@pytest.mark.parametrize("use_accelerate", [False, True])
+def test_dataloading_with_collate(use_accelerate):
+    # Just need to check that the collate function does not crash, and the output
+    args = DatasetArguments(task_names=["mujoco-ant", "metaworld-assembly-v2"])
+    dataset = load_mixed_dataset(args)
+    dataloader = DataLoader(dataset, batch_size=3, collate_fn=collate_fn)
+    if use_accelerate:
+        dataloader = Accelerator().prepare(dataloader)
+    expected_keys = {
+        "rewards",
+        "dones",
+        "continuous_observations",
+        "continuous_actions",
+        "continuous_observations_loss_mask",
+        "continuous_actions_loss_mask",
+        "continuous_observations_attention_mask",
+        "continuous_actions_attention_mask",
+    }
+    for batch in dataloader:
+        assert isinstance(batch, list)
+        assert len(batch) <= 3  # usually 3, but sometimes less since drop_last=False
+        for sample in batch:
+            assert isinstance(sample, dict)
+            assert set(sample.keys()) == expected_keys
+            for value in sample.values():
+                assert isinstance(value, torch.Tensor)
+            shape = sample["continuous_observations"].shape
+            assert shape in [(28, 27), (23, 39)]
