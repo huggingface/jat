@@ -8,6 +8,29 @@ from gia.config import ModelArguments
 from gia.model.embedding import Embeddings
 
 
+def pad_and_cat(tensor_list: List[Tensor], max_len: int) -> Tensor:
+    """
+    Pad right with zeros, in the 2nd dimension and concatenate.
+
+    Args:
+        tensor_list (List[Tensor]): List of tensors to pad. Each tensor must have the shape (N, X, ...) where X can vary.
+        max_len (int): The output tensor will have the shape (N, max_len, ...).
+
+    Returns:
+        Tensor: The padded and concatenated tensor.
+    
+    Example:
+        >>> x = [torch.rand(1, 10, 3), torch.rand(1, 5, 3), torch.rand(1, 15, 3)]
+        >>> pad_and_cat(x, 20).shape
+        torch.Size([3, 20, 3])
+    """
+    output_shape = [len(tensor_list), max_len, *tensor_list[0].shape[2:]]
+    output = torch.zeros(output_shape, dtype=tensor_list[0].dtype, device=tensor_list[0].device)
+    for i, t in enumerate(tensor_list):
+        output[i, : t.shape[1]] = t
+    return output
+
+
 class GiaModel(nn.Module):
     def __init__(self, args: ModelArguments) -> None:
         super().__init__()
@@ -35,16 +58,19 @@ class GiaModel(nn.Module):
 
         # The batch is a list of dicts, each dict value is a tensor.
         # We need to unsqueeze these tensors to add a batch dimension.
-        embeds = []
+        embed_list = []
         for sample in batch:
             for key, value in sample.items():
                 sample[key] = value.unsqueeze(0)
-            embeds.append(self.emb(sample))
+            embed_list.append(self.emb(sample))
 
-        # embeds is a list of dicts whose keys are "embeddings", "attention_mask", "tokens", "loss_mask"
+        # embed_list is a list of dicts whose keys are "embeddings", "attention_mask", "tokens", "loss_mask"
         # We need to concatenate all the tensors along the batch dimension.
-        # FIXME: pretty sure this won't work for multiple size, we need to pad here.
-        embeds = {key: torch.cat([embed[key] for embed in embeds], dim=0) for key in embeds[0].keys()}
+        # Pad the tensors first to ensure they all have the same size along the concatenation dimension.
+        max_len = max([embed["tokens"].shape[1] for embed in embed_list])
+        embeds = {}
+        for key in embed_list[0].keys():
+            embeds[key] = pad_and_cat([embed[key] for embed in embed_list], max_len)
 
         # The model requires us to provide position ids, otherwise it will generate them
         # qgallouedec: I've removed position_ids=batch["local_position_ids"]. Is this a problem?
