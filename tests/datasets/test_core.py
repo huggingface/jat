@@ -2,19 +2,49 @@ from typing import Dict
 
 import numpy as np
 import pytest
+import torch
+from accelerate import Accelerator
+from torch.utils.data import DataLoader
 
 from gia.config import DatasetArguments
-from gia.datasets.batch_generator import (
-    generate_batch,
-    get_dataloader,
-    stack_with_padding,
+from gia.datasets import (
+    collate_fn,
+    load_batched_dataset,
+    load_mixed_dataset,
+    load_task_dataset,
 )
+from gia.datasets.core import generate_batch
 
 BATCH_SIZE = 128
 C, H, W = 3, 16, 16
 PATCH_SIZE = 8
 OBS_SIZE = 4
 SEQ_LEN = 32
+
+
+def test_load_task_dataset():
+    dataset = load_task_dataset("mujoco-ant")
+    assert set(dataset.keys()) == set(
+        [
+            "rewards",
+            "dones",
+            "continuous_observations",
+            "continuous_actions",
+        ]
+    )
+
+    dataloader = DataLoader(dataset, batch_size=2, shuffle=False)
+    for idx, batch in enumerate(dataloader):
+        assert batch["continuous_observations"].shape == (2, 27)
+        assert batch["continuous_observations"].dtype == torch.float32
+        assert batch["continuous_actions"].shape == (2, 8)
+        assert batch["continuous_actions"].dtype == torch.float32
+        assert batch["rewards"].shape == (2,)
+        assert batch["rewards"].dtype == torch.float32
+        assert batch["dones"].shape == (2,)
+        assert batch["dones"].dtype == torch.bool
+        if idx == 3:
+            break
 
 
 @pytest.fixture
@@ -106,40 +136,36 @@ def test_batch_generator_no_prompt(dataset: Dict[str, np.ndarray]):
             assert np.all(batches[key][i] == expected_seq)
 
 
-def test_empty_list():
-    # Test with an empty list
-    with pytest.raises(ValueError):
-        stack_with_padding([])
+def test_load_batched_dataset():
+    args = DatasetArguments(shuffle=True, batch_size=2)
+    dataset = load_batched_dataset("mujoco-ant", args)
+    assert set(dataset.keys()) == {
+        "rewards",
+        "dones",
+        "continuous_observations",
+        "continuous_actions",
+        "continuous_observations_loss_mask",
+        "continuous_actions_loss_mask",
+        "continuous_observations_attention_mask",
+        "continuous_actions_attention_mask",
+    }
+    sample = dataset[0]
+    assert sample["rewards"].shape == (28,)
+    assert sample["dones"].shape == (28,)
+    assert sample["continuous_observations"].shape == (28, 27)
+    assert sample["continuous_actions"].shape == (28, 8)
+    assert sample["continuous_observations_loss_mask"].shape == (28, 27)
+    assert sample["continuous_actions_loss_mask"].shape == (28, 8)
+    assert sample["continuous_observations_attention_mask"].shape == (28, 27)
+    assert sample["continuous_actions_attention_mask"].shape == (28, 8)
 
 
-def test_padding_value():
-    # Test with a non-zero padding value
-    x = [np.ones((2, 2)), np.zeros((3, 2))]
-    stacked = stack_with_padding(x, padding_value=-1)
-    assert stacked.shape == (2, 3, 2)
-    target_stacked = np.array(
-        [
-            [[1, 1], [1, 1], [-1, -1]],
-            [[0, 0], [0, 0], [0, 0]],
-        ]
-    )
-    assert np.array_equal(stacked, target_stacked)
-
-
-def test_same_shapes():
-    # Test with arrays of same shapes
-    x = [np.ones((2, 2)), np.zeros((2, 2))]
-    stacked = stack_with_padding(x)
-    assert stacked.shape == (2, 2, 2)
-    target_stacked = np.array([[[1, 1], [1, 1]], [[0, 0], [0, 0]]])
-    assert np.array_equal(stacked, target_stacked)
-
-
-def test_get_dataloader():
-    args = DatasetArguments(task_names=["metaworld-assembly-v2", "mujoco-ant"], shuffle=True, batch_size=2)
-    dataloader = get_dataloader(args)
+def test_load_mixed_dataset():
+    args = DatasetArguments(task_names=["metaworld-assembly-v2", "mujoco-ant"])
+    dataset = load_mixed_dataset(args)
     # It would be nice to test with two datasets with different keys, but currently
     # Atari and BabyAI are too big to run in the CI.
+    dataloader = DataLoader(dataset, shuffle=False)
     expected_keys = {
         "rewards",
         "dones",
@@ -147,8 +173,6 @@ def test_get_dataloader():
         "continuous_actions",
         "continuous_observations_loss_mask",
         "continuous_actions_loss_mask",
-        "rewards_attention_mask",
-        "dones_attention_mask",
         "continuous_observations_attention_mask",
         "continuous_actions_attention_mask",
     }
@@ -157,7 +181,7 @@ def test_get_dataloader():
     for batch in dataloader:
         assert set(batch.keys()) == expected_keys
         shape = batch["continuous_observations"].shape
-        assert shape[0] <= 2  # usually 2, but sometimes 1 since drop_last=False
+        assert shape[0] == 1  # batch_size = 1
         if shape[1:] == (28, 27):
             mujoco_sampled = True
         elif shape[1:] == (23, 39):
@@ -165,3 +189,33 @@ def test_get_dataloader():
         else:
             raise ValueError("Unexpected shape: {}".format(shape))
     assert mujoco_sampled and metaworld_sampled
+
+
+@pytest.mark.parametrize("use_accelerate", [False, True])
+def test_dataloading_with_collate(use_accelerate):
+    # Just need to check that the collate function does not crash, and the output
+    args = DatasetArguments(task_names=["mujoco-ant", "metaworld-assembly-v2"])
+    dataset = load_mixed_dataset(args)
+    dataloader = DataLoader(dataset, batch_size=3, collate_fn=collate_fn)
+    if use_accelerate:
+        dataloader = Accelerator().prepare(dataloader)
+    expected_keys = {
+        "rewards",
+        "dones",
+        "continuous_observations",
+        "continuous_actions",
+        "continuous_observations_loss_mask",
+        "continuous_actions_loss_mask",
+        "continuous_observations_attention_mask",
+        "continuous_actions_attention_mask",
+    }
+    for batch in dataloader:
+        assert isinstance(batch, list)
+        assert len(batch) <= 3  # usually 3, but sometimes less since drop_last=False
+        for sample in batch:
+            assert isinstance(sample, dict)
+            assert set(sample.keys()) == expected_keys
+            for value in sample.values():
+                assert isinstance(value, torch.Tensor)
+            shape = sample["continuous_observations"].shape
+            assert shape in [(1, 28, 27), (1, 23, 39)]

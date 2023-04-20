@@ -13,27 +13,24 @@ class MultimodalProcessor:
     Multi-modal tokenizer.
 
     Args:
-        mu (float, optional): μ parameter for the μ-law companding. Defaults to 100.
-        M (float, optional): M parameter for the μ-law companding. Defaults to 256.
-        nb_bins (int, optional): Number of bins for the discretization of continuous values. Defaults to 1024.
-        patch_size (int, optional): Size of the patches to extract from the images. Defaults to 16.
-        token_shift (int, optional): Shift for the discrete tokens. Defaults to 32_000.
+        args (:obj:`DatasetArguments`): Dataset arguments.
 
     Example:
         >>> import numpy as np
         >>> from gia.config import DatasetArguments
         >>> from gia.processor import MultimodalProcessor
         >>> args = DatasetArguments()
-        >>> tokenizer = MultimodalProcessor(args)
+        >>> processor = MultimodalProcessor(args)
         >>> inputs = {
         ...     "text_observations": np.array(["Go right", "Go left"]),
         ...     "image_observations": np.random.randint(0, 256, (2, 3, 32, 32), dtype=np.uint8),
         ...     "continuous_actions": np.array([[2.1], [3.4]]),
         ...     "discrete_actions": np.array([[9, 8, 6], [5, 9, 9]]),
         ... }
-        >>> encoding = tokenizer(inputs)
-        >>> for key in encoding:
-        ...     print(f"{key}: {encoding[key].shape}")
+        >>> encodings = processor(inputs)
+        >>> for key, value in encodings.items():
+        ...     print(f"{key}: {value.shape}")
+        ...
         text_observations: (2, 4)
         text_observations_attention_mask: (2, 4)
         patches_positions: (2, 4, 2, 2)

@@ -3,22 +3,18 @@
 
 import logging
 import os
-
 import time
 from argparse import Namespace
 from pathlib import Path
 
-from torch.optim import AdamW
-from torch.utils.data.dataloader import DataLoader
-from gia.datasets import get_dataloader
 import datasets
-
 import transformers
-from transformers import get_scheduler, set_seed
 from accelerate import Accelerator, DistributedType
+from torch.optim import AdamW
+from transformers import get_scheduler, set_seed
 
 from gia.config import Arguments, parse_args
-from gia.datasets import load_batched_dataset
+from gia.datasets import get_dataloader
 from gia.model import GiaModel
 
 
@@ -48,23 +44,14 @@ def setup_logging(args: Arguments, accelerator):
     return logger, run_name
 
 
-def create_dataloaders(args: Arguments):
-    # TODO
+def create_dataloader(args: Arguments):
     train_dataloader = get_dataloader(
-        task_names=["mujoco-ant", "mujoco-hopper"],
-        batch_size=32,
+        task_names="mujoco",
+        batch_size=args.train_batch_size,
         shuffle=True,
         drop_last=True,
     )
-    # train_dataset = load_batched_dataset("mujoco-ant")
-    # train_dataloader = DataLoader(
-    #     train_dataset,
-    #     batch_size=args.train_batch_size,
-    #     shuffle=True,
-    #     drop_last=True,
-    # )
-    eval_dataloader = None
-    return train_dataloader, eval_dataloader
+    return train_dataloader
 
 
 def get_grouped_params(
@@ -90,42 +77,6 @@ def log_metrics(step, metrics, logger, accelerator):
         accelerator.log(metrics, step)
 
 
-# def compute_tflops(elapsed_time, accelerator, args):
-#     # TFLOPs formula (from Equation 3 in Section 5.1 of https://arxiv.org/pdf/2104.04473.pdf).
-#     config_model = accelerator.unwrap_model(model).config
-#     checkpoint_factor = 4 if args.gradient_checkpointing else 3
-#     batch_size = args.train_batch_size * accelerator.state.num_processes * args.gradient_accumulation_steps
-#     factor = 24 * checkpoint_factor * batch_size * args.seq_length * config_model.n_layer * (config_model.n_embd**2)
-#     flops_per_iteration = factor * (
-#         1.0
-#         + (args.seq_length / (6.0 * config_model.n_embd))
-#         + (tokenizer.vocab_size / (16.0 * config_model.n_layer * config_model.n_embd))
-#     )
-#     tflops = flops_per_iteration / (elapsed_time * accelerator.state.num_processes * (10**12))
-#     return tflops
-
-
-# def evaluate(args: Arguments, model: GiaModel, eval_dataloader, accelerator):
-#     # we will have two evals, one on a held out subset of the training data and one by running evaluated in the
-#     # actual environment
-#     model.eval()
-#     losses = []
-#     for step, batch in enumerate(eval_dataloader):
-#         with torch.no_grad():
-#             outputs = model(batch, labels=batch)
-#         loss = outputs.loss.repeat(args.valid_batch_size)
-#         losses.append(accelerator.gather(loss))
-#         if args.max_eval_steps > 0 and step >= args.max_eval_steps:
-#             break
-#     losses = torch.cat(losses)
-#     loss = losses[: eval_dataloader.dataset.current_size].mean()
-#     try:  # TODO: improve metrics
-#         perplexity = torch.exp(loss)
-#     except OverflowError:
-#         perplexity = float("inf")
-#     return loss.item(), perplexity.item()
-
-
 def main():
     args = parse_args()
 
@@ -143,7 +94,7 @@ def main():
     set_seed(args.seed)
 
     # # Clone model repository
-    # if accelerator.is_main_process:
+    # if accelerator.is_main_process: # TODO
     #     hf_repo = Repository(args.save_dir, clone_from=args.model_ckpt)
 
     # Logging
@@ -151,7 +102,7 @@ def main():
     logger.info(accelerator.state)
 
     # # Checkout new branch on repo
-    # if accelerator.is_main_process:
+    # if accelerator.is_main_process and args.push_to_hub: # TODO
     #     hf_repo.git_checkout(run_name, create_branch_ok=True)
 
     # Load the model
@@ -162,7 +113,7 @@ def main():
         model.gradient_checkpointing_enable()
 
     # Load dataset and dataloader
-    train_dataloader, eval_dataloader = create_dataloaders(args)
+    train_dataloader = create_dataloader(args)
 
     # Prepare the optimizer and learning rate scheduler
     optimizer = AdamW(get_grouped_params(model, args), lr=args.learning_rate)
@@ -175,13 +126,11 @@ def main():
     accelerator.register_for_checkpointing(lr_scheduler)
 
     def get_lr():
-        # add a scheduler?
+        # add a scheduler? # TODO
         return optimizer.param_groups[0]["lr"]
 
     # Prepare everything with our `accelerator`.
-    model, optimizer, train_dataloader, eval_dataloader = accelerator.prepare(
-        model, optimizer, train_dataloader, eval_dataloader
-    )
+    model, optimizer, train_dataloader = accelerator.prepare(model, optimizer, train_dataloader)
 
     # load in the weights and states from a previous save
     if args.resume_from_checkpoint:
@@ -200,12 +149,17 @@ def main():
 
     # Train model
     model.train()
+    device = accelerator.device
     completed_steps = 0
     t_start = time.time()
     loss_tracking = 0
     for step, batch in enumerate(train_dataloader, start=1):
         if args.resume_from_checkpoint and step < resume_step:
             continue  # we need to skip steps until we reach the resumed step
+
+        for k, v in batch.items():
+            batch[k] = v.to(device)
+
         loss = model(batch).loss
         avg_loss = accelerator.gather(loss.repeat(args.train_batch_size)).mean()
         loss_tracking += avg_loss.item() / args.gradient_accumulation_steps
@@ -248,38 +202,21 @@ def main():
             loss_tracking = 0
             completed_steps += 1
         if step % args.save_checkpoint_steps == 0:
-            # logger.info("Evaluating and saving model checkpoint")
-            # eval_loss, perplexity = evaluate(args)
-            # log_metrics(
-            #     step,
-            #     {"loss/eval": eval_loss, "perplexity": perplexity},
-            #     logger,
-            #     accelerator,
-            # )
             accelerator.wait_for_everyone()
             save_dir = os.path.join(args.save_dir, "checkpoints", f"step_{step}")
             accelerator.save_state(save_dir)
-            # if accelerator.is_main_process:
+            # if accelerator.is_main_process and args.push_to_hub:
             #     hf_repo.push_to_hub(commit_message=f"step {step}")
             model.train()
         if completed_steps >= args.max_train_steps:
             break
 
-    # Evaluate and save the last checkpoint
-    # logger.info("Evaluating and saving model after training")
-    # eval_loss, perplexity = evaluate(args)
-    # log_metrics(
-    #     step,
-    #     {"loss/eval": eval_loss, "perplexity": perplexity},
-    #     logger,
-    #     accelerator,
-    # )
     accelerator.wait_for_everyone()
-    unwrapped_model = accelerator.unwrap_model(model)
-    unwrapped_model.save_pretrained(args.save_dir, save_function=accelerator.save)
+    # unwrapped_model = accelerator.unwrap_model(model)
+    # unwrapped_model.save_pretrained(args.save_dir, save_function=accelerator.save) # TODO
     save_dir = os.path.join(args.save_dir, f"step_{step}")
     accelerator.save_state(save_dir)
-    # if accelerator.is_main_process:
+    # if accelerator.is_main_process and args.push_to_hub: # TODO
     #     hf_repo.push_to_hub(commit_message="final model")
 
 

@@ -64,8 +64,8 @@ class ImagePositionEncoding(nn.Module):
         # on whether we are training or evaluating the model: during training a random index is uniformly
         # sampled from the quantized interval, while during evaluation we deterministically take the
         # (rounded) mean of the interval
-        sampled_row_idx = torch.zeros(patch_pos.shape[0], dtype=torch.long)
-        sampled_col_idx = torch.zeros(patch_pos.shape[0], dtype=torch.long)
+        sampled_row_idx = torch.zeros(patch_pos.shape[0], dtype=torch.long, device=patch_pos.device)
+        sampled_col_idx = torch.zeros(patch_pos.shape[0], dtype=torch.long, device=patch_pos.device)
         if eval:
             sampled_row_idx = (quant_row_intervals[..., 0] + quant_row_intervals[..., 1]) // 2
             sampled_col_idx = (quant_col_intervals[..., 0] + quant_col_intervals[..., 1]) // 2
@@ -380,8 +380,8 @@ class Embeddings(nn.Module):
                 (batch_size, seq_len, 1), self.separator_token, dtype=torch.long, device=device
             )
             separator_embeddings = self.embeddings(separator_token)
-            separator_loss_mask = torch.ones((batch_size, seq_len, 1), dtype=torch.bool)
-            separator_attention_mask = torch.ones((batch_size, seq_len, 1), dtype=torch.bool)
+            separator_loss_mask = torch.ones((batch_size, seq_len, 1), dtype=torch.bool, device=device)
+            separator_attention_mask = torch.ones((batch_size, seq_len, 1), dtype=torch.bool, device=device)
 
         # Handle action: embed and add local position embeddings
         action_tokens = batch[action_key]
