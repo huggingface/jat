@@ -52,7 +52,7 @@ def load_task_dataset(task_name: str, load_from_cache: bool = True) -> DatasetDi
     # Remove id column (present in oscar)
     dataset.pop("id", None)
 
-    if not "dones" in dataset.keys():
+    if "dones" not in dataset.keys():
         a_key = list(dataset.keys())[0]
         dataset["dones"] = np.array([True for _ in range(len(dataset[a_key]))])
 
