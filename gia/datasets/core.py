@@ -106,9 +106,9 @@ def generate_batch(dataset: Dict[str, np.ndarray], args: DatasetArguments) -> Di
     for key in observation_keys + action_keys:
         shape = dataset[key].shape[:2]  # (batch_size, seq_len)
         if key.startswith("text") or key.endswith("actions"):
-            dataset[f"{key}_loss_mask"] = np.ones(shape, dtype=bool)
-        else:
             dataset[f"{key}_loss_mask"] = dataset[f"{key}_attention_mask"]
+        else:
+            dataset[f"{key}_loss_mask"] = np.zeros(shape, dtype=bool)
     # First, we need to compute the number of embeddings needed for the observations and actions.
     # At this point, there are 2 possibilities for the observations:
     # 1. The observation is anything but an image, then the value is tokenized
