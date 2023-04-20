@@ -119,7 +119,7 @@ def generate_batch(dataset: Dict[str, np.ndarray], args: DatasetArguments) -> Di
     num_emb_per_interaction = sum(dataset[key].shape[1] for key in observation_keys + action_keys)
 
     # Add one embedding for the separator token
-    if args.use_separator:
+    if args.use_separator and len(action_keys) > 0:
         num_emb_per_interaction += 1
 
     # Check that the sequence lenght is high enough to contain at least one interaction
