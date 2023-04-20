@@ -13,7 +13,7 @@ dataset = load_mixed_dataset(args)
 dataloader = DataLoader(dataset, shuffle=True, collate_fn=collate_fn)
 model = GiaModel(args).to(device)
 for batch in tqdm(dataloader):
-    for sample in batch: # This loop can be removed when you use accelerate
+    for sample in batch:  # This loop can be removed when you use accelerate
         for key in sample.keys():
             sample[key] = sample[key].to(device)
     out = model(batch)

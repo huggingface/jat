@@ -10,7 +10,6 @@ from gia.eval.evaluator import Evaluator
 from gia.eval.mujoco_evaluator import MujocoEvaluator
 from gia.model.gia_model import GiaModel
 
-
 EVAL_MAPPING = {
     "mujoco": MujocoEvaluator,
 }
@@ -65,5 +64,4 @@ def list_files_in_dir(path):
 
 
 if __name__ == "__main__":
-
     eval()
