@@ -3,20 +3,18 @@
 
 import logging
 import os
-
 import time
 from argparse import Namespace
 from pathlib import Path
 
-from torch.optim import AdamW
-from gia.datasets import get_dataloader
 import datasets
-
 import transformers
-from transformers import get_scheduler, set_seed
 from accelerate import Accelerator, DistributedType
+from torch.optim import AdamW
+from transformers import get_scheduler, set_seed
 
 from gia.config import Arguments, parse_args
+from gia.datasets import get_dataloader
 from gia.model import GiaModel
 
 
@@ -72,10 +70,12 @@ def get_grouped_params(
         {"params": params_without_wd, "weight_decay": 0.0},
     ]
 
+
 def log_metrics(step, metrics, logger, accelerator):
     logger.info(f"Step {step}: {metrics}")
     if accelerator.is_main_process:
         accelerator.log(metrics, step)
+
 
 def main():
     args = parse_args()
@@ -130,9 +130,7 @@ def main():
         return optimizer.param_groups[0]["lr"]
 
     # Prepare everything with our `accelerator`.
-    model, optimizer, train_dataloader = accelerator.prepare(
-        model, optimizer, train_dataloader
-    )
+    model, optimizer, train_dataloader = accelerator.prepare(model, optimizer, train_dataloader)
 
     # load in the weights and states from a previous save
     if args.resume_from_checkpoint:

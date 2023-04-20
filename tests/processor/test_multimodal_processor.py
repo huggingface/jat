@@ -13,7 +13,7 @@ def test_tokenize_continuous():
     x = np.linspace(-5.0, 5.0, 51).reshape(1, -1)  # Convert to batch of size 1
 
     # Call tokenize_continuous method
-    tokens = processor.tokenize_continuous(x)
+    tokens, mask = processor.tokenize_continuous(x)
 
     # Compute the expected result
     expected_result = processor.inverse_tokenize_continuous(tokens)

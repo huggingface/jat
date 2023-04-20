@@ -12,30 +12,34 @@ class MultimodalProcessor:
     """
     Multi-modal tokenizer.
 
+    Args:
+        args (:obj:`DatasetArguments`): Dataset arguments.
+
     Example:
         >>> import numpy as np
-        >>> tokenizer = MultimodalProcessor()
+        >>> from gia.config import DatasetArguments
+        >>> from gia.processor import MultimodalProcessor
+        >>> args = DatasetArguments()
+        >>> processor = MultimodalProcessor(args)
         >>> inputs = {
         ...     "text_observations": np.array(["Go right", "Go left"]),
         ...     "image_observations": np.random.randint(0, 256, (2, 3, 32, 32), dtype=np.uint8),
-        ...     "continuous_actions": np.array([2.1, 3.4]),
+        ...     "continuous_actions": np.array([[2.1], [3.4]]),
         ...     "discrete_actions": np.array([[9, 8, 6], [5, 9, 9]]),
         ... }
-        >>> encoding = tokenizer(inputs)
-        >>> for key in encoding:
-        ...     print(f"{key}: {encoding[key].shape}")
+        >>> encodings = processor(inputs)
+        >>> for key, value in encodings.items():
+        ...     print(f"{key}: {value.shape}")
+        ...
         text_observations: (2, 4)
+        text_observations_attention_mask: (2, 4)
         patches_positions: (2, 4, 2, 2)
         image_observations: (2, 4, 3, 16, 16)
+        image_observations_attention_mask: (2, 4)
         continuous_actions: (2, 1)
+        continuous_actions_attention_mask: (2, 1)
         discrete_actions: (2, 3)
-
-    Args:
-        mu (float, optional): μ parameter for the μ-law companding. Defaults to 100.
-        M (float, optional): M parameter for the μ-law companding. Defaults to 256.
-        nb_bins (int, optional): Number of bins for the discretization of continuous values. Defaults to 1024.
-        patch_size (int, optional): Size of the patches to extract from the images. Defaults to 16.
-        token_shift (int, optional): Shift for the discrete tokens. Defaults to 32_000.
+        discrete_actions_attention_mask: (2, 3)
     """
 
     def __init__(self, args: DatasetArguments) -> None:
@@ -50,8 +54,10 @@ class MultimodalProcessor:
         self.text_tokenizer = AutoTokenizer.from_pretrained("albert-base-v2")
 
     def tokenize_text(self, x: np.ndarray) -> np.ndarray:
-        tokens = self.text_tokenizer(x.tolist())
-        return np.array(tokens["input_ids"])
+        output = self.text_tokenizer(x.tolist(), padding="longest")
+        tokens = np.array(output["input_ids"])
+        attention_mask = np.array(output["attention_mask"], dtype=bool)
+        return tokens, attention_mask
 
     def extract_patches(self, images: np.ndarray) -> np.ndarray:
         """
@@ -61,8 +67,12 @@ class MultimodalProcessor:
             images (np.ndarray): Images to extract patches from of shape (B, C, H, W).
 
         Returns:
-            np.ndarray: Patches extracted from the images. Output has shape (B, N, C, P, P), where P is the patch size.
-                Patches are flattened in row-major order.
+            Tuple of:
+                - patches (np.ndarray): Patches extracted from the images. Output has shape (B, N, C, P, P), where P
+                    is the patch size. Patches are flattened in row-major order.
+                - attention_mask (np.ndarray): Attention mask of shape (B, N).
+                - patches_positions (np.ndarray): Relative position intervals of the patches. Output has shape
+                    (B, N, 2, 2), where the last two dimensions are the start and end positions of the patch.
         """
         B, C, H, W = images.shape
         # First, reshape to the closest above multiple of the patch size
@@ -89,8 +99,8 @@ class MultimodalProcessor:
             dtype=np.float32,
         )
         positions = np.tile(positions, (B, 1, 1, 1))
-
-        return patches, positions
+        attention_mask = np.ones(patches.shape[:2], dtype=bool)
+        return patches, attention_mask, positions
 
     def tokenize_discrete(self, x: np.ndarray) -> np.ndarray:
         # Unsqueeze when the input is a vector
@@ -98,7 +108,8 @@ class MultimodalProcessor:
         if x.ndim == 1:
             x = np.expand_dims(x, axis=1)
         tokens = x + self.token_shift
-        return tokens
+        attention_mask = np.ones_like(tokens, dtype=bool)
+        return tokens, attention_mask
 
     def tokenize_continuous(self, x: np.ndarray) -> np.ndarray:
         # Normalize tensors to the range [-1, 1]
@@ -114,7 +125,8 @@ class MultimodalProcessor:
 
         # Unsqueeze if needed
         tokens = x + self.token_shift
-        return tokens
+        attention_mask = np.ones_like(tokens, dtype=bool)
+        return tokens, attention_mask
 
     def inverse_tokenize_continuous(self, tokens: np.ndarray) -> np.ndarray:
         """
@@ -147,16 +159,18 @@ class MultimodalProcessor:
         for key in inputs.keys():
             value = inputs[key]
             if key.startswith("text"):
-                tokens = self.tokenize_text(value)
+                tokens, attention_mask = self.tokenize_text(value)
             elif key.startswith("image"):
-                tokens, positions = self.extract_patches(value)  # actually, this is not a token, but patches
+                # actually, this is not a token, but patches
+                tokens, attention_mask, positions = self.extract_patches(value)
                 output["patches_positions"] = positions
             elif key.startswith("discrete"):
-                tokens = self.tokenize_discrete(value)
+                tokens, attention_mask = self.tokenize_discrete(value)
             elif key.startswith("continuous"):
-                tokens = self.tokenize_continuous(value)
+                tokens, attention_mask = self.tokenize_continuous(value)
             else:
                 raise ValueError(f"Unknown input type for key '{key}'.")
 
             output[key] = tokens
+            output[f"{key}_attention_mask"] = attention_mask
         return output
