@@ -50,6 +50,10 @@ def load_task_dataset(task_name: str, load_from_cache: bool = True) -> DatasetDi
         # remove the "image" column as it is not used
         dataset.pop("images")
 
+    if not "dones" in dataset.keys():
+        a_key = list(dataset.keys())[0]
+        dataset["dones"] = np.array([True for _ in range(len(dataset[a_key]))])
+
     # Rename keys to get the format "[type]_[observations or actions]"
     keys = list(dataset.keys())  # Avoid "Keys changed during iteration"
     for key in keys:
@@ -70,15 +74,16 @@ def load_task_dataset(task_name: str, load_from_cache: bool = True) -> DatasetDi
             else:
                 raise ValueError(f"Unknown observation type for {key}")
     # Do the same for actions.
-    actions = dataset.pop("actions")
-    if is_text(actions):
-        dataset["text_actions"] = actions
-    elif is_discrete(actions):
-        dataset["discrete_actions"] = actions
-    elif is_continuous(actions):
-        dataset["continuous_actions"] = actions
-    else:
-        raise ValueError("Unknown action type.")
+    if "actions" in dataset.keys():
+        actions = dataset.pop("actions")
+        if is_text(actions):
+            dataset["text_actions"] = actions
+        elif is_discrete(actions):
+            dataset["discrete_actions"] = actions
+        elif is_continuous(actions):
+            dataset["continuous_actions"] = actions
+        else:
+            raise ValueError("Unknown action type.")
 
     return DatasetDict(dataset)  # convert to a DatasetDict
 
