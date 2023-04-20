@@ -1,4 +1,3 @@
-from accelerate import Accelerator
 from torch.utils.data import DataLoader
 
 from gia.config import Arguments
