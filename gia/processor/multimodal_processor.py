@@ -49,12 +49,13 @@ class MultimodalProcessor:
         self.nb_bins = args.nb_bins
         self.patch_size = args.patch_size
         self.token_shift = args.token_shift
+        self.seq_len = args.seq_len
 
         self.mu_law_compand = True
         self.text_tokenizer = AutoTokenizer.from_pretrained("albert-base-v2")
 
     def tokenize_text(self, x: np.ndarray) -> np.ndarray:
-        output = self.text_tokenizer(x.tolist(), padding="longest")
+        output = self.text_tokenizer(x.tolist(), padding="longest", truncation=True, max_length=self.seq_len)
         tokens = np.array(output["input_ids"])
         attention_mask = np.array(output["attention_mask"], dtype=bool)
         return tokens, attention_mask
