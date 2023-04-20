@@ -49,6 +49,8 @@ def load_task_dataset(task_name: str, load_from_cache: bool = True) -> DatasetDi
     if "babyai" in task_name:
         # remove the "image" column as it is not used
         dataset.pop("images")
+    # Remove id column (present in oscar)
+    dataset.pop("id", None)
 
     if not "dones" in dataset.keys():
         a_key = list(dataset.keys())[0]
