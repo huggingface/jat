@@ -24,7 +24,7 @@ class DatasetArguments:
     )
     batch_size: int = field(default=8, metadata={"help": "The batch size."})
     shuffle: bool = field(default=True, metadata={"help": "Whether to shuffle the dataset. Defaults to True."})
-    seq_len: int = field(default=1024, metadata={"help": "The length (number of tokens) of a sequence."})
+    seq_len: int = field(default=2048, metadata={"help": "The length (number of tokens) of a sequence."})
     use_separator: bool = field(
         default=True, metadata={"help": "Whether to include a separator token between observations and actions."}
     )
@@ -63,7 +63,7 @@ class ModelArguments:
     model_name: str = field(default="EleutherAI/gpt-neo-125M", metadata={"help": "The name of the model"})
     use_pretrained: bool = field(default=False, metadata={"help": "Whether to use a pretrained model or not."})
     embed_dim: int = field(default=768, metadata={"help": "The embedding dimension."})
-    seq_len: int = field(default=1024, metadata={"help": "The length (number of tokens) of a sequence."})
+    seq_len: int = field(default=2048, metadata={"help": "The length (number of tokens) of a sequence."})
     use_separator: bool = field(
         default=True, metadata={"help": "Whether to include a separator token between observations and actions."}
     )
