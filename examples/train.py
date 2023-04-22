@@ -48,10 +48,7 @@ def setup_logging(args: Arguments, accelerator):
 
 def create_dataloader(args: Arguments):
     train_dataloader = get_dataloader(
-        task_names="mujoco",
-        batch_size=args.batch_size,
-        shuffle=True,
-        drop_last=True,
+        args
     )
     return train_dataloader
 
