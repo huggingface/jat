@@ -55,6 +55,14 @@ class GiaModel(nn.Module):
         if isinstance(batch, Dict):  # To allow that the input only a single dict
             batch = [batch]
 
+        # hotfix to allow eval in embedding. Try to make it cleaner later
+        # add loss_mask to batch
+        if eval:
+            for sample in batch:
+                keys = [key for key in sample.keys() if key.endswith(("observations", "actions"))]
+                for key in keys:
+                    sample[key + "_loss_mask"] = torch.ones_like(sample[key + "_attention_mask"])
+
         # embed_list is a list of dicts whose keys are "embeddings", "attention_mask", "tokens", "loss_mask"
         # We need to concatenate all the tensors along the batch dimension.
         # Pad the tensors first to ensure they all have the same size along the concatenation dimension.
