@@ -150,14 +150,14 @@ def test_load_batched_dataset():
         "continuous_actions_attention_mask",
     }
     sample = dataset[0]
-    assert sample["rewards"].shape == (28,)
-    assert sample["dones"].shape == (28,)
-    assert sample["continuous_observations"].shape == (28, 27)
-    assert sample["continuous_actions"].shape == (28, 8)
-    assert sample["continuous_observations_loss_mask"].shape == (28, 27)
-    assert sample["continuous_actions_loss_mask"].shape == (28, 8)
-    assert sample["continuous_observations_attention_mask"].shape == (28, 27)
-    assert sample["continuous_actions_attention_mask"].shape == (28, 8)
+    assert sample["rewards"].shape == (56,)
+    assert sample["dones"].shape == (56,)
+    assert sample["continuous_observations"].shape == (56, 27)
+    assert sample["continuous_actions"].shape == (56, 8)
+    assert sample["continuous_observations_loss_mask"].shape == (56, 27)
+    assert sample["continuous_actions_loss_mask"].shape == (56, 8)
+    assert sample["continuous_observations_attention_mask"].shape == (56, 27)
+    assert sample["continuous_actions_attention_mask"].shape == (56, 8)
 
 
 def test_load_mixed_dataset():
@@ -182,9 +182,9 @@ def test_load_mixed_dataset():
         assert set(batch.keys()) == expected_keys
         shape = batch["continuous_observations"].shape
         assert shape[0] == 1  # batch_size = 1
-        if shape[1:] == (28, 27):
+        if shape[1:] == (56, 27):
             mujoco_sampled = True
-        elif shape[1:] == (23, 39):
+        elif shape[1:] == (46, 39):
             metaworld_sampled = True
         else:
             raise ValueError("Unexpected shape: {}".format(shape))
@@ -218,4 +218,4 @@ def test_dataloading_with_collate(use_accelerate):
             for value in sample.values():
                 assert isinstance(value, torch.Tensor)
             shape = sample["continuous_observations"].shape
-            assert shape in [(1, 28, 27), (1, 23, 39)]
+            assert shape in [(1, 56, 27), (1, 46, 39)]
