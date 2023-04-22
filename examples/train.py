@@ -49,7 +49,7 @@ def setup_logging(args: Arguments, accelerator):
 def create_dataloader(args: Arguments):
     train_dataloader = get_dataloader(
         task_names="mujoco",
-        batch_size=args.train_batch_size,
+        batch_size=args.batch_size,
         shuffle=True,
         drop_last=True,
     )
@@ -90,7 +90,7 @@ def main():
     acc_state = {str(k): str(v) for k, v in accelerator.state.__dict__.items()}
 
     args = Namespace(**vars(args), **acc_state)
-    samples_per_step = accelerator.state.num_processes * args.train_batch_size
+    samples_per_step = accelerator.state.num_processes * args.batch_size
     set_seed(args.seed)
 
     # # Clone model repository
@@ -166,7 +166,7 @@ def main():
                 batch[k] = v.to(device)
 
             loss = model(batch).loss
-            avg_loss = accelerator.gather(loss.repeat(args.train_batch_size)).mean()
+            avg_loss = accelerator.gather(loss.repeat(args.batch_size)).mean()
             loss_tracking += avg_loss.item() / args.gradient_accumulation_steps
             log_metrics(
                 step,
