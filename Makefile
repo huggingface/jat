@@ -5,13 +5,13 @@ DIRS = data examples gia scripts tests
 
 # Check that source code meets quality standards
 quality:
-	black --check $(DIRS)
-	ruff check 119 $(DIRS)
+	black --check $(DIRS) setup.py
+	ruff $(DIRS) setup.py
 
 # Format source code automatically
 style:
-	black $(DIRS)
-	ruff $(DIRS)
+	black $(DIRS) setup.py
+	ruff $(DIRS) setup.py --fix
 
 # Run tests for the library
 test:
