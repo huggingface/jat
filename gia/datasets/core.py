@@ -217,7 +217,7 @@ def load_batched_dataset(task_name: str, args: DatasetArguments) -> DatasetDict:
                    'continuous_observations_loss_mask', 'continuous_actions_loss_mask',
                    'continuous_observations_attention_mask', 'continuous_actions_attention_mask'])
         >>> dataset["continuous_observations"].shape
-        (4074, 56, 27)
+        (4074, 28, 27)
     """
     dataset = load_task_dataset(task_name, args.load_from_cache)
     dataset = generate_batch(dataset, args)
@@ -285,7 +285,7 @@ def load_mixed_dataset(args: DatasetArguments) -> Dataset:
             'continuous_observations_attention_mask', 'continuous_actions_attention_mask',
             'continuous_observations_loss_mask', 'continuous_actions_loss_mask'])
         >>> dataset[0]["continuous_observations"].shape
-        (56, 27)
+        (28, 27)
         >>> dataset[5000].keys()
         dict_keys(['rewards', 'dones', 'text_observations', 'discrete_observations', 'image_observations',
             'discrete_actions', 'text_observations_attention_mask', 'discrete_observations_attention_mask',
