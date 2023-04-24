@@ -122,7 +122,9 @@ def main():
         return optimizer.param_groups[0]["lr"]
 
     # Prepare everything with our `accelerator`.
-    model, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(model, optimizer, train_dataloader, lr_scheduler)
+    model, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(
+        model, optimizer, train_dataloader, lr_scheduler
+    )
 
     # load in the weights and states from a previous save
     if args.resume_from_checkpoint:
