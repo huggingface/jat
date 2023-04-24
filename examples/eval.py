@@ -59,7 +59,7 @@ def eval_checkpoint(checkpoint_path: str, evaluators: List[Evaluator], model: to
 
 
 def list_files_in_dir(path):
-    files = os.listdir(path)
+    # files = os.listdir(path)
     print()
 
 

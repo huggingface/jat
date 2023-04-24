@@ -13,7 +13,6 @@ def generate_dataset_card(
     env: str,
     repo_id: str,
 ):
-
     readme_path = os.path.join(dir_path, "README.md")
     readme = f"""
     An imitation learning environment for the {env} environment. \n
@@ -48,7 +47,6 @@ def push_to_hf(dir_path: str, repo_name: str):
 
 
 def create_babyai_dataset(name_env, hf_repo_name, max_num_frames=100000, push_to_hub=False):
-
     env = gym.make(name_env)
     env = AddRGBImgPartialObsWrapper(env)  # add rgb image to obs
 
