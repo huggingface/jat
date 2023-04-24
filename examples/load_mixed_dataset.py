@@ -3,7 +3,7 @@ from torch.utils.data import DataLoader
 from gia.config import DatasetArguments
 from gia.datasets import load_mixed_dataset
 
-args = DatasetArguments(task_names=["babyai-go-to", "mujoco-ant"])
+args = DatasetArguments(task_names=["babyai-go-to", "mujoco-ant", "oscar-en"])
 dataset = load_mixed_dataset(args)
 dataloader = DataLoader(dataset, shuffle=True, collate_fn=lambda x: x)
 

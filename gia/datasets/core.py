@@ -49,6 +49,12 @@ def load_task_dataset(task_name: str, load_from_cache: bool = True) -> DatasetDi
     if "babyai" in task_name:
         # remove the "image" column as it is not used
         dataset.pop("images")
+    # Remove id column (present in oscar)
+    dataset.pop("id", None)
+
+    if "dones" not in dataset.keys():
+        a_key = list(dataset.keys())[0]
+        dataset["dones"] = np.array([True for _ in range(len(dataset[a_key]))])
 
     # Rename keys to get the format "[type]_[observations or actions]"
     keys = list(dataset.keys())  # Avoid "Keys changed during iteration"
@@ -70,15 +76,16 @@ def load_task_dataset(task_name: str, load_from_cache: bool = True) -> DatasetDi
             else:
                 raise ValueError(f"Unknown observation type for {key}")
     # Do the same for actions.
-    actions = dataset.pop("actions")
-    if is_text(actions):
-        dataset["text_actions"] = actions
-    elif is_discrete(actions):
-        dataset["discrete_actions"] = actions
-    elif is_continuous(actions):
-        dataset["continuous_actions"] = actions
-    else:
-        raise ValueError("Unknown action type.")
+    if "actions" in dataset.keys():
+        actions = dataset.pop("actions")
+        if is_text(actions):
+            dataset["text_actions"] = actions
+        elif is_discrete(actions):
+            dataset["discrete_actions"] = actions
+        elif is_continuous(actions):
+            dataset["continuous_actions"] = actions
+        else:
+            raise ValueError("Unknown action type.")
 
     return DatasetDict(dataset)  # convert to a DatasetDict
 
@@ -106,9 +113,9 @@ def generate_batch(dataset: Dict[str, np.ndarray], args: DatasetArguments) -> Di
     for key in observation_keys + action_keys:
         shape = dataset[key].shape[:2]  # (batch_size, seq_len)
         if key.startswith("text") or key.endswith("actions"):
-            dataset[f"{key}_loss_mask"] = np.ones(shape, dtype=bool)
-        else:
             dataset[f"{key}_loss_mask"] = dataset[f"{key}_attention_mask"]
+        else:
+            dataset[f"{key}_loss_mask"] = np.zeros(shape, dtype=bool)
     # First, we need to compute the number of embeddings needed for the observations and actions.
     # At this point, there are 2 possibilities for the observations:
     # 1. The observation is anything but an image, then the value is tokenized
@@ -119,7 +126,7 @@ def generate_batch(dataset: Dict[str, np.ndarray], args: DatasetArguments) -> Di
     num_emb_per_interaction = sum(dataset[key].shape[1] for key in observation_keys + action_keys)
 
     # Add one embedding for the separator token
-    if args.use_separator:
+    if args.use_separator and len(action_keys) > 0:
         num_emb_per_interaction += 1
 
     # Check that the sequence lenght is high enough to contain at least one interaction
