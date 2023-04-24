@@ -45,9 +45,7 @@ def setup_logging(args: Arguments, accelerator):
 
 
 def create_dataloader(args: Arguments):
-    train_dataloader = get_dataloader(
-        args
-    )
+    train_dataloader = get_dataloader(args)
     return train_dataloader
 
 
@@ -150,10 +148,10 @@ def main():
     completed_steps = 0
     t_start = time.time()
     loss_tracking = 0
-    step = 0    
-        
+    step = 0
+
     while completed_steps < args.max_train_steps:
-        for step, batch in enumerate(train_dataloader, start=step+1):
+        for step, batch in enumerate(train_dataloader, start=step + 1):
             if args.resume_from_checkpoint and step < resume_step:
                 continue  # we need to skip steps until we reach the resumed step
 
