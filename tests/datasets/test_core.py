@@ -218,4 +218,4 @@ def test_dataloading_with_collate(use_accelerate):
             for value in sample.values():
                 assert isinstance(value, torch.Tensor)
             shape = sample["continuous_observations"].shape
-            assert shape in [(1, 56, 27), (1, 46, 39)]
+            assert shape in [(1, 28, 27), (1, 23, 39)]
