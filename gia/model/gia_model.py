@@ -3,6 +3,7 @@ from typing import Dict, List, Union
 import torch
 from torch import Tensor, nn
 from transformers import AutoConfig, AutoModelForCausalLM
+from transformers.modeling_outputs import CausalLMOutputWithPast
 
 from gia.config import ModelArguments
 from gia.model.embedding import Embeddings
@@ -48,7 +49,9 @@ class GiaModel(nn.Module):
 
         self.emb = Embeddings(args)
 
-    def forward(self, batch: Union[List[Dict[str, Tensor]], Dict[str, Tensor]], eval=False):
+    def forward(
+        self, batch: Union[List[Dict[str, Tensor]], Dict[str, Tensor]], eval: bool = False
+    ) -> CausalLMOutputWithPast:
         if isinstance(batch, Dict):  # To allow that the input only a single dict
             batch = [batch]
 
@@ -60,40 +63,25 @@ class GiaModel(nn.Module):
                 for key in keys:
                     sample[key + "_loss_mask"] = torch.ones_like(sample[key + "_attention_mask"])
 
-        # The batch is a list of dicts, each dict value is a tensor.
-        # We need to unsqueeze these tensors to add a batch dimension.
-        embed_list = []
-        for sample in batch:
-            # for key, value in sample.items():
-            #     sample[key] = value.unsqueeze(0)
-            embed_list.append(self.emb(sample))
-
         # embed_list is a list of dicts whose keys are "embeddings", "attention_mask", "tokens", "loss_mask"
         # We need to concatenate all the tensors along the batch dimension.
         # Pad the tensors first to ensure they all have the same size along the concatenation dimension.
+        embed_list = [self.emb(sample) for sample in batch]
         max_len = max([embed["tokens"].shape[1] for embed in embed_list])
-        embeds = {}
-        for key in embed_list[0].keys():
-            embeds[key] = pad_and_cat([embed[key] for embed in embed_list], max_len)
+        embeddings = pad_and_cat([embed["embeddings"] for embed in embed_list], max_len)
+        attention_mask = pad_and_cat([embed["attention_mask"] for embed in embed_list], max_len)
 
         # The model requires us to provide position ids, otherwise it will generate them
         # qgallouedec: I've removed position_ids=batch["local_position_ids"]. Is this a problem?
-        out = self.model(inputs_embeds=embeds["embeddings"], attention_mask=embeds["attention_mask"])
-        if not eval:
-            out.loss = self.loss(out.logits, embeds["tokens"], embeds["loss_mask"])
+        if eval:  # No need to compute the loss
+            out = self.model(inputs_embeds=embeddings, attention_mask=attention_mask)
+        else:
+            labels = pad_and_cat([embed["tokens"] for embed in embed_list], max_len)
+            assert all("loss_mask" in embed for embed in embed_list), "loss_mask not found"
+            loss_mask = pad_and_cat([embed["loss_mask"] for embed in embed_list], max_len)
+            # All labels set to -100 are ignored (masked), the loss is only computed for labels in
+            # [0, ..., config.vocab_size]
+            labels[loss_mask == 0] = -100
+            out = self.model(inputs_embeds=embeddings, attention_mask=attention_mask, labels=labels)
+
         return out
-
-    def loss(self, logits, tokens, masks):
-        loss_fn = nn.CrossEntropyLoss(reduction="none")
-        truncated_logits = logits[..., :-1, :].contiguous()
-        shifted_tokens = tokens[..., 1:].contiguous()
-        truncated_masks = masks[..., 1:].contiguous()
-
-        loss = loss_fn(
-            truncated_logits.view(-1, truncated_logits.size(-1)),
-            shifted_tokens.view(-1),
-        )
-        loss = loss * truncated_masks.view(-1).float()
-        loss = loss.sum() / masks.float().sum()
-
-        return loss
