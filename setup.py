@@ -80,7 +80,7 @@ TESTS_REQUIRE = [
     "pytest-xdist",
 ]
 
-QUALITY_REQUIRE = ["black[jupyter]~=22.0", "flake8>=3.8.3", "isort>=5.0.0", "pyyaml>=5.3.1"]
+QUALITY_REQUIRE = ["black[jupyter]~=22.0", "ruff", "pyyaml>=5.3.1"]
 
 EXTRAS_REQUIRE = {
     "dev": DEV_REQUIRE + TESTS_REQUIRE + QUALITY_REQUIRE,

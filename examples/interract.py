@@ -1,11 +1,12 @@
 import gym
+import numpy as np
 import torch
 
 from gia.config import Arguments
-from gia.datasets.batch_generator import load_prompt_dataset
+from gia.datasets import load_prompt_dataset
 from gia.model.gia_model import GiaModel
 from gia.processor import MultimodalProcessor
-import numpy as np
+
 
 def run():
     num_envs = 1
@@ -20,7 +21,9 @@ def run():
     num_act_tokens = env.action_space.shape[1]
 
     buffer = {
-        "continuous_observations": torch.zeros((num_envs, int_per_seq, num_obs_tokens), dtype=torch.long, device=device),
+        "continuous_observations": torch.zeros(
+            (num_envs, int_per_seq, num_obs_tokens), dtype=torch.long, device=device
+        ),
         "continuous_observations_attention_mask": torch.zeros(
             (num_envs, int_per_seq, num_obs_tokens), dtype=torch.long, device=device
         ),
@@ -35,8 +38,9 @@ def run():
 
     # Fill (right side) the buffer with the prompts. Truncate if necessary.
     for key in buffer.keys():
-        l = min(buffer[key].shape[1], prompt_dataset[key][sampled_prompts_idxs].shape[1])
-        buffer[key][:, -l:] = torch.from_numpy(prompt_dataset[key][sampled_prompts_idxs, -l:]).to(device)
+        sampled_prompts = prompt_dataset[key][sampled_prompts_idxs]
+        prompt_length = min(buffer[key].shape[1], sampled_prompts.shape[1])  # truncate if prompt is too long
+        buffer[key][:, -prompt_length:] = torch.from_numpy(sampled_prompts[:, -prompt_length:]).to(device)
 
     processor = MultimodalProcessor(args)
 
@@ -52,7 +56,7 @@ def run():
         buffer["continuous_actions_attention_mask"][:, -1] = 0
 
         # Compute the output of the model
-        output = model(buffer, eval=True)
+        output = model(buffer, eval=True)  # noqa: F841
         # TODO: use the output to sample an action
         # action = ...
         action = env.action_space.sample()
@@ -69,5 +73,6 @@ def run():
 
     env.close()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     run()

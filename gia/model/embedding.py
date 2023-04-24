@@ -64,8 +64,8 @@ class ImagePositionEncoding(nn.Module):
         # on whether we are training or evaluating the model: during training a random index is uniformly
         # sampled from the quantized interval, while during evaluation we deterministically take the
         # (rounded) mean of the interval
-        sampled_row_idx = torch.zeros(patch_pos.shape[0], dtype=torch.long)
-        sampled_col_idx = torch.zeros(patch_pos.shape[0], dtype=torch.long)
+        sampled_row_idx = torch.zeros(patch_pos.shape[0], dtype=torch.long, device=patch_pos.device)
+        sampled_col_idx = torch.zeros(patch_pos.shape[0], dtype=torch.long, device=patch_pos.device)
         if eval:
             sampled_row_idx = (quant_row_intervals[..., 0] + quant_row_intervals[..., 1]) // 2
             sampled_col_idx = (quant_col_intervals[..., 0] + quant_col_intervals[..., 1]) // 2
@@ -298,6 +298,8 @@ class Embeddings(nn.Module):
         # Encoder for tokens
         # The total number of tokens is the number of tokens for text + the max number of bins
         # for the continuous and discrete values + 1 for the separator token
+        if args.embed_dim == -1:
+            raise ValueError("When used without the model, the embedding dimension must be specified.")
         self.use_separator = args.use_separator
         if args.use_separator:
             self.embeddings = nn.Embedding(args.text_vocab_size + args.nb_bins + 1, args.embed_dim)

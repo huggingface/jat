@@ -670,7 +670,6 @@ class Bot:
         # Mark everything in front of us as visible
         for vis_j in range(0, view_size):
             for vis_i in range(0, view_size):
-
                 if not vis_mask[vis_i, vis_j]:
                     continue
 
@@ -758,9 +757,9 @@ class Bot:
 
             # Location to which the bot can get without turning
             # are put in the queue first
-            for k, l in [(di, dj), (dj, di), (-dj, -di), (-di, -dj)]:
-                next_pos = (i + k, j + l)
-                next_dir_vec = (k, l)
+            for k, m in [(di, dj), (dj, di), (-dj, -di), (-di, -dj)]:
+                next_pos = (i + k, j + m)
+                next_dir_vec = (k, m)
                 next_state = (*next_pos, *next_dir_vec)
                 queue.append((next_state, (i, j)))
 
@@ -835,8 +834,8 @@ class Bot:
             # We want to ensure that empty cells are connected, and that one can reach
             # any object cell from any other object cell.
             cell_class = []
-            for k, l in [(-1, -1), (0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0)]:
-                nb_pos = (i + k, j + l)
+            for k, m in [(-1, -1), (0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0)]:
+                nb_pos = (i + k, j + m)
                 cell = grid.get(*nb_pos)
                 # compeletely blocked
                 if self.vis_mask[nb_pos] and cell and cell.type == "wall":

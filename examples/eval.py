@@ -10,7 +10,6 @@ from gia.eval.evaluator import Evaluator
 from gia.eval.mujoco_evaluator import MujocoEvaluator
 from gia.model.gia_model import GiaModel
 
-
 EVAL_MAPPING = {
     "mujoco": MujocoEvaluator,
 }
@@ -60,10 +59,9 @@ def eval_checkpoint(checkpoint_path: str, evaluators: List[Evaluator], model: to
 
 
 def list_files_in_dir(path):
-    files = os.listdir(path)
+    # files = os.listdir(path)
     print()
 
 
 if __name__ == "__main__":
-
     eval()
