@@ -11,10 +11,11 @@ import datasets
 import transformers
 from accelerate import Accelerator, DistributedType
 from torch.optim import AdamW
+from torch.utils.data import DataLoader
 from transformers import get_scheduler, set_seed
 
 from gia.config import Arguments, parse_args
-from gia.datasets import get_dataloader
+from gia.datasets import collate_fn, load_mixed_dataset
 from gia.model import GiaModel
 
 
@@ -44,11 +45,6 @@ def setup_logging(args: Arguments, accelerator):
     return logger, run_name
 
 
-def create_dataloader(args: Arguments):
-    train_dataloader = get_dataloader(args)
-    return train_dataloader
-
-
 def get_grouped_params(
     model: GiaModel,
     args: Arguments,
@@ -75,7 +71,7 @@ def log_metrics(step, metrics, logger, accelerator):
 def main():
     args = parse_args()
 
-    args.use_cache = True  # for debugging
+    args.load_from_cache = False  # for debugging
     Arguments.save(args)
 
     # Accelerator
@@ -108,7 +104,8 @@ def main():
         model.gradient_checkpointing_enable()
 
     # Load dataset and dataloader
-    train_dataloader = create_dataloader(args)
+    dataset = load_mixed_dataset(args)
+    train_dataloader = DataLoader(dataset, shuffle=True, collate_fn=collate_fn)
 
     # Prepare the optimizer and learning rate scheduler
     optimizer = AdamW(get_grouped_params(model, args), lr=args.learning_rate)
@@ -125,7 +122,7 @@ def main():
         return optimizer.param_groups[0]["lr"]
 
     # Prepare everything with our `accelerator`.
-    model, optimizer, train_dataloader = accelerator.prepare(model, optimizer, train_dataloader)
+    model, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(model, optimizer, train_dataloader, lr_scheduler)
 
     # load in the weights and states from a previous save
     if args.resume_from_checkpoint:
@@ -144,7 +141,6 @@ def main():
 
     # Train model
     model.train()
-    device = accelerator.device
     completed_steps = 0
     t_start = time.time()
     loss_tracking = 0
@@ -154,9 +150,6 @@ def main():
         for step, batch in enumerate(train_dataloader, start=step + 1):
             if args.resume_from_checkpoint and step < resume_step:
                 continue  # we need to skip steps until we reach the resumed step
-
-            for k, v in batch.items():
-                batch[k] = v.to(device)
 
             loss = model(batch).loss
             avg_loss = accelerator.gather(loss.repeat(args.batch_size)).mean()
