@@ -2,7 +2,7 @@ import os
 from typing import Dict, Optional
 
 import gym
-import metaworld
+import metaworld  # noqa: F401
 import numpy as np
 import torch
 from huggingface_hub import HfApi, repocard, upload_folder
@@ -91,7 +91,8 @@ def generate_dataset_card(dir_path: str, env: str, experiment_name: str):
     hf_repo_name = f"prj_gia_dataset_metaworld_{env}_1111".replace("-", "_")
     readme = f"""
 An imitation learning environment for the {env} environment, sample for the policy {experiment_name} \n
-This environment was created as part of the Generally Intelligent Agents project gia: https://github.com/huggingface/gia \n
+This environment was created as part of the Generally Intelligent Agents
+project gia: https://github.com/huggingface/gia \n
 \n
 
 ## Load dataset

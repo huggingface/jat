@@ -2,7 +2,7 @@ import sys
 from typing import Dict, Optional
 
 import gym
-import metaworld
+import metaworld  # noqa: F401
 from sample_factory.cfg.arguments import parse_full_cfg, parse_sf_args
 from sample_factory.enjoy import enjoy
 from sample_factory.envs.env_utils import register_env
