@@ -22,8 +22,9 @@ OBS_SIZE = 4
 SEQ_LEN = 32
 
 
-def test_load_task_dataset():
-    dataset = load_task_dataset("mujoco-ant")
+@pytest.mark.parametrize("split", ["all", "train", "test"])
+def test_load_task_dataset(split):
+    dataset = load_task_dataset("mujoco-ant", split=split, load_from_cache=False)
     assert set(dataset.keys()) == set(
         [
             "rewards",
