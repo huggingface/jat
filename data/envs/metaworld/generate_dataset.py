@@ -5,7 +5,6 @@ import gym
 import metaworld  # noqa: F401
 import numpy as np
 import torch
-from huggingface_hub import HfApi, repocard, upload_folder
 from sample_factory.algo.learning.learner import Learner
 from sample_factory.algo.sampling.batched_sampling import preprocess_actions
 from sample_factory.algo.utils.action_distributions import argmax_actions
@@ -86,59 +85,8 @@ def make_custom_env(
     return gym.make(full_env_name, render_mode=render_mode)
 
 
-def generate_dataset_card(dir_path: str, env: str, experiment_name: str):
-    readme_path = os.path.join(dir_path, "README.md")
-    hf_repo_name = f"prj_gia_dataset_metaworld_{env}_1111".replace("-", "_")
-    readme = f"""
-An imitation learning environment for the {env} environment, sample for the policy {experiment_name} \n
-This environment was created as part of the Generally Intelligent Agents
-project gia: https://github.com/huggingface/gia \n
-\n
-
-## Load dataset
-
-First, clone it with
-
-```sh
-git clone https://huggingface.co/datasets/qgallouedec/{hf_repo_name}
-```
-
-Then, load it with
-
-```python
-import numpy as np
-dataset = np.load("{hf_repo_name}/dataset.npy", allow_pickle=True).item()
-print(dataset.keys())  # dict_keys(['observations', 'actions', 'dones', 'rewards'])
-```
-
-    """
-
-    with open(readme_path, "w", encoding="utf-8") as f:
-        f.write(readme)
-
-    metadata = {}
-    metadata["library_name"] = "gia"
-    metadata["tags"] = [
-        "deep-reinforcement-learning",
-        "reinforcement-learning",
-        "gia",
-        "multi-task",
-        "multi-modal",
-        "imitation-learning",
-        "offline-reinforcement-learning",
-    ]
-    repocard.metadata_save(readme_path, metadata)
-
-
-def push_to_hf(dir_path: str, repo_name: str) -> None:
-    HfApi().create_repo(repo_id=repo_name, private=False, exist_ok=True, repo_type="dataset")
-    upload_folder(
-        repo_id=repo_name, folder_path=dir_path, path_in_repo=".", ignore_patterns=[".git/*"], repo_type="dataset"
-    )
-
-
 # most of this function is redundant as it is copied from sample.enjoy.enjoy
-def create_dataset(cfg: Config):
+def create_dataset(cfg: Config, dataset_size: int = 100_000, split: str = "train") -> None:
     cfg = load_from_checkpoint(cfg)
     eval_env_frameskip: int = cfg.env_frameskip if cfg.eval_env_frameskip is None else cfg.eval_env_frameskip
     assert (
@@ -168,20 +116,18 @@ def create_dataset(cfg: Config):
     rnn_states = torch.zeros([env.num_agents, get_rnn_size(cfg)], dtype=torch.float32, device=device)
 
     # Create dataset
-    dataset_size = 100_000
     dataset = {
-        "observations": np.zeros(
-            (dataset_size, *env.observation_space["obs"].shape), dtype=env.observation_space["obs"].dtype
-        ),
-        "actions": np.zeros((dataset_size, *env.action_space.shape), env.action_space.dtype),
-        "dones": np.zeros((dataset_size,), bool),
-        "rewards": np.zeros((dataset_size,), np.float32),
+        "observations": [],
+        "actions": [],
+        "dones": [],
+        "rewards": [],
     }
 
     # Run the environment
+    dones = [False]
     with torch.no_grad():
         num_timesteps = 0
-        while num_timesteps < dataset_size:
+        while num_timesteps < dataset_size or not dones[0]:
             normalized_obs = prepare_and_normalize_obs(actor_critic, observations)
             policy_outputs = actor_critic(normalized_obs, rnn_states)
 
@@ -193,14 +139,14 @@ def create_dataset(cfg: Config):
             actions = preprocess_actions(env_info, actions)
 
             rnn_states = policy_outputs["new_rnn_states"]
-            dataset["observations"][num_timesteps] = observations["obs"].cpu().numpy()
-            dataset["actions"][num_timesteps] = actions
+            dataset["observations"].append(observations["obs"].cpu().numpy()[0])
+            dataset["actions"].append(actions[0])
 
             observations, rewards, terminated, truncated, _ = env.step(actions)
             dones = make_dones(terminated, truncated)
 
-            dataset["dones"][num_timesteps] = dones
-            dataset["rewards"][num_timesteps] = rewards
+            dataset["dones"].append(dones.cpu().numpy())
+            dataset["rewards"].append(rewards.cpu().numpy())
 
             num_timesteps += 1
 
@@ -210,17 +156,18 @@ def create_dataset(cfg: Config):
                     rnn_states[agent_idx] = torch.zeros([get_rnn_size(cfg)], dtype=torch.float32, device=device)
 
     env.close()
+    dataset = {
+        "observations": np.array(dataset["observations"], dtype=env.observation_space["obs"].dtype),
+        "actions": np.array(dataset["actions"], dtype=env.action_space.dtype),
+        "dones": np.array(dataset["dones"], dtype=bool),
+        "rewards": np.array(dataset["rewards"], dtype=np.float32),
+    }
 
     # Save dataset
-    repo_path = f"{cfg.train_dir}/datasets/{cfg.experiment}"
+    repo_path = f"datasets/{cfg.experiment[:-3]}"
     os.makedirs(repo_path, exist_ok=True)
-    with open(f"{repo_path}/dataset.npy", "wb") as f:
+    with open(f"{repo_path}/{split}.npy", "wb") as f:
         np.save(f, dataset)
-
-    # Create dataset card and push to HF
-    generate_dataset_card(repo_path, cfg.env, cfg.experiment)
-    hf_repo_name = f"qgallouedec/prj_gia_dataset_metaworld_{cfg.env}_1111".replace("-", "_")
-    push_to_hf(repo_path, hf_repo_name)
 
 
 def main() -> int:
@@ -228,7 +175,8 @@ def main() -> int:
         register_env(env_name, make_custom_env)
     parser, _ = parse_sf_args(argv=None, evaluation=True)
     cfg = parse_full_cfg(parser)
-    status = create_dataset(cfg)
+    status = create_dataset(cfg, dataset_size=90_000, split="train")
+    status = create_dataset(cfg, dataset_size=10_000, split="test")
     return status
 
 
