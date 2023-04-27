@@ -11,10 +11,11 @@ import datasets
 import transformers
 from accelerate import Accelerator, DistributedType
 from torch.optim import AdamW
+from torch.utils.data import DataLoader
 from transformers import get_scheduler, set_seed
 
 from gia.config import Arguments, parse_args
-from gia.datasets import get_dataloader
+from gia.datasets import collate_fn, load_mixed_dataset
 from gia.model import GiaModel
 
 
@@ -44,16 +45,6 @@ def setup_logging(args: Arguments, accelerator):
     return logger, run_name
 
 
-def create_dataloader(args: Arguments):
-    train_dataloader = get_dataloader(
-        task_names="mujoco",
-        batch_size=args.train_batch_size,
-        shuffle=True,
-        drop_last=True,
-    )
-    return train_dataloader
-
-
 def get_grouped_params(
     model: GiaModel,
     args: Arguments,
@@ -80,7 +71,7 @@ def log_metrics(step, metrics, logger, accelerator):
 def main():
     args = parse_args()
 
-    args.use_cache = True  # for debugging
+    args.load_from_cache = False  # for debugging
     Arguments.save(args)
 
     # Accelerator
@@ -90,7 +81,7 @@ def main():
     acc_state = {str(k): str(v) for k, v in accelerator.state.__dict__.items()}
 
     args = Namespace(**vars(args), **acc_state)
-    samples_per_step = accelerator.state.num_processes * args.train_batch_size
+    samples_per_step = accelerator.state.num_processes * args.batch_size
     set_seed(args.seed)
 
     # # Clone model repository
@@ -113,7 +104,8 @@ def main():
         model.gradient_checkpointing_enable()
 
     # Load dataset and dataloader
-    train_dataloader = create_dataloader(args)
+    dataset = load_mixed_dataset(args)
+    train_dataloader = DataLoader(dataset, shuffle=True, collate_fn=collate_fn)
 
     # Prepare the optimizer and learning rate scheduler
     optimizer = AdamW(get_grouped_params(model, args), lr=args.learning_rate)
@@ -130,7 +122,9 @@ def main():
         return optimizer.param_groups[0]["lr"]
 
     # Prepare everything with our `accelerator`.
-    model, optimizer, train_dataloader = accelerator.prepare(model, optimizer, train_dataloader)
+    model, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(
+        model, optimizer, train_dataloader, lr_scheduler
+    )
 
     # load in the weights and states from a previous save
     if args.resume_from_checkpoint:
@@ -149,67 +143,66 @@ def main():
 
     # Train model
     model.train()
-    device = accelerator.device
     completed_steps = 0
     t_start = time.time()
     loss_tracking = 0
-    for step, batch in enumerate(train_dataloader, start=1):
-        if args.resume_from_checkpoint and step < resume_step:
-            continue  # we need to skip steps until we reach the resumed step
+    step = 0
 
-        for k, v in batch.items():
-            batch[k] = v.to(device)
+    while completed_steps < args.max_train_steps:
+        for step, batch in enumerate(train_dataloader, start=step + 1):
+            if args.resume_from_checkpoint and step < resume_step:
+                continue  # we need to skip steps until we reach the resumed step
 
-        loss = model(batch).loss
-        avg_loss = accelerator.gather(loss.repeat(args.train_batch_size)).mean()
-        loss_tracking += avg_loss.item() / args.gradient_accumulation_steps
-        log_metrics(
-            step,
-            {"samples": step * samples_per_step, "loss_per_step/train": loss.item()},
-            logger,
-            accelerator,
-        )
-        loss = loss / args.gradient_accumulation_steps
-        if step % args.gradient_accumulation_steps != 0:
-            # Prevent backward from doing gradient all_reduce in every step
-            if accelerator.distributed_type == DistributedType.MULTI_GPU:
-                with model.no_sync():
-                    accelerator.backward(loss)
-            else:
-                accelerator.backward(loss)
-        else:
-            lr = get_lr()
-            accelerator.backward(loss)
-            accelerator.clip_grad_norm_(model.parameters(), 1.0)  # should be a hyperparameter
-            optimizer.step()
-            lr_scheduler.step()
-            optimizer.zero_grad()
-            elapsed_time = time.time() - t_start
-            # tflops = compute_tflops(elapsed_time, accelerator, args)
+            loss = model(batch).loss
+            avg_loss = accelerator.gather(loss.repeat(args.batch_size)).mean()
+            loss_tracking += avg_loss.item() / args.gradient_accumulation_steps
             log_metrics(
                 step,
-                {
-                    "steps": completed_steps,
-                    "loss/train": loss_tracking,
-                    "lr": lr,
-                    # "tflops": tflops,
-                    "time_per_iteration": elapsed_time,
-                },
+                {"samples": step * samples_per_step, "loss_per_step/train": loss.item()},
                 logger,
                 accelerator,
             )
-            t_start = time.time()
-            loss_tracking = 0
-            completed_steps += 1
-        if step % args.save_checkpoint_steps == 0:
-            accelerator.wait_for_everyone()
-            save_dir = os.path.join(args.save_dir, "checkpoints", f"step_{step}")
-            accelerator.save_state(save_dir)
-            # if accelerator.is_main_process and args.push_to_hub:
-            #     hf_repo.push_to_hub(commit_message=f"step {step}")
-            model.train()
-        if completed_steps >= args.max_train_steps:
-            break
+            loss = loss / args.gradient_accumulation_steps
+            if step % args.gradient_accumulation_steps != 0:
+                # Prevent backward from doing gradient all_reduce in every step
+                if accelerator.distributed_type == DistributedType.MULTI_GPU:
+                    with model.no_sync():
+                        accelerator.backward(loss)
+                else:
+                    accelerator.backward(loss)
+            else:
+                lr = get_lr()
+                accelerator.backward(loss)
+                accelerator.clip_grad_norm_(model.parameters(), 1.0)  # should be a hyperparameter
+                optimizer.step()
+                lr_scheduler.step()
+                optimizer.zero_grad()
+                elapsed_time = time.time() - t_start
+                # tflops = compute_tflops(elapsed_time, accelerator, args)
+                log_metrics(
+                    step,
+                    {
+                        "steps": completed_steps,
+                        "loss/train": loss_tracking,
+                        "lr": lr,
+                        # "tflops": tflops,
+                        "time_per_iteration": elapsed_time,
+                    },
+                    logger,
+                    accelerator,
+                )
+                t_start = time.time()
+                loss_tracking = 0
+                completed_steps += 1
+            if step % args.save_checkpoint_steps == 0:
+                accelerator.wait_for_everyone()
+                save_dir = os.path.join(args.save_dir, "checkpoints", f"step_{step}")
+                accelerator.save_state(save_dir)
+                # if accelerator.is_main_process and args.push_to_hub:
+                #     hf_repo.push_to_hub(commit_message=f"step {step}")
+                model.train()
+            if completed_steps >= args.max_train_steps:
+                break
 
     accelerator.wait_for_everyone()
     # unwrapped_model = accelerator.unwrap_model(model)
