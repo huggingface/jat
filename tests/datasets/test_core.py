@@ -162,7 +162,7 @@ def test_load_batched_dataset():
 
 
 def test_load_mixed_dataset():
-    args = DatasetArguments(task_names=["metaworld-assembly-v2", "mujoco-ant"])
+    args = DatasetArguments(task_names=["metaworld-assembly", "mujoco-ant"])
     dataset = load_mixed_dataset(args)
     # It would be nice to test with two datasets with different keys, but currently
     # Atari and BabyAI are too big to run in the CI.
@@ -195,7 +195,7 @@ def test_load_mixed_dataset():
 @pytest.mark.parametrize("use_accelerate", [False, True])
 def test_dataloading_with_collate(use_accelerate):
     # Just need to check that the collate function does not crash, and the output
-    args = DatasetArguments(task_names=["mujoco-ant", "metaworld-assembly-v2"])
+    args = DatasetArguments(task_names=["mujoco-ant", "metaworld-assembly"])
     dataset = load_mixed_dataset(args)
     dataloader = DataLoader(dataset, batch_size=3, collate_fn=collate_fn)
     if use_accelerate:
