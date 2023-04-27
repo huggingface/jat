@@ -20,13 +20,16 @@ from .utils import (
 )
 
 
-def load_task_dataset(task_name: str, load_from_cache: bool = True) -> DatasetDict:
+def load_task_dataset(task_name: str, split: str = "all", load_from_cache: bool = True) -> DatasetDict:
     """
     Load the dataset for a single task.
 
     Args:
         task_name (str): Name of the task to load. See the available tasks
             in https://huggingface.co/datasets/gia-project/gia-dataset
+        split (str): Split of the dataset to load. One of "all", "train" or "test".
+        load_from_cache (bool, optional): Whether to load the dataset from the
+            local cache or to download it again. Defaults to True.
 
     Returns:
         DatasetDict: A dictionary containing the dataset. The keys are
@@ -34,14 +37,14 @@ def load_task_dataset(task_name: str, load_from_cache: bool = True) -> DatasetDi
             and the values are the data.
 
     Example:
-        >>> dataset = load_task_dataset("mujoco-ant")
+        >>> dataset = load_task_dataset("mujoco-ant", "train")
         >>> dataset.keys()
         dict_keys(['rewards', 'dones', 'continuous_observations', 'continuous_actions'])
         >>> dataset["continuous_observations"].shape
         (100000, 27)
     """
     download_mode = "force_redownload" if not load_from_cache else None
-    dataset = load_dataset("gia-project/gia-dataset", task_name, split="train", download_mode=download_mode)
+    dataset = load_dataset("gia-project/gia-dataset", task_name, split=split, download_mode=download_mode)
     # Convert the dataset to numpy arrays
     dataset = dataset.with_format("numpy")[:]
 
@@ -193,7 +196,7 @@ def generate_batch(dataset: Dict[str, np.ndarray], args: DatasetArguments) -> Di
 
 
 @cache_decorator
-def load_batched_dataset(task_name: str, args: DatasetArguments) -> DatasetDict:
+def load_batched_dataset(task_name: str, args: DatasetArguments, split: str = "all") -> DatasetDict:
     """
     Load the dataset for a single task and generate batches.
 
@@ -201,6 +204,7 @@ def load_batched_dataset(task_name: str, args: DatasetArguments) -> DatasetDict:
         task_name (str): Name of the task to load. See the available tasks
             in https://huggingface.co/datasets/gia-project/gia-dataset
         args (DatasetArguments): The dataset arguments.
+        split (str): Split of the dataset to load. One of "all", "train" or "test".
 
     Returns:
         DatasetDict: The dataset.
@@ -219,13 +223,13 @@ def load_batched_dataset(task_name: str, args: DatasetArguments) -> DatasetDict:
         >>> dataset["continuous_observations"].shape
         (4074, 28, 27)
     """
-    dataset = load_task_dataset(task_name, args.load_from_cache)
+    dataset = load_task_dataset(task_name, split=split, load_from_cache=args.load_from_cache)
     dataset = generate_batch(dataset, args)
     return DatasetDict(dataset)
 
 
 @cache_decorator
-def load_prompt_dataset(task_name: str, args: DatasetArguments) -> DatasetDict:
+def load_prompt_dataset(task_name: str, args: DatasetArguments, split: str = "all") -> DatasetDict:
     """
     Generate a dataset of prompts for a single task.
 
@@ -233,6 +237,7 @@ def load_prompt_dataset(task_name: str, args: DatasetArguments) -> DatasetDict:
         task_name (str): Name of the task to load. See the available tasks
             in https://huggingface.co/datasets/gia-project/gia-dataset
         args (DatasetArguments): The dataset arguments.
+        split (str): Split of the dataset to load. One of "all", "train" or "test".
 
     Returns:
         DatasetDict: The dataset.
@@ -247,7 +252,7 @@ def load_prompt_dataset(task_name: str, args: DatasetArguments) -> DatasetDict:
         (104, 1000, 27)
     """
     # Load the dataset
-    dataset = load_task_dataset(task_name, args.load_from_cache)
+    dataset = load_task_dataset(task_name, split=split, load_from_cache=args.load_from_cache)
 
     processor = GiaProcessor(args)
     # Preprocess the dataset (tokenize and extract patches)
@@ -263,12 +268,13 @@ def load_prompt_dataset(task_name: str, args: DatasetArguments) -> DatasetDict:
     return DatasetDict(dataset)
 
 
-def load_mixed_dataset(args: DatasetArguments) -> Dataset:
+def load_mixed_dataset(args: DatasetArguments, split: str = "all") -> Dataset:
     """
     Load a dataset with multiple tasks.
 
     Args:
         args (DatasetArguments): The dataset arguments.
+        split (str): Split of the dataset to load. One of "all", "train" or "test".
 
     Returns:
         Dataset: The dataset.
@@ -309,7 +315,7 @@ def load_mixed_dataset(args: DatasetArguments) -> Dataset:
         elif task_name not in all_tasks:
             raise ValueError(f"Task {task_name} not found in the dataset.")
 
-    datasets = [load_batched_dataset(task_name, args) for task_name in task_names]
+    datasets = [load_batched_dataset(task_name, args, split=split) for task_name in task_names]
     return ConcatDataset(datasets)
 
 

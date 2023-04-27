@@ -104,8 +104,8 @@ def main():
         model.gradient_checkpointing_enable()
 
     # Load dataset and dataloader
-    dataset = load_mixed_dataset(args)
-    train_dataloader = DataLoader(dataset, shuffle=True, collate_fn=collate_fn)
+    train_dataset = load_mixed_dataset(args, "train")
+    train_dataloader = DataLoader(train_dataset, shuffle=True, collate_fn=collate_fn)
 
     # Prepare the optimizer and learning rate scheduler
     optimizer = AdamW(get_grouped_params(model, args), lr=args.learning_rate)
