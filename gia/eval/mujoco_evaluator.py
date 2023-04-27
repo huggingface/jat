@@ -6,7 +6,7 @@ from tqdm import tqdm
 from gia.config.arguments import Arguments
 from gia.datasets.batch_generator import load_prompt_dataset
 from gia.model.gia_model import GiaModel
-from gia.processor import MultimodalProcessor
+from gia.processing import GiaProcessor
 
 from .evaluator import Evaluator
 from .mappings import DATASET_FILE_MAPPING, TASK_TO_ENV_MAPPING
@@ -69,7 +69,7 @@ class MujocoEvaluator(Evaluator):
             length = min(buffer[key].shape[1], prompt_dataset[key][sampled_prompts_idxs].shape[1])
             buffer[key][:, -length:] = torch.from_numpy(prompt_dataset[key][sampled_prompts_idxs, -length:]).to(device)
 
-        processor = MultimodalProcessor()
+        processor = GiaProcessor()
 
         accum_rewards = np.zeros(num_envs)
         returns = []
