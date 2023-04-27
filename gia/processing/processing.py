@@ -8,9 +8,9 @@ from gia.config import DatasetArguments
 from gia.utils.utils import discretize, inverse_mu_law, mu_law
 
 
-class MultimodalProcessor:
+class GiaProcessor:
     """
-    Multi-modal tokenizer.
+    Processor for the Gia model.
 
     Args:
         args (:obj:`DatasetArguments`): Dataset arguments.
@@ -18,9 +18,9 @@ class MultimodalProcessor:
     Example:
         >>> import numpy as np
         >>> from gia.config import DatasetArguments
-        >>> from gia.processor import MultimodalProcessor
+        >>> from gia.processing import GiaProcessor
         >>> args = DatasetArguments()
-        >>> processor = MultimodalProcessor(args)
+        >>> processor = GiaProcessor(args)
         >>> inputs = {
         ...     "text_observations": np.array(["Go right", "Go left"]),
         ...     "image_observations": np.random.randint(0, 256, (2, 3, 32, 32), dtype=np.uint8),

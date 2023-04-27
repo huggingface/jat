@@ -7,7 +7,7 @@ from datasets import get_dataset_config_names, load_dataset
 from torch.utils.data import ConcatDataset, Dataset
 
 from gia.config import DatasetArguments
-from gia.processor.multimodal_processor import MultimodalProcessor
+from gia.processing import GiaProcessor
 from gia.utils.utils import cache_decorator
 
 from .utils import (
@@ -102,7 +102,7 @@ def generate_batch(dataset: Dict[str, np.ndarray], args: DatasetArguments) -> Di
     Returns:
         Dict[str, np.ndarray]: A dictionary containing the preprocessed dataset with keys for observations and actions.
     """
-    processor = MultimodalProcessor(args)
+    processor = GiaProcessor(args)
     # Preprocess the dataset (tokenize and extract patches)
     observation_keys = [key for key in dataset.keys() if key.endswith("observations")]
     action_keys = [key for key in dataset.keys() if key.endswith("actions")]  # should be only one
@@ -249,7 +249,7 @@ def load_prompt_dataset(task_name: str, args: DatasetArguments) -> DatasetDict:
     # Load the dataset
     dataset = load_task_dataset(task_name, args.load_from_cache)
 
-    processor = MultimodalProcessor(args)
+    processor = GiaProcessor(args)
     # Preprocess the dataset (tokenize and extract patches)
     observation_keys = [key for key in dataset.keys() if key.endswith("observations")]
     action_keys = [key for key in dataset.keys() if key.endswith("actions")]  # should be only one
