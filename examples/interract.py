@@ -5,7 +5,7 @@ import torch
 from gia.config import Arguments
 from gia.datasets import load_prompt_dataset
 from gia.model.gia_model import GiaModel
-from gia.processor import MultimodalProcessor
+from gia.processing import GiaProcessor
 
 
 def run():
@@ -42,7 +42,7 @@ def run():
         prompt_length = min(buffer[key].shape[1], sampled_prompts.shape[1])  # truncate if prompt is too long
         buffer[key][:, -prompt_length:] = torch.from_numpy(sampled_prompts[:, -prompt_length:]).to(device)
 
-    processor = MultimodalProcessor(args)
+    processor = GiaProcessor(args)
 
     obs, info = env.reset()
     for i in range(100):
