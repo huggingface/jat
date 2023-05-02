@@ -23,7 +23,7 @@ def cleanup_argv():
 
 
 def test_save(tmp_path):
-    args = Arguments(save_dir=str(tmp_path))
+    args = Arguments(output_dir=str(tmp_path))
     args.save()
     out_path = Path(tmp_path) / "args.json"
     assert out_path.exists()
