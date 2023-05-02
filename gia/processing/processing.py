@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
@@ -48,19 +48,19 @@ class GiaProcessor:
         self.M = args.M
         self.nb_bins = args.nb_bins
         self.patch_size = args.patch_size
-        self.token_shift = args.token_shift
         self.seq_len = args.seq_len
 
         self.mu_law_compand = True
         self.text_tokenizer = AutoTokenizer.from_pretrained("albert-base-v2")
+        self.token_shift = self.text_tokenizer.vocab_size
+        self.vocab_size = self.token_shift + self.nb_bins
 
-    def tokenize_text(self, x: np.ndarray) -> np.ndarray:
-        output = self.text_tokenizer(x.tolist(), padding="longest", truncation=True, max_length=self.seq_len)
+    def tokenize_text(self, x: List[str]) -> np.ndarray:
+        output = self.text_tokenizer(x)
         tokens = np.array(output["input_ids"])
-        attention_mask = np.array(output["attention_mask"], dtype=bool)
-        return tokens, attention_mask
+        return tokens
 
-    def extract_patches(self, images: np.ndarray) -> np.ndarray:
+    def extract_patches(self, images: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """
         Extract patches from images.
 
@@ -100,8 +100,7 @@ class GiaProcessor:
             dtype=np.float32,
         )
         positions = np.tile(positions, (B, 1, 1, 1))
-        attention_mask = np.ones(patches.shape[:2], dtype=bool)
-        return patches, attention_mask, positions
+        return patches, positions
 
     def tokenize_discrete(self, x: np.ndarray) -> np.ndarray:
         # Unsqueeze when the input is a vector
@@ -109,8 +108,7 @@ class GiaProcessor:
         if x.ndim == 1:
             x = np.expand_dims(x, axis=1)
         tokens = x + self.token_shift
-        attention_mask = np.ones_like(tokens, dtype=bool)
-        return tokens, attention_mask
+        return tokens
 
     def tokenize_continuous(self, x: np.ndarray) -> np.ndarray:
         # Normalize tensors to the range [-1, 1]
@@ -126,8 +124,7 @@ class GiaProcessor:
 
         # Unsqueeze if needed
         tokens = x + self.token_shift
-        attention_mask = np.ones_like(tokens, dtype=bool)
-        return tokens, attention_mask
+        return tokens
 
     def inverse_tokenize_continuous(self, tokens: np.ndarray) -> np.ndarray:
         """
@@ -155,23 +152,96 @@ class GiaProcessor:
 
         return x
 
-    def __call__(self, inputs: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
-        output = {}
-        for key in inputs.keys():
-            value = inputs[key]
-            if key.startswith("text"):
-                tokens, attention_mask = self.tokenize_text(value)
-            elif key.startswith("image"):
-                # actually, this is not a token, but patches
-                tokens, attention_mask, positions = self.extract_patches(value)
-                output["patches_positions"] = positions
-            elif key.startswith("discrete"):
-                tokens, attention_mask = self.tokenize_discrete(value)
-            elif key.startswith("continuous"):
-                tokens, attention_mask = self.tokenize_continuous(value)
-            else:
-                raise ValueError(f"Unknown input type for key '{key}'.")
+    def __call__(
+        self,
+        continuous_observations: Optional[List[Optional[np.ndarray]]] = None,
+        discrete_observations: Optional[List[Optional[np.ndarray]]] = None,
+        text_observations: Optional[List[Optional[List[str]]]] = None,
+        image_observations: Optional[List[Optional[np.ndarray]]] = None,
+        continuous_actions: Optional[List[Optional[np.ndarray]]] = None,
+        discrete_actions: Optional[List[Optional[np.ndarray]]] = None,
+        rewards: Optional[List[Optional[np.ndarray]]] = None,
+    ) -> Dict[str, np.ndarray]:
+        # Example:
+        # continuous_observations = [[a1, a2, ...], None],
+        # discrete_observations = [None, [c1, c2, ...]],
+        # continuous_actions = [[b1, b2, ...], [d1, d2, ...]],
+        # discrete_actions = [None, None],
+        # text_observations = [["hello", "world", ...], None],
 
-            output[key] = tokens
-            output[f"{key}_attention_mask"] = attention_mask
+        # Desired output (t = tokenized):
+        # output = {
+        #     "continuous_observations": [[ta1, ta2, ...], None],
+        #     "discrete_observations": [None, [tc1, tc2, ...]],
+        #     "continuous_actions": [[tb1, tb2, ...], [td1, td2, ...]],
+        #     "discrete_actions": [None, None],
+        #     "text_observations": [[[tt2, tt2], [tt3, tt4, tt5], ...], None],
+        # }
+        output = {}
+        if continuous_observations is not None:  # This modality appears at least once in the batch
+            output["continuous_observations"] = []
+            for observations in continuous_observations:
+                if observations is not None:
+                    # observations = [o1, o2, ...] is actually the episode
+                    tokens = self.tokenize_continuous(observations)
+                    output["continuous_observations"].append(tokens)
+                else:  # There is no such modality in this episode
+                    output["continuous_observations"].append(None)
+
+        if discrete_observations is not None:  # This modality appears at least once in the batch
+            output["discrete_observations"] = []
+            for observations in discrete_observations:
+                if observations is not None:
+                    # observations = [o1, o2, ...] is actually the episode
+                    tokens = self.tokenize_discrete(observations)
+                    output["discrete_observations"].append(tokens)
+                else:  # There is no such modality in this episode
+                    output["discrete_observations"].append(None)
+
+        if text_observations is not None:  # This modality appears at least once in the batch
+            output["text_observations"] = []
+            for observations in text_observations:
+                if observations is not None:
+                    # observations = ["hello", "world", ...] is actually the episode
+                    tokens = self.tokenize_text(observations)
+                    output["text_observations"].append(tokens)
+                else:  # There is no such modality in this episode
+                    output["text_observations"].append(None)
+
+        if image_observations is not None:  # This modality appears at least once in the batch
+            output["image_observations"] = []
+            output["image_observations_patches_positions"] = []
+            for observations in image_observations:
+                if observations is not None:
+                    # observations = ["hello", "world", ...] is actually the episode
+                    patches, positions = self.extract_patches(observations)
+                    output["image_observations"].append(patches)
+                    output["image_observations_patches_positions"] = positions
+                else:  # There is no such modality in this episode
+                    output["image_observations"].append(None)
+                    output["image_observations_patches_positions"].append(None)
+
+        if continuous_actions is not None:  # This modality appears at least once in the batch
+            output["continuous_actions"] = []
+            for actions in continuous_actions:
+                if actions is not None:
+                    # actions = [a1, a2, ...] is actually the episode
+                    tokens = self.tokenize_continuous(actions)
+                    output["continuous_actions"].append(tokens)
+                else:  # There is no such modality in this episode
+                    output["continuous_actions"].append(None)
+
+        if discrete_actions is not None:  # This modality appears at least once in the batch
+            output["discrete_actions"] = []
+            for actions in discrete_actions:
+                if actions is not None:
+                    # actions = [a1, a2, ...] is actually the episode
+                    tokens = self.tokenize_discrete(actions)
+                    output["discrete_actions"].append(tokens)
+                else:
+                    output["discrete_actions"].append(None)
+
+        if rewards is not None:  # The reward appears at least once in the batch
+            output["rewards"] = rewards  # Currently, we do not tokenize the rewards
+
         return output
