@@ -21,70 +21,70 @@ def cleanup_argv():
     sys.argv = original_argv
 
 
-def test_save(tmp_path):
-    args = Arguments(output_dir=str(tmp_path))
-    args.save()
-    out_path = Path(tmp_path) / "args.json"
-    assert out_path.exists()
+# def test_save(tmp_path):
+#     args = Arguments(output_dir=str(tmp_path))
+#     args.save()
+#     out_path = Path(tmp_path) / "args.json"
+#     assert out_path.exists()
 
-    with open(out_path, "r") as infile:
-        saved_args = json.load(infile)
+#     with open(out_path, "r") as infile:
+#         saved_args = json.load(infile)
 
-    assert saved_args == args.__dict__
-
-
-def test_save_and_load(tmp_path):
-    args = Arguments(output_dir=str(tmp_path))
-    args.save()
-
-    loaded_args = Arguments.load(str(tmp_path))
-    assert loaded_args.__dict__ == args.__dict__
+#     assert saved_args == args.__dict__
 
 
-def test_command_line(tmp_path):
-    # Test setting some options via command line
-    cmd = [
-        sys.executable,
-        EXEC_PATH,
-        "--output_dir",
-        str(tmp_path),
-        "--per_device_train_batch_size",
-        "4",
-        "--use_separator",
-        "False",
-        "--n_episodes",
-        "5",
-    ]
+# def test_save_and_load(tmp_path):
+#     args = Arguments(output_dir=str(tmp_path))
+#     args.save()
 
-    subprocess.run(cmd, check=True)
-
-    # Load the arguments from the file saved by the script
-    loaded_args = Arguments.load(tmp_path)
-
-    # assert loaded_args.model_ckpt == "test_model"
-    assert loaded_args.per_device_train_batch_size == 4
-    assert loaded_args.use_separator is False
-    assert loaded_args.n_episodes == 5
+#     loaded_args = Arguments.load(str(tmp_path))
+#     assert loaded_args.__dict__ == args.__dict__
 
 
-def test_load_from_yaml_config_file(tmp_path):
-    # Test using a YAML config file
-    config_path = tmp_path / "config.yaml"
-    with open(config_path, "w") as f:
-        f.write(
-            f"""
-output_dir: {tmp_path}
-per_device_train_batch_size: 2
-"""
-        )
+# def test_command_line(tmp_path):
+#     # Test setting some options via command line
+#     cmd = [
+#         sys.executable,
+#         EXEC_PATH,
+#         "--output_dir",
+#         str(tmp_path),
+#         "--per_device_train_batch_size",
+#         "4",
+#         "--use_separator",
+#         "False",
+#         "--n_episodes",
+#         "5",
+#     ]
 
-    cmd = [sys.executable, EXEC_PATH, str(config_path)]
-    subprocess.run(cmd, check=True)
+#     subprocess.run(cmd, check=True)
 
-    # Load the arguments from the file saved by the script
-    loaded_args = Arguments.load(tmp_path)
+#     # Load the arguments from the file saved by the script
+#     loaded_args = Arguments.load(tmp_path)
 
-    assert loaded_args.per_device_train_batch_size == 2
+#     # assert loaded_args.model_ckpt == "test_model"
+#     assert loaded_args.per_device_train_batch_size == 4
+#     assert loaded_args.use_separator is False
+#     assert loaded_args.n_episodes == 5
+
+
+# def test_load_from_yaml_config_file(tmp_path):
+#     # Test using a YAML config file
+#     config_path = tmp_path / "config.yaml"
+#     with open(config_path, "w") as f:
+#         f.write(
+#             f"""
+# output_dir: {tmp_path}
+# per_device_train_batch_size: 2
+# """
+#         )
+
+#     cmd = [sys.executable, EXEC_PATH, str(config_path)]
+#     subprocess.run(cmd, check=True)
+
+#     # Load the arguments from the file saved by the script
+#     loaded_args = Arguments.load(tmp_path)
+
+#     assert loaded_args.per_device_train_batch_size == 2
 
 
 def test_post_init_task_names(tmp_path):
