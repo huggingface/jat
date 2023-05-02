@@ -96,8 +96,15 @@ class EvalArguments:
     n_episodes: int = field(default=10, metadata={"help": "The number of eval episodes to perform"})
 
 
+class GiaTrainingArguments(TrainingArguments):
+    pass
+
+    def __post_init__(self):
+        if isinstance(self.task_names, str):
+            self.task_names = self.task_names.split(",")
+
 @dataclass
-class Arguments(DatasetArguments, ModelArguments, EvalArguments, TrainingArguments):
+class Arguments(DatasetArguments, ModelArguments, EvalArguments, GiaTrainingArguments):
     def save(self) -> None:
         os.makedirs(self.output_dir, exist_ok=True)
         out_path = Path(self.output_dir) / "args.json"
