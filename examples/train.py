@@ -7,7 +7,7 @@ from transformers import Trainer
 
 args = parse_args()
 args.task_names = "mujoco"
-args.remove_unused_columns = False
+
 dataset = load_mixed_dataset(args)
 
 model = GiaModel(args)
