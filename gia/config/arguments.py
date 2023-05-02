@@ -37,9 +37,6 @@ class DatasetArguments:
     patch_size: int = field(
         default=16, metadata={"help": "The size of the patches to extract from image observations."}
     )
-    token_shift: int = field(
-        default=32_000, metadata={"help": "The token shift for continuous and discrete observations."}
-    )
     mu: float = field(
         default=100, metadata={"help": "The μ parameter for the μ-law companding of continuous observations."}
     )
