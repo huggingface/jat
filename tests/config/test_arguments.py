@@ -1,6 +1,5 @@
 import json
 import os
-import re
 import subprocess
 import sys
 from pathlib import Path
@@ -86,22 +85,6 @@ per_device_train_batch_size: 2
     loaded_args = Arguments.load(tmp_path)
 
     assert loaded_args.per_device_train_batch_size == 2
-
-# TODO: remove or refactor these?
-# def test_generate_save_dir():
-#     base_dir = "./runs/"
-#     os.makedirs(base_dir, exist_ok=True)
-#     existing_run_dirs = [d.name for d in Path(base_dir).iterdir() if d.is_dir()]
-#     run_indices = [int(match.group(1)) for run_dir in existing_run_dirs if (match := re.match(r"run_(\d+)", run_dir))]
-#     highest_idx = max(run_indices, default=0)
-
-#     generated_save_dir = Arguments._generate_save_dir()
-#     assert generated_save_dir == f"{base_dir}run_{highest_idx + 1}"
-
-
-# def test_post_init_default_save_dir(tmp_path):
-#     args = Arguments()
-#     assert args.save_dir.startswith("./runs/run_")
 
 
 def test_post_init_task_names(tmp_path):

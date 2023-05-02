@@ -9,7 +9,12 @@ from gia.model import GiaModel
 
 @pytest.mark.parametrize("use_accelerate", [True, False])
 def test_gia_accelerate(use_accelerate):
-    args = Arguments(task_names=["mujoco-ant", "metaworld-assembly"], embed_dim=48, seq_len=256, output_dir="tests/test_gia_accelerate")
+    args = Arguments(
+        task_names=["mujoco-ant", "metaworld-assembly"],
+        embed_dim=48,
+        seq_len=256,
+        output_dir="tests/test_gia_accelerate",
+    )
     dataset = load_mixed_dataset(args)
     dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collate_fn)
     model = GiaModel(args)

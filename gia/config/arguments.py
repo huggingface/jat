@@ -1,6 +1,5 @@
 import json
 import os
-import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -91,6 +90,7 @@ class ModelArguments:
         default=32, metadata={"help": "The number of groups for the group normalization in the image patch encoder."}
     )
 
+
 @dataclass
 class EvalArguments:
     n_episodes: int = field(default=10, metadata={"help": "The number of eval episodes to perform"})
@@ -100,8 +100,10 @@ class GiaTrainingArguments(TrainingArguments):
     pass
 
     def __post_init__(self):
+        super().__post_init__()
         if isinstance(self.task_names, str):
             self.task_names = self.task_names.split(",")
+
 
 @dataclass
 class Arguments(DatasetArguments, ModelArguments, EvalArguments, GiaTrainingArguments):
