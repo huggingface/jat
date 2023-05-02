@@ -1,5 +1,5 @@
 import random
-from typing import Any, Dict, List, Sequence
+from typing import Any, Dict, List, Sequence, Optional
 
 import numpy as np
 import torch
@@ -55,37 +55,41 @@ def load_task_dataset(task_name: str, split: str = "all", load_from_cache: bool 
     # Remove id column (present in oscar)
     dataset.pop("id", None)
 
-    if "dones" not in dataset.keys():
-        a_key = list(dataset.keys())[0]
-        dataset["dones"] = np.array([True for _ in range(len(dataset[a_key]))])
+    if "dones" in dataset.keys():  # TODO: make this part of the dataset
+        # Split everywhere there is a done
+        dones = dataset.pop("dones")
+        idxs = np.where(dones[:-1])[0] + 1  # exclude the last one and add 1
+        dataset = {key: np.split(value, idxs) for key, value in dataset.items()}
 
     # Rename keys to get the format "[type]_[observations or actions]"
     keys = list(dataset.keys())  # Avoid "Keys changed during iteration"
     for key in keys:
-        if key not in ["actions", "dones", "rewards"]:
+        if key not in ["actions", "rewards"]:  # Observation is everything except actions and rewards
             observations = dataset.pop(key)
-            if is_image(observations):
+            observation = observations[0][0]  # Take the first observation of the first sequence and check its type
+            if is_image(observation):
                 observations = observations.astype(np.uint8)
                 if np.argmin(observations.shape[1:]) == 2:  # channels last, make it channels first
                     observations = np.transpose(observations, (0, 3, 1, 2))
                 assert np.argmin(observations.shape[1:]) == 0, "Channels error"
                 dataset["image_observations"] = observations
-            elif is_text(observations):
+            elif is_text(observation):
                 dataset["text_observations"] = observations
-            elif is_discrete(observations):
+            elif is_discrete(observation):
                 dataset["discrete_observations"] = observations
-            elif is_continuous(observations):
+            elif is_continuous(observation):
                 dataset["continuous_observations"] = observations
             else:
                 raise ValueError(f"Unknown observation type for {key}")
     # Do the same for actions.
     if "actions" in dataset.keys():
         actions = dataset.pop("actions")
-        if is_text(actions):
+        action = actions[0][0]  # Take the first action of the first sequence and check its type
+        if is_text(action):
             dataset["text_actions"] = actions
-        elif is_discrete(actions):
+        elif is_discrete(action):
             dataset["discrete_actions"] = actions
-        elif is_continuous(actions):
+        elif is_continuous(action):
             dataset["continuous_actions"] = actions
         else:
             raise ValueError("Unknown action type.")
@@ -319,7 +323,7 @@ def load_mixed_dataset(args: DatasetArguments, split: str = "all") -> Dataset:
     return ConcatDataset(datasets)
 
 
-def collate_fn(batch: List[Dict[str, Any]]) -> Sequence[Dict[str, torch.Tensor]]:
+def collate_fn(batch: List[Dict[str, Any]]) -> Dict[str, Sequence[Optional[torch.Tensor]]]:
     """
     Collate function for the dataloader. It converts the batch to list of a dictionaries of tensors.
 
@@ -334,7 +338,8 @@ def collate_fn(batch: List[Dict[str, Any]]) -> Sequence[Dict[str, torch.Tensor]]
         >>> x = [{"a": np.array([1, 2, 3]), "b": 4},
         ...      {"a": np.array([7, 8, 9]), "c": np.array([10, 11, 12])}]
         >>> collate_fn(x)
-        [{'a': tensor([[1, 2, 3]]), 'b': tensor([4])}, {'a': tensor([[7, 8, 9]]), 'c': tensor([[10, 11, 12]])}]
+        {'b': [tensor(4), None], 'a': [tensor([1, 2, 3]), tensor([7, 8, 9])], 'c': [None, tensor([10, 11, 12])]}
     """
-    batch = [{key: torch.tensor(value).unsqueeze(0) for key, value in d.items()} for d in batch]
+    all_keys = set().union(*[d.keys() for d in batch])
+    batch = {key: [torch.tensor(d[key]) if key in d else None for d in batch] for key in all_keys}
     return batch

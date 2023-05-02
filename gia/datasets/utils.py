@@ -53,19 +53,17 @@ class DatasetDict(dict, Dataset):
 def is_text(x: Iterable) -> bool:
     """
     Check if input is text.
-
-    It checks if the input a array of strings.
     """
-    return all(isinstance(s, str) for s in x)
+    return isinstance(x, str)
 
 
 def is_image(x: np.ndarray) -> bool:
     """
     Check if input is an image.
 
-    Returns True if the input has 4 dimensions.
+    Returns True if the input has 3 dimensions.
     """
-    return x.ndim == 4
+    return x.ndim == 3
 
 
 def is_continuous(x: np.ndarray) -> bool:
