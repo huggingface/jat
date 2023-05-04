@@ -188,11 +188,11 @@ def test_embeddings_image(act_modality, use_seprator):
 
 
 def test_embed_real_data():
-    args = Arguments(task_names=["mujoco-ant"], embed_dim=128)
+    args = Arguments(task_names=["mujoco-ant"], embed_dim=128, output_dir="tests/test_embed_real_data")
     dataset = load_mixed_dataset(args)
     dataloader = DataLoader(dataset, batch_size=args.batch_size, collate_fn=collate_fn)
     embeddings = Embeddings(args)
     batch = next(iter(dataloader))
-    embeds = [embeddings(sample) for sample in batch]
+    embeds = [embeddings(sample) for sample in batch["batch"]]
     assert len(embeds) == args.batch_size
     assert set(embeds[0].keys()) == set(["embeddings", "loss_mask", "attention_mask", "tokens"])
