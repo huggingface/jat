@@ -1,11 +1,47 @@
-from typing import Dict, List, Optional, Tuple
+import math
+from functools import wraps
+from typing import Any, Callable, Dict, List, Optional, Tuple, TypeVar, Union
 
 import cv2
 import numpy as np
 from transformers import AutoTokenizer
 
 from gia.config import DatasetArguments
-from gia.utils.utils import discretize, inverse_mu_law, mu_law
+
+
+T = TypeVar("T")
+U = TypeVar("U")
+V = TypeVar("V")
+NestedList = Union[None, T, List["NestedList[T]"]]
+
+
+def nested_decorator(func: Callable[[T], U]) -> Callable[[NestedList[T]], NestedList[U]]:
+    @wraps(func)
+    def wrapper(self, x):
+        if x is None:
+            return None
+        if isinstance(x, list):
+            return [wrapper(self, x_i) for x_i in x]
+        else:
+            return func(self, x)
+
+    return wrapper
+
+
+def tuple_nested_decorator(
+    func: Callable[[T], Tuple[U, V]]
+) -> Callable[[NestedList[T]], Tuple[NestedList[U], NestedList[V]]]:
+    @wraps(func)
+    def wrapper(self, x):
+        if x is None:
+            return None, None
+        elif isinstance(x, list):
+            output = [wrapper(self, x_i) for x_i in x]
+            return (list(val) for val in zip(*output))
+        else:
+            return func(self, x)
+
+    return wrapper
 
 
 class GiaProcessor:
@@ -16,30 +52,19 @@ class GiaProcessor:
         args (:obj:`DatasetArguments`): Dataset arguments.
 
     Example:
-        >>> import numpy as np
         >>> from gia.config import DatasetArguments
         >>> from gia.processing import GiaProcessor
         >>> args = DatasetArguments()
         >>> processor = GiaProcessor(args)
         >>> inputs = {
-        ...     "text_observations": np.array(["Go right", "Go left"]),
-        ...     "image_observations": np.random.randint(0, 256, (2, 3, 32, 32), dtype=np.uint8),
-        ...     "continuous_actions": np.array([[2.1], [3.4]]),
-        ...     "discrete_actions": np.array([[9, 8, 6], [5, 9, 9]]),
+        ...     "text_observations": ["Go right", "Go left"],
+        ...     "continuous_observations": [[0.1, 0.2], [0.3, 0.4]],
+        ...     "discrete_actions": [1, 2],
         ... }
-        >>> encodings = processor(inputs)
-        >>> for key, value in encodings.items():
-        ...     print(f"{key}: {value.shape}")
-        ...
-        text_observations: (2, 4)
-        text_observations_attention_mask: (2, 4)
-        patches_positions: (2, 4, 2, 2)
-        image_observations: (2, 4, 3, 16, 16)
-        image_observations_attention_mask: (2, 4)
-        continuous_actions: (2, 1)
-        continuous_actions_attention_mask: (2, 1)
-        discrete_actions: (2, 3)
-        discrete_actions_attention_mask: (2, 3)
+        >>> processor(**inputs)
+        {'text_observations': [[2, 162, 193, 3], [2, 162, 225, 3]],
+         'continuous_observations': [[30632, 30665], [30685, 30699]],
+         'discrete_actions': [30001, 30002]}
     """
 
     def __init__(self, args: DatasetArguments) -> None:
@@ -55,42 +80,40 @@ class GiaProcessor:
         self.token_shift = self.text_tokenizer.vocab_size
         self.vocab_size = self.token_shift + self.nb_bins
 
-    def tokenize_text(self, x: List[str]) -> np.ndarray:
-        output = self.text_tokenizer(x)
-        tokens = np.array(output["input_ids"])
-        return tokens
+    @nested_decorator
+    def tokenize_text(self, text: str) -> int:
+        output = self.text_tokenizer(text)
+        return output["input_ids"]
 
-    def extract_patches(self, images: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    @tuple_nested_decorator
+    def extract_patches(self, image: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """
         Extract patches from images.
 
         Args:
-            images (np.ndarray): Images to extract patches from of shape (B, C, H, W).
+            image (np.ndarray): Image to extract patches from of shape (C, H, W).
 
         Returns:
             Tuple of:
-                - patches (np.ndarray): Patches extracted from the images. Output has shape (B, N, C, P, P), where P
+                - patches (np.ndarray): Patches extracted from the image. Output has shape (N, C, P, P), where P
                     is the patch size. Patches are flattened in row-major order.
-                - attention_mask (np.ndarray): Attention mask of shape (B, N).
-                - patches_positions (np.ndarray): Relative position intervals of the patches. Output has shape
-                    (B, N, 2, 2), where the last two dimensions are the start and end positions of the patch.
+                - positions (np.ndarray): Relative position intervals of the patches. Output has shape
+                    (N, 2, 2), where the last two dimensions are the start and end positions of the patch.
         """
-        B, C, H, W = images.shape
+        P = self.patch_size
+        C, H, W = image.shape
         # First, reshape to the closest above multiple of the patch size
         # cv2 works with channels last, so we need to transpose the image.
-        images = images.transpose(0, 2, 3, 1)
-        P = self.patch_size
+        image = image.transpose(1, 2, 0)
         H = H - H % P + P if H % P != 0 else H
         W = W - W % P + P if W % P != 0 else W
-        resized_images = np.zeros((B, H, W, C), dtype=images.dtype)
-        for i in range(B):
-            resized_images[i] = cv2.resize(images[i], (W, H), interpolation=cv2.INTER_AREA)
-        images = resized_images.transpose(0, 3, 1, 2)  # Back to channels first
-        patches = images.reshape(B, C, H // P, P, W // P, P).transpose(0, 2, 4, 1, 3, 5)
-        patches = patches.reshape(B, -1, C, P, P)
+        resized_image = cv2.resize(image, (W, H), interpolation=cv2.INTER_AREA)
+        image = resized_image.transpose(2, 0, 1)  # Back to channels first
+        patches = image.reshape(C, H // P, P, W // P, P).transpose(1, 3, 0, 2, 4)
+        patches = patches.reshape(-1, C, P, P)
         # relative position intervals of the patches within the image
         # described with array [[x_min, y_min], [x_max, y_max]]
-        # Output shape is (B, N, 2, 2)
+        # Output shape is (N, 2, 2)
         positions = np.array(
             [
                 [[i / (H // P), j / (W // P)], [(i + 1) / (H // P), (j + 1) / (W // P)]]
@@ -99,149 +122,87 @@ class GiaProcessor:
             ],
             dtype=np.float32,
         )
-        positions = np.tile(positions, (B, 1, 1, 1))
         return patches, positions
 
-    def tokenize_discrete(self, x: np.ndarray) -> np.ndarray:
-        # Unsqueeze when the input is a vector
-        x = np.array(x, dtype=np.int64)
-        if x.ndim == 1:
-            x = np.expand_dims(x, axis=1)
-        tokens = x + self.token_shift
-        return tokens
+    @nested_decorator
+    def tokenize_discrete(self, x: int) -> int:
+        token = x + self.token_shift
+        return token
 
-    def tokenize_continuous(self, x: np.ndarray) -> np.ndarray:
+    @nested_decorator
+    def tokenize_continuous(self, x: float) -> int:
         # Normalize tensors to the range [-1, 1]
-        x = np.array(x, dtype=np.float32)
         if self.mu_law_compand:
-            x = mu_law(x, mu=self.mu, M=self.M)
+            x = math.copysign(1, x) * math.log(self.mu * abs(x) + 1.0) / math.log(self.M * self.mu + 1.0)
 
         # Clip to the range [-1, 1]
-        x = np.clip(x, -1.0, 1.0)
+        x = max(min(x, 1), -1)
 
         # Discretize tensors
-        x = discretize(x, nb_bins=self.nb_bins)
+        x = (x + 1.0) / 2 * self.nb_bins  # [-1, 1] to [0, nb_bins]
+        x = math.floor(x)
+        x = self.nb_bins - 1 if x == self.nb_bins else x  # Handle the case where x == 1.0
 
-        # Unsqueeze if needed
-        tokens = x + self.token_shift
-        return tokens
+        # Shift
+        token = x + self.token_shift
+        return token
 
-    def inverse_tokenize_continuous(self, tokens: np.ndarray) -> np.ndarray:
+    @nested_decorator
+    def inverse_tokenize_continuous(self, token: int) -> float:
         """
-        Inverse tokenize continous.
-
-        First, each integer element of input tensor is mapped to the center of the corresponding bin.
-        Then, the tensor is de-mu-law companded if needed.
+        Inverse of tokenize_continuous.
 
         Args:
-            tokens (np.ndarray): Tokens
+            x (int): Token
 
         Returns:
-            Tensor: Reconstructed array
+            NestedFloatList: Continuous value
         """
         # Subtract token shift
-        tokens = tokens - self.token_shift
+        token = token - self.token_shift
 
         # Maps tokens from [0, nb_bins-1] to [-1, 1]
         # We map the bin number to the center of the bin
-        x = (2 * tokens + 1) / self.nb_bins - 1
+        val = (2 * token + 1) / self.nb_bins - 1
 
         # De-mu-law compand tensors
         if self.mu_law_compand:
-            x = inverse_mu_law(x, mu=self.mu, M=self.M)
+            val = math.copysign(1, val) * (math.exp(abs(val) * math.log(self.M * self.mu + 1.0)) - 1.0) / self.mu
 
-        return x
+        return val
 
     def __call__(
         self,
-        continuous_observations: Optional[List[Optional[np.ndarray]]] = None,
-        discrete_observations: Optional[List[Optional[np.ndarray]]] = None,
-        text_observations: Optional[List[Optional[List[str]]]] = None,
-        image_observations: Optional[List[Optional[np.ndarray]]] = None,
-        continuous_actions: Optional[List[Optional[np.ndarray]]] = None,
-        discrete_actions: Optional[List[Optional[np.ndarray]]] = None,
-        rewards: Optional[List[Optional[np.ndarray]]] = None,
-    ) -> Dict[str, np.ndarray]:
-        # Example:
-        # continuous_observations = [[a1, a2, ...], None],
-        # discrete_observations = [None, [c1, c2, ...]],
-        # continuous_actions = [[b1, b2, ...], [d1, d2, ...]],
-        # discrete_actions = [None, None],
-        # text_observations = [["hello", "world", ...], None],
-
-        # Desired output (t = tokenized):
-        # output = {
-        #     "continuous_observations": [[ta1, ta2, ...], None],
-        #     "discrete_observations": [None, [tc1, tc2, ...]],
-        #     "continuous_actions": [[tb1, tb2, ...], [td1, td2, ...]],
-        #     "discrete_actions": [None, None],
-        #     "text_observations": [[[tt2, tt2], [tt3, tt4, tt5], ...], None],
-        # }
+        text_observations: NestedList[str] = None,
+        image_observations: NestedList[np.ndarray] = None,
+        discrete_observations: NestedList[int] = None,
+        continuous_observations: NestedList[float] = None,
+        discrete_actions: NestedList[int] = None,
+        continuous_actions: NestedList[float] = None,
+        rewards: NestedList[float] = None,
+    ) -> Dict[str, Union[NestedList[int], NestedList[np.ndarray]]]:
         output = {}
-        if continuous_observations is not None:  # This modality appears at least once in the batch
-            output["continuous_observations"] = []
-            for observations in continuous_observations:
-                if observations is not None:
-                    # observations = [o1, o2, ...] is actually the episode
-                    tokens = self.tokenize_continuous(observations)
-                    output["continuous_observations"].append(tokens)
-                else:  # There is no such modality in this episode
-                    output["continuous_observations"].append(None)
+        if text_observations is not None:
+            output["text_observations"] = self.tokenize_text(text_observations)
 
-        if discrete_observations is not None:  # This modality appears at least once in the batch
-            output["discrete_observations"] = []
-            for observations in discrete_observations:
-                if observations is not None:
-                    # observations = [o1, o2, ...] is actually the episode
-                    tokens = self.tokenize_discrete(observations)
-                    output["discrete_observations"].append(tokens)
-                else:  # There is no such modality in this episode
-                    output["discrete_observations"].append(None)
+        if image_observations is not None:
+            patches, positions = self.extract_patches(image_observations)
+            output["image_observations"] = patches
+            output["image_observations_patches_positions"] = positions
 
-        if text_observations is not None:  # This modality appears at least once in the batch
-            output["text_observations"] = []
-            for observations in text_observations:
-                if observations is not None:
-                    # observations = ["hello", "world", ...] is actually the episode
-                    tokens = self.tokenize_text(observations)
-                    output["text_observations"].append(tokens)
-                else:  # There is no such modality in this episode
-                    output["text_observations"].append(None)
+        if discrete_observations is not None:
+            output["discrete_observations"] = self.tokenize_discrete(discrete_observations)
 
-        if image_observations is not None:  # This modality appears at least once in the batch
-            output["image_observations"] = []
-            output["image_observations_patches_positions"] = []
-            for observations in image_observations:
-                if observations is not None:
-                    # observations = ["hello", "world", ...] is actually the episode
-                    patches, positions = self.extract_patches(observations)
-                    output["image_observations"].append(patches)
-                    output["image_observations_patches_positions"] = positions
-                else:  # There is no such modality in this episode
-                    output["image_observations"].append(None)
-                    output["image_observations_patches_positions"].append(None)
+        if continuous_observations is not None:
+            output["continuous_observations"] = self.tokenize_continuous(continuous_observations)
 
-        if continuous_actions is not None:  # This modality appears at least once in the batch
-            output["continuous_actions"] = []
-            for actions in continuous_actions:
-                if actions is not None:
-                    # actions = [a1, a2, ...] is actually the episode
-                    tokens = self.tokenize_continuous(actions)
-                    output["continuous_actions"].append(tokens)
-                else:  # There is no such modality in this episode
-                    output["continuous_actions"].append(None)
+        if discrete_actions is not None:
+            output["discrete_actions"] = self.tokenize_discrete(discrete_actions)
 
-        if discrete_actions is not None:  # This modality appears at least once in the batch
-            output["discrete_actions"] = []
-            for actions in discrete_actions:
-                if actions is not None:
-                    # actions = [a1, a2, ...] is actually the episode
-                    tokens = self.tokenize_discrete(actions)
-                    output["discrete_actions"].append(tokens)
-                else:
-                    output["discrete_actions"].append(None)
+        if continuous_actions is not None:
+            output["continuous_actions"] = self.tokenize_continuous(continuous_actions)
 
-        if rewards is not None:  # The reward appears at least once in the batch
+        if rewards is not None:
             output["rewards"] = rewards  # Currently, we do not tokenize the rewards
 
         return output
