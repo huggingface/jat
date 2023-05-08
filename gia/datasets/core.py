@@ -159,11 +159,6 @@ def load_gia_dataset(
     return DatasetDict(datasets)
 
 
-from typing import Any, Dict, List, Union
-
-import torch
-
-
 def collate_fn(batch: List[Dict[str, List]]) -> Dict[str, List[Union[torch.Tensor, None]]]:
     """
     Collate function for the dataloader.

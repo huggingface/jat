@@ -1,10 +1,11 @@
 import random
 
 import pytest
+import torch
 from datasets import Dataset
 from torch.utils.data import DataLoader
 
-from gia.datasets import generate_prompts, load_gia_dataset
+from gia.datasets import collate_fn, generate_prompts, load_gia_dataset
 
 BATCH_SIZE = 128
 C, H, W = 3, 16, 16
@@ -82,3 +83,64 @@ def test_output_structure(example_dataset):
         example_dataset.column_names
     ), "Output dataset should have the same column names as the input dataset"
     assert all(isinstance(prompt["text"], list) for prompt in prompts), "Each prompt should be a list"
+
+
+def test_collate_fn_same_keys():
+    batch = [
+        {"key1": [1, 2], "key2": [3, 4, 5]},
+        {"key1": [6], "key2": [7, 8]},
+    ]
+
+    output = collate_fn(batch)
+    expected_output = {
+        "key1": [torch.tensor([1, 2]), torch.tensor([6])],
+        "key2": [torch.tensor([3, 4, 5]), torch.tensor([7, 8])],
+    }
+
+    for key in output:
+        assert key in expected_output
+        for i in range(len(output[key])):
+            assert torch.all(output[key][i] == expected_output[key][i])
+
+
+def test_collate_fn_different_keys():
+    batch = [
+        {"key1": [1, 2]},
+        {"key2": [3, 4, 5]},
+    ]
+
+    output = collate_fn(batch)
+    expected_output = {
+        "key1": [torch.tensor([1, 2]), None],
+        "key2": [None, torch.tensor([3, 4, 5])],
+    }
+
+    for key in output:
+        assert key in expected_output
+        for i in range(len(output[key])):
+            if output[key][i] is None:
+                assert expected_output[key][i] is None
+            else:
+                assert torch.all(output[key][i] == expected_output[key][i])
+
+
+def test_collate_fn_mixed_keys():
+    batch = [
+        {"key1": [1, 2], "key2": [3, 4, 5]},
+        {"key1": [6], "key3": [7, 8]},
+    ]
+
+    output = collate_fn(batch)
+    expected_output = {
+        "key1": [torch.tensor([1, 2]), torch.tensor([6])],
+        "key2": [torch.tensor([3, 4, 5]), None],
+        "key3": [None, torch.tensor([7, 8])],
+    }
+
+    for key in output:
+        assert key in expected_output
+        for i in range(len(output[key])):
+            if output[key][i] is None:
+                assert expected_output[key][i] is None
+            else:
+                assert torch.all(output[key][i] == expected_output[key][i])
