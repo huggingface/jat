@@ -25,10 +25,16 @@ args = DatasetArguments()
 processor = GiaProcessor(args)
 processed = processor(**dataset)
 
-patches_shape = [[np.array(patch).shape if patch is not None else None for patch in patches] for patches in processed["patches"]]
-positions_shape = [[np.array(position).shape if position is not None else None for position in positions] for positions in processed["positions"]]
+patches_shape = [
+    [np.array(patch).shape if patch is not None else None for patch in patches] for patches in processed["patches"]
+]
+positions_shape = [
+    [np.array(position).shape if position is not None else None for position in positions]
+    for positions in processed["positions"]
+]
 
-print(f"""
+print(
+    f"""
 First sample:
     Tokens:            {processed['input_ids'][0]}
     Patches (shape):   {patches_shape[0]}
