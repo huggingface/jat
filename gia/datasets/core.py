@@ -1,6 +1,7 @@
 import random
 from typing import Dict, List, Union
 
+import torch
 from datasets import Dataset, get_dataset_config_names, load_dataset
 
 from .utils import DatasetDict
@@ -156,3 +157,24 @@ def load_gia_dataset(
     all_keys = set().union(*[d.column_names for d in datasets])
     datasets = {key: sum([d[key] if key in d.column_names else None for d in datasets], []) for key in all_keys}
     return DatasetDict(datasets)
+
+
+from typing import Any, Dict, List, Union
+
+import torch
+
+
+def collate_fn(batch: List[Dict[str, List]]) -> Dict[str, List[Union[torch.Tensor, None]]]:
+    """
+    Collate function for the dataloader.
+
+    Args:
+        batch (List[Dict[str, List]]): List of samples.
+
+    Returns:
+        Dict[str, Any]: Collated batch.
+    """
+    # All samples do not necessarily have the same keys
+    keys = {key for sample in batch for key in sample.keys()}
+    collated_batch = {key: [torch.tensor(sample[key]) if key in sample else None for sample in batch] for key in keys}
+    return collated_batch
