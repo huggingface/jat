@@ -1,7 +1,6 @@
 from gia.datasets.core import load_gia_dataset, collate_fn
 import numpy as np
 from torch.utils.data import DataLoader
-import torch
 
 dataset = load_gia_dataset("mujoco-ant")
 print(
