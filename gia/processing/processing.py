@@ -1,6 +1,6 @@
 import math
 from functools import wraps
-from typing import Any, Callable, Dict, List, Optional, Tuple, TypeVar, Union
+from typing import Callable, Dict, List, Optional, Tuple, TypeVar, Union
 
 import cv2
 import numpy as np
@@ -8,6 +8,7 @@ from transformers import AutoTokenizer
 
 from gia.config import DatasetArguments
 
+from .utils import interleave_batch
 
 T = TypeVar("T")
 U = TypeVar("U")
@@ -44,24 +45,24 @@ def tuple_nested_decorator(
     return wrapper
 
 
-class GiaProcessor:
+class GiaTokenizer:
     """
-    Processor for the Gia model.
+    Tokenizer for the Gia model.
 
     Args:
         args (:obj:`DatasetArguments`): Dataset arguments.
 
     Example:
         >>> from gia.config import DatasetArguments
-        >>> from gia.processing import GiaProcessor
+        >>> from gia.processing import Tokenizer
         >>> args = DatasetArguments()
-        >>> processor = GiaProcessor(args)
+        >>> tokenizer = Tokenizer(args)
         >>> inputs = {
         ...     "text_observations": ["Go right", "Go left"],
         ...     "continuous_observations": [[0.1, 0.2], [0.3, 0.4]],
         ...     "discrete_actions": [1, 2],
         ... }
-        >>> processor(**inputs)
+        >>> tokenizer(**inputs)
         {'text_observations': [[2, 162, 193, 3], [2, 162, 225, 3]],
          'continuous_observations': [[30632, 30665], [30685, 30699]],
          'discrete_actions': [30001, 30002]}
@@ -110,7 +111,7 @@ class GiaProcessor:
         resized_image = cv2.resize(image, (W, H), interpolation=cv2.INTER_AREA)
         image = resized_image.transpose(2, 0, 1)  # Back to channels first
         patches = image.reshape(C, H // P, P, W // P, P).transpose(1, 3, 0, 2, 4)
-        patches = patches.reshape(-1, C, P, P)
+        patches = patches.reshape(-1, C, P, P).tolist()
         # relative position intervals of the patches within the image
         # described with array [[x_min, y_min], [x_max, y_max]]
         # Output shape is (N, 2, 2)
@@ -121,7 +122,8 @@ class GiaProcessor:
                 for j in range(W // P)
             ],
             dtype=np.float32,
-        )
+        ).tolist()
+
         return patches, positions
 
     @nested_decorator
@@ -173,6 +175,8 @@ class GiaProcessor:
 
     def __call__(
         self,
+        text: Optional[str] = None,
+        image: Optional[np.ndarray] = None,
         text_observations: NestedList[str] = None,
         image_observations: NestedList[np.ndarray] = None,
         discrete_observations: NestedList[int] = None,
@@ -180,29 +184,106 @@ class GiaProcessor:
         discrete_actions: NestedList[int] = None,
         continuous_actions: NestedList[float] = None,
         rewards: NestedList[float] = None,
-    ) -> Dict[str, Union[NestedList[int], NestedList[np.ndarray]]]:
+    ) -> Dict[str, Dict[str, Union[NestedList[int], NestedList[np.ndarray]]]]:
         output = {}
+        if text is not None:
+            output["text"] = {"input_ids": self.tokenize_text(text)}
+
+        if image is not None:
+            patches, positions = self.extract_patches(image)
+            output["image"] = {"patches": patches, "positions": positions}
+
         if text_observations is not None:
-            output["text_observations"] = self.tokenize_text(text_observations)
+            output["text_observations"] = {"input_ids": self.tokenize_text(text_observations)}
 
         if image_observations is not None:
             patches, positions = self.extract_patches(image_observations)
-            output["image_observations"] = patches
-            output["image_observations_patches_positions"] = positions
+            output["image_observations"] = {"patches": patches, "positions": positions}
 
         if discrete_observations is not None:
-            output["discrete_observations"] = self.tokenize_discrete(discrete_observations)
+            output["discrete_observations"] = {"input_ids": self.tokenize_discrete(discrete_observations)}
 
         if continuous_observations is not None:
-            output["continuous_observations"] = self.tokenize_continuous(continuous_observations)
+            output["continuous_observations"] = {"input_ids": self.tokenize_continuous(continuous_observations)}
 
         if discrete_actions is not None:
-            output["discrete_actions"] = self.tokenize_discrete(discrete_actions)
+            output["discrete_actions"] = {"input_ids": self.tokenize_discrete(discrete_actions)}
 
         if continuous_actions is not None:
-            output["continuous_actions"] = self.tokenize_continuous(continuous_actions)
+            output["continuous_actions"] = {"input_ids": self.tokenize_continuous(continuous_actions)}
 
         if rewards is not None:
-            output["rewards"] = rewards  # Currently, we do not tokenize the rewards
+            output["rewards"] = {"input_ids": self.tokenize_continuous(rewards)}
 
         return output
+
+
+class GiaProcessor:
+    def __init__(self, args: DatasetArguments) -> None:
+        super().__init__()
+        self.tokenizer = GiaTokenizer(args)
+
+    def __call__(self, **kwargs):
+        tokens_and_patches = self.tokenizer(**kwargs)
+        # pop the reward, if any
+        tokens_and_patches.pop("rewards", None)
+        return interleave_batch(tokens_and_patches)
+
+
+# def split_and_pad_sequences(sequences: List[List[Any]], max_len: int) -> Tuple[List[List[Any]], List[List[int]]]:
+#     """
+#     Splits input sequences into sub-sequences of length max_len and pads them if necessary.
+#     Generates a mask indicating the padding positions.
+
+#     Args:
+#         sequences (List[List[int]]): A list of sequences, where each sequence is a list of integers.
+#         max_len (int): Maximum length for the output sub-sequences.
+
+#     Returns:
+#         Tuple[List[List[int]], List[List[int]]]: A tuple containing two lists:
+#             - The first list contains the padded sub-sequences.
+#             - The second list contains the masks for the sub-sequences, with 1 indicating an original
+#               element and 0 indicating a padded element.
+
+#     Example:
+#         >>> sequences = [[1, 2, 3, 4, 5], [6, 7, 8, 9]]
+#         >>> out, mask = split_and_pad_sequences(sequences, max_len=3)
+#         >>> out
+#         [[1, 2, 3], [4, 5, 4], [6, 7, 8], [9, 9, 9]]
+#         >>> mask
+#         [[1, 1, 1], [1, 1, 0], [1, 1, 1], [1, 0, 0]]
+#     """
+#     padded_subsequences = []
+#     masks = []
+
+#     for sequence in sequences:
+#         for i in range(0, len(sequence), max_len):
+#             # Take a subsequence of max_len elements
+#             subsequence = sequence[i : i + max_len]
+#             mask = [1] * len(subsequence)
+
+#             # If the subsequence is smaller than max_len, pad it
+#             if len(subsequence) < max_len:
+#                 padding_length = max_len - len(subsequence)
+#                 subsequence += [subsequence[0]] * padding_length
+#                 mask += [0] * padding_length
+
+#             padded_subsequences.append(subsequence)
+#             masks.append(mask)
+
+#     return padded_subsequences, masks
+
+
+# class Padder:
+#     """ """
+
+#     def __call__(self, x: Dict) -> Any:
+#         for mod, processed in x.items():
+#             if isinstance(processed, dict):  # keys are input_ids, or patches and positions for images
+#                 keys = list(processed.keys())  # to avoid modifying the dict while iterating over it
+#                 for key in keys:
+#                     if isinstance(processed[key], list) and isinstance(processed[key][0], list):
+#                         # list of lists is actually a sequence
+#                         out, mask = split_and_pad_sequences(processed[key], 3)
+#                         x[mod][key] = out
+#                     x[mod]["attention_mask"] = mask  # mask is the same for all keys
