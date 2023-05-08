@@ -63,6 +63,9 @@ def _extract_idx_element(
 
 def _append(batch_data: Dict[str, Dict[str, Any]], processed_data: Dict[str, List[Any]]) -> None:
     # get the number of elements
+    for key in batch_data:
+        if not isinstance(batch_data[key], list):
+            batch_data[key] = [batch_data[key]]
     num_elements = len(next(iter(batch_data.values())))
     for k in range(num_elements):
         for key in processed_data:
