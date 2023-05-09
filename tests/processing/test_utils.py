@@ -9,27 +9,35 @@ from gia.processing.utils import (
     interleave_batch,
 )
 
-PATCH_1 = np.random.randint(0, 255, (3, 8, 8), dtype=np.uint8).tolist()
-PATCH_2 = np.random.randint(0, 255, (3, 8, 8), dtype=np.uint8).tolist()
-PATCH_3 = np.random.randint(0, 255, (3, 8, 8), dtype=np.uint8).tolist()
-PATCH_4 = np.random.randint(0, 255, (3, 8, 8), dtype=np.uint8).tolist()
-PATCH_5 = np.random.randint(0, 255, (3, 8, 8), dtype=np.uint8).tolist()
-PATCH_6 = np.random.randint(0, 255, (3, 8, 8), dtype=np.uint8).tolist()
+PATCH_0 = np.zeros(shape=(3, 16, 16), dtype=np.uint8).tolist()  # PLACEHOLDER
+PATCH_1 = np.random.randint(0, 255, (3, 16, 16), dtype=np.uint8).tolist()
+PATCH_2 = np.random.randint(0, 255, (3, 16, 16), dtype=np.uint8).tolist()
+PATCH_3 = np.random.randint(0, 255, (3, 16, 16), dtype=np.uint8).tolist()
+PATCH_4 = np.random.randint(0, 255, (3, 16, 16), dtype=np.uint8).tolist()
+PATCH_5 = np.random.randint(0, 255, (3, 16, 16), dtype=np.uint8).tolist()
+PATCH_6 = np.random.randint(0, 255, (3, 16, 16), dtype=np.uint8).tolist()
 
+POS0 = [[0.0, 0.0], [0.0, 0.0]]  # PLACEHOLDER
 LEFT = [[0.0, 0.0], [1.0, 0.5]]
 RIGHT = [[0.0, 0.5], [1.0, 1.0]]
 
 
 def test_append_input_ids():
     batch_data = {"input_ids": [101, 102]}
-    processed_data = {"input_ids": [1, 2], "patches": [None, None], "positions": [None, None]}
+    processed_data = {
+        "input_ids": [1, 2],
+        "patches": [PATCH_0, PATCH_0],
+        "positions": [POS0, POS0],
+        "input_type": [0, 0],
+    }
 
     _append(batch_data, processed_data)
 
     expected_output = {
         "input_ids": [1, 2, 101, 102],
-        "patches": [None, None, None, None],
-        "positions": [None, None, None, None],
+        "patches": [PATCH_0, PATCH_0, PATCH_0, PATCH_0],
+        "positions": [POS0, POS0, POS0, POS0],
+        "input_type": [0, 0, 0, 0],
     }
 
     assert processed_data == expected_output
@@ -37,14 +45,20 @@ def test_append_input_ids():
 
 def test_append_patches_and_positions():
     batch_data = {"patches": [PATCH_1, PATCH_2], "positions": [LEFT, RIGHT]}
-    processed_data = {"input_ids": [1, 2], "patches": [None, None], "positions": [None, None]}
+    processed_data = {
+        "input_ids": [1, 2],
+        "patches": [PATCH_0, PATCH_0],
+        "positions": [POS0, POS0],
+        "input_type": [0, 0],
+    }
 
     _append(batch_data, processed_data)
 
     expected_output = {
-        "input_ids": [1, 2, None, None],
-        "patches": [None, None, PATCH_1, PATCH_2],
-        "positions": [None, None, LEFT, RIGHT],
+        "input_ids": [1, 2, 0, 0],
+        "patches": [PATCH_0, PATCH_0, PATCH_1, PATCH_2],
+        "positions": [POS0, POS0, LEFT, RIGHT],
+        "input_type": [0, 0, 1, 1],
     }
 
     assert processed_data == expected_output
@@ -57,17 +71,18 @@ def test_interleave_episode():
     #     1 discrete observations composed of 3 ints
     sample_data = {
         "discrete_observations": {
-            "input_ids": [[1, 2], [3, 4], [5, 6]],
+            "input_ids": [[1, 2], [3, 4]],
         },
         "image_observations": {
-            "patches": [[PATCH_1, PATCH_2], [PATCH_3, PATCH_4], [PATCH_5, PATCH_6]],
-            "positions": [[LEFT, RIGHT], [LEFT, RIGHT], [LEFT, RIGHT]],
+            "patches": [[PATCH_1, PATCH_2], [PATCH_3, PATCH_4]],
+            "positions": [[LEFT, RIGHT], [LEFT, RIGHT]],
         },
     }
     expected_output = {
-        "input_ids": [None, None, 1, 2, None, None, 3, 4, None, None, 5, 6],
-        "patches": [PATCH_1, PATCH_2, None, None, PATCH_3, PATCH_4, None, None, PATCH_5, PATCH_6, None, None],
-        "positions": [LEFT, RIGHT, None, None, LEFT, RIGHT, None, None, LEFT, RIGHT, None, None],
+        "input_ids": [0, 0, 1, 2, 0, 0, 3, 4],
+        "patches": [PATCH_1, PATCH_2, PATCH_0, PATCH_0, PATCH_3, PATCH_4, PATCH_0, PATCH_0],
+        "positions": [LEFT, RIGHT, POS0, POS0, LEFT, RIGHT, POS0, POS0],
+        "input_type": [1, 1, 0, 0, 1, 1, 0, 0],
     }
     assert _interleave_episode(sample_data) == expected_output
 
@@ -78,9 +93,10 @@ def test_interleave_standalone():
         "image": {"patches": [PATCH_1, PATCH_2], "positions": [LEFT, RIGHT]},
     }
     expected_output = {
-        "input_ids": [None, None, 1, 2],
-        "patches": [PATCH_1, PATCH_2, None, None],
-        "positions": [LEFT, RIGHT, None, None],
+        "input_ids": [0, 0, 1, 2],
+        "patches": [PATCH_1, PATCH_2, PATCH_0, PATCH_0],
+        "positions": [LEFT, RIGHT, POS0, POS0],
+        "input_type": [1, 1, 0, 0],
     }
     assert _interleave_standalone(input_data) == expected_output
 
@@ -148,16 +164,33 @@ def test_interleave_batch_episode():
     }
     expected_output = {
         "input_ids": [
-            [None, None, 11, 12, None, None, 13, 14],
+            [0, 0, 11, 12, 0, 0, 13, 14],
             [1, 2, 15, 16, 3, 4, 17, 18, 5, 6, 19, 20],
         ],
         "patches": [
-            [PATCH_1, PATCH_2, None, None, PATCH_3, PATCH_4, None, None],
-            [None, None, None, None, None, None, None, None, None, None, None, None],
+            [PATCH_1, PATCH_2, PATCH_0, PATCH_0, PATCH_3, PATCH_4, PATCH_0, PATCH_0],
+            [
+                PATCH_0,
+                PATCH_0,
+                PATCH_0,
+                PATCH_0,
+                PATCH_0,
+                PATCH_0,
+                PATCH_0,
+                PATCH_0,
+                PATCH_0,
+                PATCH_0,
+                PATCH_0,
+                PATCH_0,
+            ],
         ],
         "positions": [
-            [LEFT, RIGHT, None, None, LEFT, RIGHT, None, None],
-            [None, None, None, None, None, None, None, None, None, None, None, None],
+            [LEFT, RIGHT, POS0, POS0, LEFT, RIGHT, POS0, POS0],
+            [POS0, POS0, POS0, POS0, POS0, POS0, POS0, POS0, POS0, POS0, POS0, POS0],
+        ],
+        "input_type": [
+            [1, 1, 0, 0, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         ],
     }
     assert interleave_batch(input_data) == expected_output
@@ -175,19 +208,24 @@ def test_interleave_batch_standalone():
     }
     expected_output = {
         "input_ids": [
-            [None, None],
+            [0, 0],
             [1, 2],
-            [None, None, 3, 4],
+            [0, 0, 3, 4],
         ],
         "patches": [
             [PATCH_1, PATCH_2],
-            [None, None],
-            [PATCH_3, PATCH_4, None, None],
+            [PATCH_0, PATCH_0],
+            [PATCH_3, PATCH_4, PATCH_0, PATCH_0],
         ],
         "positions": [
             [LEFT, RIGHT],
-            [None, None],
-            [LEFT, RIGHT, None, None],
+            [POS0, POS0],
+            [LEFT, RIGHT, POS0, POS0],
+        ],
+        "input_type": [
+            [1, 1],
+            [0, 0],
+            [1, 1, 0, 0],
         ],
     }
     assert interleave_batch(input_data) == expected_output
@@ -221,15 +259,19 @@ def test_interleave_batch_mixed():
     expected_output = {
         "input_ids": [
             [1, 2],
-            [None, None, 11, 12, None, None, 13, 14],
+            [0, 0, 11, 12, 0, 0, 13, 14],
         ],
         "patches": [
-            [None, None],
-            [PATCH_1, PATCH_2, None, None, PATCH_3, PATCH_4, None, None],
+            [PATCH_0, PATCH_0],
+            [PATCH_1, PATCH_2, PATCH_0, PATCH_0, PATCH_3, PATCH_4, PATCH_0, PATCH_0],
         ],
         "positions": [
-            [None, None],
-            [LEFT, RIGHT, None, None, LEFT, RIGHT, None, None],
+            [POS0, POS0],
+            [LEFT, RIGHT, POS0, POS0, LEFT, RIGHT, POS0, POS0],
+        ],
+        "input_type": [
+            [0, 0],
+            [1, 1, 0, 0, 1, 1, 0, 0],
         ],
     }
 
