@@ -4,8 +4,8 @@ import numpy as np
 
 # Here, we define the placeholders for the patches and positions.
 # For memory efficiency, we use the same placeholder for all patches and positions.
-PATCH_PLACEHOLDER = np.zeros((3, 16, 16), dtype=np.int64).tolist()
-POSITION_PLACEHOLDER = np.zeros((2, 2), dtype=np.float32).tolist()
+PATCH_PLACEHOLDER = np.zeros((3, 16, 16), dtype=np.int64)
+POSITION_PLACEHOLDER = [[0.0, 0.0], [0.0, 0.0]]
 
 T = TypeVar("T")
 
@@ -70,7 +70,7 @@ def _extract_idx_element(
     return output
 
 
-def _append(batch_data: Dict[str, Dict[str, Any]], processed_data: Dict[str, List[Any]]) -> None:
+def _append(batch_data: Dict[str, Dict[str, Any]], processed_data: Dict[str, List[Any]], loss_mask_value: int) -> None:
     # get the number of elements
     for key in batch_data:
         if not isinstance(batch_data[key], list):
@@ -85,11 +85,13 @@ def _append(batch_data: Dict[str, Dict[str, Any]], processed_data: Dict[str, Lis
         input_type = [1] * num_elements
     else:
         raise ValueError("Batch data must contain either input_ids or patches and positions.")
+    loss_maskes = [loss_mask_value] * num_elements
 
     processed_data["input_ids"].extend(input_ids)
     processed_data["patches"].extend(patches)
     processed_data["positions"].extend(positions)
     processed_data["input_type"].extend(input_type)
+    processed_data["loss_mask"].extend(loss_maskes)
 
 
 def _interleave_episode(episode_data: Dict[str, Dict[str, Any]]) -> dict:
@@ -113,12 +115,13 @@ def _interleave_episode(episode_data: Dict[str, Dict[str, Any]]) -> dict:
         {'input_ids': [0, 0, 1, 2, 3, 0, 0, 4, 5, 6, 0, 0, 7, 8, 9],
         'patches': [P1, P2, P0, P0, P0, P3, P4, P0, P0, P0, P5, P6],
         'positions': [LEFT, RIGHT, POS0, POS0, POS0, LEFT, RIGHT, POS0, POS0, POS0, LEFT, RIGHT]}
-        'input_type': [0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1]}
+        'input_type': [0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1],
+        'loss_mask': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]}
 
     Where P0 = zeros(shape=(3, 16, 16)) and  POS0 = [[0, 0], [0, 0]] are placeholders for respectively patches
     and positions. (Similar to 0 for input_ids)
     """
-    output = {"input_ids": [], "patches": [], "positions": [], "input_type": []}
+    output = {"input_ids": [], "patches": [], "positions": [], "input_type": [], "loss_mask": []}
 
     # Get the length of each sequence in the d and make sure they are all equal
     sequence_lengths = [len(in_val) for out_val in episode_data.values() for in_val in out_val.values()]
@@ -127,26 +130,27 @@ def _interleave_episode(episode_data: Dict[str, Dict[str, Any]]) -> dict:
     for t in range(common_length):
         # Extract the current element from each sequence in the d
         timestep_data = _extract_idx_element(episode_data, t)
-        for data_key in [
-            "text_observations",
-            "image_observations",
-            "discrete_observations",
-            "continuous_observations",
-            "discrete_actions",
-            "continuous_actions",
-        ]:
-            if data_key in timestep_data:
-                _append(timestep_data[data_key], output)
-
+        if "text_observations" in timestep_data:
+            _append(timestep_data["text_observations"], output, loss_mask_value=1)
+        if "image_observations" in timestep_data:
+            _append(timestep_data["image_observations"], output, loss_mask_value=0)
+        if "discrete_observations" in timestep_data:
+            _append(timestep_data["discrete_observations"], output, loss_mask_value=0)
+        if "continuous_observations" in timestep_data:
+            _append(timestep_data["continuous_observations"], output, loss_mask_value=0)
+        if "discrete_actions" in timestep_data:
+            _append(timestep_data["discrete_actions"], output, loss_mask_value=1)
+        if "continuous_actions" in timestep_data:
+            _append(timestep_data["continuous_actions"], output, loss_mask_value=1)
     return output
 
 
 def _interleave_standalone(data: Dict[str, Dict[str, Any]]) -> Dict[str, List[Optional[Any]]]:
-    output = {"input_ids": [], "patches": [], "positions": [], "input_type": []}
+    output = {"input_ids": [], "patches": [], "positions": [], "input_type": [], "loss_mask": []}
     if "image" in data:
-        _append(data["image"], output)
+        _append(data["image"], output, loss_mask_value=0)
     if "text" in data:
-        _append(data["text"], output)
+        _append(data["text"], output, loss_mask_value=1)
     return output
 
 
@@ -158,7 +162,7 @@ def _get_batch_size(batch_data: Dict[str, Dict[str, Any]]) -> int:
 
 def interleave_batch(batch_data: Dict[str, Any]) -> Dict[str, List[Any]]:
     batch_size = _get_batch_size(batch_data)
-    output = {"input_ids": [], "patches": [], "positions": [], "input_type": []}
+    output = {"input_ids": [], "patches": [], "positions": [], "input_type": [], "loss_mask": []}
 
     for batch_idx in range(batch_size):
         sample_data = _extract_idx_element(batch_data, batch_idx)

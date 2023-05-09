@@ -9,13 +9,11 @@ from gia.processing.utils import (
     interleave_batch,
 )
 
-PATCH_0 = np.zeros(shape=(3, 16, 16), dtype=np.uint8).tolist()  # PLACEHOLDER
-PATCH_1 = np.random.randint(0, 255, (3, 16, 16), dtype=np.uint8).tolist()
-PATCH_2 = np.random.randint(0, 255, (3, 16, 16), dtype=np.uint8).tolist()
-PATCH_3 = np.random.randint(0, 255, (3, 16, 16), dtype=np.uint8).tolist()
-PATCH_4 = np.random.randint(0, 255, (3, 16, 16), dtype=np.uint8).tolist()
-PATCH_5 = np.random.randint(0, 255, (3, 16, 16), dtype=np.uint8).tolist()
-PATCH_6 = np.random.randint(0, 255, (3, 16, 16), dtype=np.uint8).tolist()
+PATCH_0 = np.zeros(shape=(3, 16, 16), dtype=np.uint8)  # PLACEHOLDER
+PATCH_1 = np.random.randint(0, 255, (3, 16, 16), dtype=np.uint8)
+PATCH_2 = np.random.randint(0, 255, (3, 16, 16), dtype=np.uint8)
+PATCH_3 = np.random.randint(0, 255, (3, 16, 16), dtype=np.uint8)
+PATCH_4 = np.random.randint(0, 255, (3, 16, 16), dtype=np.uint8)
 
 POS0 = [[0.0, 0.0], [0.0, 0.0]]  # PLACEHOLDER
 LEFT = [[0.0, 0.0], [1.0, 0.5]]
@@ -29,16 +27,22 @@ def test_append_input_ids():
         "patches": [PATCH_0, PATCH_0],
         "positions": [POS0, POS0],
         "input_type": [0, 0],
+        "loss_mask": [0, 0],
     }
 
-    _append(batch_data, processed_data)
+    _append(batch_data, processed_data, loss_mask_value=1)
 
     expected_output = {
         "input_ids": [1, 2, 101, 102],
         "patches": [PATCH_0, PATCH_0, PATCH_0, PATCH_0],
         "positions": [POS0, POS0, POS0, POS0],
         "input_type": [0, 0, 0, 0],
+        "loss_mask": [0, 0, 1, 1],
     }
+
+    # To make dicts easier to compare:
+    processed_data["patches"] = [p.tolist() for p in processed_data["patches"]]
+    expected_output["patches"] = [p.tolist() for p in expected_output["patches"]]
 
     assert processed_data == expected_output
 
@@ -50,16 +54,22 @@ def test_append_patches_and_positions():
         "patches": [PATCH_0, PATCH_0],
         "positions": [POS0, POS0],
         "input_type": [0, 0],
+        "loss_mask": [0, 0],
     }
 
-    _append(batch_data, processed_data)
+    _append(batch_data, processed_data, loss_mask_value=1)
 
     expected_output = {
         "input_ids": [1, 2, 0, 0],
         "patches": [PATCH_0, PATCH_0, PATCH_1, PATCH_2],
         "positions": [POS0, POS0, LEFT, RIGHT],
         "input_type": [0, 0, 1, 1],
+        "loss_mask": [0, 0, 1, 1],
     }
+
+    # To make dicts easier to compare:
+    processed_data["patches"] = [p.tolist() for p in processed_data["patches"]]
+    expected_output["patches"] = [p.tolist() for p in expected_output["patches"]]
 
     assert processed_data == expected_output
 
@@ -83,8 +93,16 @@ def test_interleave_episode():
         "patches": [PATCH_1, PATCH_2, PATCH_0, PATCH_0, PATCH_3, PATCH_4, PATCH_0, PATCH_0],
         "positions": [LEFT, RIGHT, POS0, POS0, LEFT, RIGHT, POS0, POS0],
         "input_type": [1, 1, 0, 0, 1, 1, 0, 0],
+        "loss_mask": [0, 0, 0, 0, 0, 0, 0, 0],
     }
-    assert _interleave_episode(sample_data) == expected_output
+
+    processed_data = _interleave_episode(sample_data)
+
+    # To make dicts easier to compare:
+    processed_data["patches"] = [p.tolist() for p in processed_data["patches"]]
+    expected_output["patches"] = [p.tolist() for p in expected_output["patches"]]
+
+    assert processed_data == expected_output
 
 
 def test_interleave_standalone():
@@ -97,8 +115,16 @@ def test_interleave_standalone():
         "patches": [PATCH_1, PATCH_2, PATCH_0, PATCH_0],
         "positions": [LEFT, RIGHT, POS0, POS0],
         "input_type": [1, 1, 0, 0],
+        "loss_mask": [0, 0, 1, 1],
     }
-    assert _interleave_standalone(input_data) == expected_output
+
+    processed_data = _interleave_standalone(input_data)
+
+    # To make dicts easier to compare:
+    processed_data["patches"] = [p.tolist() for p in processed_data["patches"]]
+    expected_output["patches"] = [p.tolist() for p in expected_output["patches"]]
+
+    assert processed_data == expected_output
 
 
 def test_is_episode():
@@ -192,8 +218,18 @@ def test_interleave_batch_episode():
             [1, 1, 0, 0, 1, 1, 0, 0],
             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         ],
+        "loss_mask": [
+            [0, 0, 1, 1, 0, 0, 1, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        ],
     }
-    assert interleave_batch(input_data) == expected_output
+    processed_data = interleave_batch(input_data)
+
+    # To make dicts easier to compare:
+    processed_data["patches"] = [[p.tolist() for p in ep] for ep in processed_data["patches"]]
+    expected_output["patches"] = [[p.tolist() for p in ep] for ep in expected_output["patches"]]
+
+    assert processed_data == expected_output
 
 
 def test_interleave_batch_standalone():
@@ -227,8 +263,16 @@ def test_interleave_batch_standalone():
             [0, 0],
             [1, 1, 0, 0],
         ],
+        "loss_mask": [[0, 0], [1, 1], [0, 0, 1, 1]],
     }
-    assert interleave_batch(input_data) == expected_output
+
+    processed_data = interleave_batch(input_data)
+
+    # To make dicts easier to compare:
+    processed_data["patches"] = [[p.tolist() for p in ep] for ep in processed_data["patches"]]
+    expected_output["patches"] = [[p.tolist() for p in ep] for ep in expected_output["patches"]]
+
+    assert processed_data == expected_output
 
 
 def test_interleave_batch_mixed():
@@ -273,6 +317,16 @@ def test_interleave_batch_mixed():
             [0, 0],
             [1, 1, 0, 0, 1, 1, 0, 0],
         ],
+        "loss_mask": [
+            [1, 1],
+            [0, 0, 1, 1, 0, 0, 1, 1],
+        ],
     }
 
-    assert interleave_batch(input_data) == expected_output
+    processed_data = interleave_batch(input_data)
+
+    # To make dicts easier to compare:
+    processed_data["patches"] = [[p.tolist() for p in ep] for ep in processed_data["patches"]]
+    expected_output["patches"] = [[p.tolist() for p in ep] for ep in expected_output["patches"]]
+
+    assert processed_data == expected_output

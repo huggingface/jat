@@ -111,7 +111,7 @@ class GiaTokenizer:
         resized_image = cv2.resize(image, (W, H), interpolation=cv2.INTER_AREA)
         image = resized_image.transpose(2, 0, 1)  # Back to channels first
         patches = image.reshape(C, H // P, P, W // P, P).transpose(1, 3, 0, 2, 4)
-        patches = patches.reshape(-1, C, P, P).tolist()
+        patches = patches.reshape(-1, C, P, P)
         # relative position intervals of the patches within the image
         # described with array [[x_min, y_min], [x_max, y_max]]
         # Output shape is (N, 2, 2)
@@ -230,8 +230,8 @@ class GiaProcessor:
         tokens_and_patches.pop("rewards", None)
         x = interleave_batch(tokens_and_patches)
 
-        PATCH_PLACEHOLDER = np.zeros((3, 16, 16), dtype=np.int64).tolist()
-        POSITION_PLACEHOLDER = np.zeros((2, 2), dtype=np.float32).tolist()
+        PATCH_PLACEHOLDER = np.zeros((3, 16, 16), dtype=np.int64)
+        POSITION_PLACEHOLDER = [[0, 0], [0, 0]]
 
         padded_input_ids, masks_1 = split_and_pad_sequences(x["input_ids"], max_len=self.seq_len, pad_value=0)
         padded_patches, masks_2 = split_and_pad_sequences(
