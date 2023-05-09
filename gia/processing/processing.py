@@ -8,7 +8,7 @@ from transformers import AutoTokenizer
 
 from gia.config import DatasetArguments
 
-from .utils import interleave_batch
+from .utils import interleave_batch, split_and_pad_sequences
 
 T = TypeVar("T")
 U = TypeVar("U")
@@ -222,12 +222,33 @@ class GiaProcessor:
     def __init__(self, args: DatasetArguments) -> None:
         super().__init__()
         self.tokenizer = GiaTokenizer(args)
+        self.seq_len = args.seq_len
 
     def __call__(self, **kwargs):
         tokens_and_patches = self.tokenizer(**kwargs)
         # pop the reward, if any
         tokens_and_patches.pop("rewards", None)
-        return interleave_batch(tokens_and_patches)
+        x = interleave_batch(tokens_and_patches)
+
+        PATCH_PLACEHOLDER = np.zeros((3, 16, 16), dtype=np.int64).tolist()
+        POSITION_PLACEHOLDER = np.zeros((2, 2), dtype=np.float32).tolist()
+
+        padded_input_ids, masks_1 = split_and_pad_sequences(x["input_ids"], max_len=self.seq_len, pad_value=0)
+        padded_patches, masks_2 = split_and_pad_sequences(
+            x["patches"], max_len=self.seq_len, pad_value=PATCH_PLACEHOLDER
+        )
+        assert masks_1 == masks_2
+        padded_positions, masks = split_and_pad_sequences(
+            x["positions"], max_len=self.seq_len, pad_value=POSITION_PLACEHOLDER
+        )
+        padded_input_type, masks = split_and_pad_sequences(x["input_type"], max_len=self.seq_len, pad_value=0)
+
+        x["input_ids"] = padded_input_ids
+        x["patches"] = padded_patches
+        x["positions"] = padded_positions
+        x["input_type"] = padded_input_type
+        x["attention_mask"] = masks
+        return x
 
 
 # def split_and_pad_sequences(sequences: List[List[Any]], max_len: int) -> Tuple[List[List[Any]], List[List[int]]]:

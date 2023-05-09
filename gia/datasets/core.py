@@ -169,7 +169,6 @@ def collate_fn(batch: List[Dict[str, List]]) -> Dict[str, List[Union[torch.Tenso
     Returns:
         Dict[str, Any]: Collated batch.
     """
-    # All samples do not necessarily have the same keys
-    keys = {key for sample in batch for key in sample.keys()}
-    collated_batch = {key: [torch.tensor(sample[key]) if key in sample else None for sample in batch] for key in keys}
-    return collated_batch
+    # All samples must have the same keys
+    keys = batch[0].keys()
+    return {key: torch.tensor([sample[key] for sample in batch]) for key in keys}

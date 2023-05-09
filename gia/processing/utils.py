@@ -1,6 +1,13 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple, TypeVar
 
 import numpy as np
+
+# Here, we define the placeholders for the patches and positions.
+# For memory efficiency, we use the same placeholder for all patches and positions.
+PATCH_PLACEHOLDER = np.zeros((3, 16, 16), dtype=np.int64).tolist()
+POSITION_PLACEHOLDER = np.zeros((2, 2), dtype=np.float32).tolist()
+
+T = TypeVar("T")
 
 
 def _is_episode(sample_data: Dict[str, Dict[str, Any]]) -> bool:
@@ -70,8 +77,8 @@ def _append(batch_data: Dict[str, Dict[str, Any]], processed_data: Dict[str, Lis
             batch_data[key] = [batch_data[key]]
     num_elements = len(next(iter(batch_data.values())))
     input_ids = batch_data.get("input_ids", [0] * num_elements)
-    patches = batch_data.get("patches", np.zeros((num_elements, 3, 16, 16)).tolist())
-    positions = batch_data.get("positions", [[[0, 0], [0, 0]]] * num_elements)
+    patches = batch_data.get("patches", [PATCH_PLACEHOLDER] * num_elements)
+    positions = batch_data.get("positions", [POSITION_PLACEHOLDER] * num_elements)
     if "input_ids" in batch_data:
         input_type = [0] * num_elements
     elif "patches" in batch_data and "positions" in batch_data:
@@ -164,3 +171,47 @@ def interleave_batch(batch_data: Dict[str, Any]) -> Dict[str, List[Any]]:
             output[key].append(x[key])
 
     return output
+
+
+def split_and_pad_sequences(
+    sequences: List[List[T]], max_len: int, pad_value: T
+) -> Tuple[List[List[T]], List[List[int]]]:
+    """
+    Splits input sequences into sub-sequences of length max_len and pads them if necessary.
+    Generates a mask indicating the padding positions.
+
+    Args:
+        sequences (List[List[T]]): A list of sequences, where each sequence is a list.
+        max_len (int): Maximum length for the output sub-sequences.
+        pad_value (T): Value to use for padding.
+
+    Returns:
+        Tuple[List[List[T]], List[List[int]]]: padded_subsequences padded masks
+
+    Example:
+        >>> sequences = [[1, 2, 3, 4, 5], [6, 7, 8, 9]]
+        >>> out, mask = split_and_pad_sequences(sequences, max_len=3, pad_value=0)
+        >>> out
+        [[1, 2, 3], [4, 5, 0], [6, 7, 8], [9, 0, 0]]
+        >>> mask
+        [[1, 1, 1], [1, 1, 0], [1, 1, 1], [1, 0, 0]]
+    """
+    padded_subsequences = []
+    masks = []
+
+    for sequence in sequences:
+        for i in range(0, len(sequence), max_len):
+            # Take a subsequence of max_len elements
+            subsequence = sequence[i : i + max_len]
+            mask = [1] * len(subsequence)
+
+            # If the subsequence is smaller than max_len, pad it
+            if len(subsequence) < max_len:
+                padding_length = max_len - len(subsequence)
+                subsequence += [pad_value] * padding_length
+                mask += [0] * padding_length
+
+            padded_subsequences.append(subsequence)
+            masks.append(mask)
+
+    return padded_subsequences, masks
