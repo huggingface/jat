@@ -50,7 +50,11 @@ class GiaModel(nn.Module):
         self.emb = Embeddings(args)
 
     def forward(
-        self, batch: Union[List[Dict[str, Tensor]], Dict[str, Tensor]], eval: bool = False, use_cache=False, past_key_values=None,
+        self,
+        batch: Union[List[Dict[str, Tensor]], Dict[str, Tensor]],
+        eval: bool = False,
+        use_cache=False,
+        past_key_values=None,
     ) -> CausalLMOutputWithPast:
         if isinstance(batch, Dict):  # To allow that the input only a single dict
             batch = [batch]
@@ -74,7 +78,9 @@ class GiaModel(nn.Module):
         # The model requires us to provide position ids, otherwise it will generate them
         # qgallouedec: I've removed position_ids=batch["local_position_ids"]. Is this a problem?
         if eval:  # No need to compute the loss
-            out = self.model(inputs_embeds=embeddings, attention_mask=None, use_cache=use_cache, past_key_values=past_key_values)
+            out = self.model(
+                inputs_embeds=embeddings, attention_mask=None, use_cache=use_cache, past_key_values=past_key_values
+            )
         else:
             labels = pad_and_cat([embed["tokens"] for embed in embed_list], max_len)
             assert all("loss_mask" in embed for embed in embed_list), "loss_mask not found"
