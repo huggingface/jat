@@ -11,13 +11,13 @@ def test_inverse_tokenize_continuous():
     tokenizer = GiaTokenizer(args)
 
     # Create sample tokens
-    x = np.linspace(-5.0, 5.0, 51).reshape(1, -1)  # Convert to batch of size 1
+    x = np.linspace(-5.0, 5.0, 50).reshape(1, 25, -1).tolist()  # Convert to batch of size 1, 25 timesteps, 2 features
 
     # Call tokenize_continuous method
-    tokens = tokenizer(x)
+    tokens = tokenizer(continuous_observations=x)
 
     # Compute the expected result
-    expected_result = tokenizer.inverse_tokenize_continuous(tokens)
+    expected_result = tokenizer.inverse_tokenize_continuous(tokens["continuous_observations"]["input_ids"])
 
     # Assert that the result is close to the expected result
     np.testing.assert_allclose(x, expected_result, atol=1e-1)
@@ -156,7 +156,7 @@ def test_gia_processor():
     )
 
     assert isinstance(out, dict)
-    assert set(out.keys()) == {"input_ids", "patches", "positions"}
+    assert set(out.keys()) == {"input_ids", "patches", "positions", "input_type", "attention_mask"}
 
     # Check that the number of samples is correct
     assert len(out["input_ids"]) == 2
@@ -164,4 +164,5 @@ def test_gia_processor():
     assert len(out["positions"]) == 2
 
     # Check that the sequence length is correct
-    assert len(out["input_ids"][0]) == 2 * 2 * 2  # 2 timesteps, 2 observations, 2 actions
+    assert len(out["input_ids"][0]) == 1024
+    assert sum(out["attention_mask"][0]) == 2 * 2 * 2  #  2 timesteps, 2 observations, 2 actions
