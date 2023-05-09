@@ -61,7 +61,6 @@ class MujocoEvaluator(Evaluator):
         num_envs = 1
         # number of interactions per sequence. Hard-coded for now
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        # model = GiaModel(Arguments()).to(device)
         env = gym.vector.make(env_name, num_envs)
         num_obs_tokens = env.observation_space.shape[1]
         num_act_tokens = env.action_space.shape[1]
@@ -69,11 +68,7 @@ class MujocoEvaluator(Evaluator):
         int_per_seq = (self.args.seq_len // tokens_per_step) - 1
         max_kv_size = int_per_seq * tokens_per_step
 
-
-        prompt_dataset = load_prompt_dataset(dataset_name, args) #  load_prompt_dataset(dataset_name)
-        sampled_prompts_idxs = np.random.randint(0, len(prompt_dataset), size=num_envs)
-
-        # Fill (right side) the prompt_buffer with the prompts. Truncate if necessary.
+        prompt_dataset = load_prompt_dataset(dataset_name, args) #  load_prompt_dataset(dataset_name)       
 
         processor = GiaProcessor(args)
         
@@ -85,26 +80,30 @@ class MujocoEvaluator(Evaluator):
             done = False
             past_key_values = None
             use_cache = True
-            sampled_prompts_idxs = np.random.randint(0, len(prompt_dataset))
+            sampled_prompts_idx = np.random.randint(0, len(prompt_dataset))
             prompt_buffer = self._create_buffer(num_envs,int_per_seq, num_obs_tokens, num_act_tokens, device)
             
+            # Fill (right side) the prompt_buffer with the prompts. Truncate if necessary.
             for key in prompt_buffer.keys():
-                length = min(prompt_buffer[key].shape[1], prompt_dataset[key][sampled_prompts_idxs].shape[1])
-                prompt_buffer[key][:, -length:] = torch.from_numpy(prompt_dataset[key][sampled_prompts_idxs, -length:]).to(device)
-            step_buffer = self._create_buffer(num_envs,1, num_obs_tokens, num_act_tokens, device)
-            #step_buffer["continuous_observations_attention_mask"] += 1  # attend to all of the observation
+                length = min(prompt_buffer[key].shape[1], prompt_dataset[key][sampled_prompts_idx].shape[1])
+                prompt_buffer[key][:, -length:] = torch.from_numpy(prompt_dataset[key][sampled_prompts_idx, -length:]).to(device)
+            step_buffer = self._create_buffer(num_envs, 1, num_obs_tokens, num_act_tokens, device)
             # update the kv cache from the prompt
             output = model(prompt_buffer, eval=True, use_cache=use_cache, past_key_values=past_key_values)            
             past_key_values = output.past_key_values
-            token_shift = 32_000 # TODO: remove?
+            token_shift = args.token_shift
 
+            # Further optimizations (TODO):
+            # - calculate the KV cache for the current obs as well. Will need refactor of Embedding module.
+            # - Use .generate for the n actions rather than the loop
+            
+            # Other TODO:
+            # - confirm attention masks are not needed in this setting
+            
             while not done:
                 obs_tokens = processor({"continuous_observations": obs})["continuous_observations"]
                 step_buffer["continuous_observations"] = torch.from_numpy(obs_tokens).unsqueeze(1).to(device)
-                #step_buffer["continuous_actions_attention_mask"] *= 0     
-                
-                # still TODO attn masks for obs and actins, buffer resetting
-                # in fact attn masks are not needed as we have causal self attn
+      
                 action = np.zeros((num_envs, num_act_tokens))
                 for i in range(num_act_tokens):
                     output = model(step_buffer, eval=True, use_cache=use_cache, past_key_values=past_key_values)
