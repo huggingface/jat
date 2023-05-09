@@ -1,5 +1,7 @@
 from typing import Any, Dict, List, Optional
 
+import numpy as np
+
 
 def _is_episode(sample_data: Dict[str, Dict[str, Any]]) -> bool:
     """
@@ -67,12 +69,20 @@ def _append(batch_data: Dict[str, Dict[str, Any]], processed_data: Dict[str, Lis
         if not isinstance(batch_data[key], list):
             batch_data[key] = [batch_data[key]]
     num_elements = len(next(iter(batch_data.values())))
-    for k in range(num_elements):
-        for key in processed_data:
-            if key in batch_data:
-                processed_data[key].append(batch_data[key][k])
-            else:
-                processed_data[key].append(None)
+    input_ids = batch_data.get("input_ids", [0] * num_elements)
+    patches = batch_data.get("patches", np.zeros((num_elements, 3, 16, 16)).tolist())
+    positions = batch_data.get("positions", [[[0, 0], [0, 0]]] * num_elements)
+    if "input_ids" in batch_data:
+        input_type = [0] * num_elements
+    elif "patches" in batch_data and "positions" in batch_data:
+        input_type = [1] * num_elements
+    else:
+        raise ValueError("Batch data must contain either input_ids or patches and positions.")
+
+    processed_data["input_ids"].extend(input_ids)
+    processed_data["patches"].extend(patches)
+    processed_data["positions"].extend(positions)
+    processed_data["input_type"].extend(input_type)
 
 
 def _interleave_episode(episode_data: Dict[str, Dict[str, Any]]) -> dict:
@@ -80,30 +90,31 @@ def _interleave_episode(episode_data: Dict[str, Dict[str, Any]]) -> dict:
     Unrolls a single episode of data into a dictionary of lists of data.
 
     Args:
-        d (Dict[str, Any]): The episode of data to unroll. First level keys must be "input_ids", "patches", and
-            "positions". Second level keys must be "text_observations", "image_observations", "discrete_observations",
-            "continuous_observations", "discrete_actions", and "continuous_actions".
+        episode_data (Dict[str, Any]): The episode of data to unroll. First level keys must be "input_ids",
+            "patches", "positions". Second level keys must be "text_observations", "image_observations",
+            "discrete_observations", "continuous_observations", "discrete_actions", and "continuous_actions".
 
     Returns:
-        dict: The unrolled episode of data.
+        dict: The interleaved episode episode of data.
+            keys are "input_ids", "patches", "positions", "input_type".
 
     Example:
-    >>> episode_data = {"discrete_observations": {"input_ids": [[1, 2, 3], [4, 5, 6], [7, 8, 9]]},
-    ...                 "image_observations": {"patches": [[PATCH_1, PATCH_2], [PATCH_3, PATCH_4], [PATCH_5, PATCH_6]],
-    ...                                        "positions": [[LEFT, RIGHT], [LEFT, RIGHT], [LEFT, RIGHT]]}}
-    >>> _unroll_single_episode(episode_data)
-    {'input_ids': [None, None, 1, 2, 3, None, None, 4, 5, 6, None, None, 7, 8, 9],
-     'patches': [PATCH_1, PATCH_2, None, None, None, PATCH_3, PATCH_4, None, None, None, PATCH_5, PATCH_6],
-     'positions': [LEFT, RIGHT, None, None, None, LEFT, RIGHT, None, None, None, LEFT, RIGHT]}
+        >>> episode_data = {"discrete_observations": {"input_ids": [[1, 2, 3], [4, 5, 6], [7, 8, 9]]},
+        ...                 "image_observations": {"patches": [[P1, P2], [P3, P4], [P5, P6]],
+        ...                                        "positions": [[LEFT, RIGHT], [LEFT, RIGHT], [LEFT, RIGHT]]}}
+        >>> _interleave_episode(episode_data)
+        {'input_ids': [0, 0, 1, 2, 3, 0, 0, 4, 5, 6, 0, 0, 7, 8, 9],
+        'patches': [P1, P2, P0, P0, P0, P3, P4, P0, P0, P0, P5, P6],
+        'positions': [LEFT, RIGHT, POS0, POS0, POS0, LEFT, RIGHT, POS0, POS0, POS0, LEFT, RIGHT]}
+        'input_type': [0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1]}
+
+    Where P0 = zeros(shape=(3, 16, 16)) and  POS0 = [[0, 0], [0, 0]] are placeholders for respectively patches
+    and positions. (Similar to 0 for input_ids)
     """
-    processed_data = {key: [] for key in ["input_ids", "patches", "positions"]}
+    output = {"input_ids": [], "patches": [], "positions": [], "input_type": []}
 
     # Get the length of each sequence in the d and make sure they are all equal
     sequence_lengths = [len(in_val) for out_val in episode_data.values() for in_val in out_val.values()]
-
-    if len(sequence_lengths) == 0:
-        return None
-
     common_length = sequence_lengths[0]
     assert all(common_length == length for length in sequence_lengths)
     for t in range(common_length):
@@ -118,18 +129,18 @@ def _interleave_episode(episode_data: Dict[str, Dict[str, Any]]) -> dict:
             "continuous_actions",
         ]:
             if data_key in timestep_data:
-                _append(timestep_data[data_key], processed_data)
+                _append(timestep_data[data_key], output)
 
-    return processed_data
+    return output
 
 
 def _interleave_standalone(data: Dict[str, Dict[str, Any]]) -> Dict[str, List[Optional[Any]]]:
-    output_data = {key: [] for key in ["input_ids", "patches", "positions"]}
+    output = {"input_ids": [], "patches": [], "positions": [], "input_type": []}
     if "image" in data:
-        _append(data["image"], output_data)
+        _append(data["image"], output)
     if "text" in data:
-        _append(data["text"], output_data)
-    return output_data
+        _append(data["text"], output)
+    return output
 
 
 def _get_batch_size(batch_data: Dict[str, Dict[str, Any]]) -> int:
@@ -140,7 +151,7 @@ def _get_batch_size(batch_data: Dict[str, Dict[str, Any]]) -> int:
 
 def interleave_batch(batch_data: Dict[str, Any]) -> Dict[str, List[Any]]:
     batch_size = _get_batch_size(batch_data)
-    output = {"input_ids": [], "patches": [], "positions": []}
+    output = {"input_ids": [], "patches": [], "positions": [], "input_type": []}
 
     for batch_idx in range(batch_size):
         sample_data = _extract_idx_element(batch_data, batch_idx)
