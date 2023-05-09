@@ -1,6 +1,5 @@
 import gym
 import numpy as np
-import torch
 from tqdm import tqdm
 import torch
 
