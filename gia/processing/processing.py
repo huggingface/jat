@@ -8,7 +8,7 @@ from transformers import AutoTokenizer
 
 from gia.config import DatasetArguments
 
-from .utils import interleave_batch, split_and_pad_sequences
+from .interleaver import Interleaver, split_and_pad_sequences
 
 T = TypeVar("T")
 U = TypeVar("U")
@@ -230,16 +230,16 @@ class GiaProcessor:
         tokens_and_patches.pop("rewards", None)
         x = interleave_batch(tokens_and_patches)
 
-        PATCH_PLACEHOLDER = np.zeros((3, 16, 16), dtype=np.int64)
-        POSITION_PLACEHOLDER = [[0, 0], [0, 0]]
+        PATCH_PAD = np.zeros((3, 16, 16), dtype=np.int64)
+        POSITION_PAD = [[0, 0], [0, 0]]
 
         padded_input_ids, masks_1 = split_and_pad_sequences(x["input_ids"], max_len=self.seq_len, pad_value=0)
         padded_patches, masks_2 = split_and_pad_sequences(
-            x["patches"], max_len=self.seq_len, pad_value=PATCH_PLACEHOLDER
+            x["patches"], max_len=self.seq_len, pad_value=PATCH_PAD
         )
         assert masks_1 == masks_2
         padded_positions, masks = split_and_pad_sequences(
-            x["positions"], max_len=self.seq_len, pad_value=POSITION_PLACEHOLDER
+            x["positions"], max_len=self.seq_len, pad_value=POSITION_PAD
         )
         padded_input_type, masks = split_and_pad_sequences(x["input_type"], max_len=self.seq_len, pad_value=0)
 

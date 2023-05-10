@@ -1,41 +1,36 @@
 import numpy as np
 import pytest
 
-from gia.processing.utils import (
-    _append,
-    _interleave_episode,
-    _interleave_standalone,
-    _is_episode,
-    interleave_batch,
-)
+from gia.processing.interleaver import Interleaver
 
-PATCH_0 = np.zeros(shape=(3, 16, 16), dtype=np.uint8)  # PLACEHOLDER
+PATCH_PAD = np.zeros(shape=(3, 16, 16), dtype=np.uint8)  # PAD
 PATCH_1 = np.random.randint(0, 255, (3, 16, 16), dtype=np.uint8)
 PATCH_2 = np.random.randint(0, 255, (3, 16, 16), dtype=np.uint8)
 PATCH_3 = np.random.randint(0, 255, (3, 16, 16), dtype=np.uint8)
 PATCH_4 = np.random.randint(0, 255, (3, 16, 16), dtype=np.uint8)
 
-POS0 = [[0.0, 0.0], [0.0, 0.0]]  # PLACEHOLDER
+POS_PAD = [[0.0, 0.0], [0.0, 0.0]]  # PAD
 LEFT = [[0.0, 0.0], [1.0, 0.5]]
 RIGHT = [[0.0, 0.5], [1.0, 1.0]]
 
 
-def test_append_input_ids():
+def test_dict_append_input_ids():
+    interleaver = Interleaver()
     batch_data = {"input_ids": [101, 102]}
     processed_data = {
         "input_ids": [1, 2],
-        "patches": [PATCH_0, PATCH_0],
-        "positions": [POS0, POS0],
+        "patches": [PATCH_PAD, PATCH_PAD],
+        "positions": [POS_PAD, POS_PAD],
         "input_type": [0, 0],
         "loss_mask": [0, 0],
     }
 
-    _append(batch_data, processed_data, loss_mask_value=1)
+    interleaver._dict_append(batch_data, processed_data, loss_mask_value=1)
 
     expected_output = {
         "input_ids": [1, 2, 101, 102],
-        "patches": [PATCH_0, PATCH_0, PATCH_0, PATCH_0],
-        "positions": [POS0, POS0, POS0, POS0],
+        "patches": [PATCH_PAD, PATCH_PAD, PATCH_PAD, PATCH_PAD],
+        "positions": [POS_PAD, POS_PAD, POS_PAD, POS_PAD],
         "input_type": [0, 0, 0, 0],
         "loss_mask": [0, 0, 1, 1],
     }
@@ -47,22 +42,23 @@ def test_append_input_ids():
     assert processed_data == expected_output
 
 
-def test_append_patches_and_positions():
+def test_dict_append_patches_and_positions():
+    interleaver = Interleaver()
     batch_data = {"patches": [PATCH_1, PATCH_2], "positions": [LEFT, RIGHT]}
     processed_data = {
         "input_ids": [1, 2],
-        "patches": [PATCH_0, PATCH_0],
-        "positions": [POS0, POS0],
+        "patches": [PATCH_PAD, PATCH_PAD],
+        "positions": [POS_PAD, POS_PAD],
         "input_type": [0, 0],
         "loss_mask": [0, 0],
     }
 
-    _append(batch_data, processed_data, loss_mask_value=1)
+    interleaver._dict_append(batch_data, processed_data, loss_mask_value=1)
 
     expected_output = {
         "input_ids": [1, 2, 0, 0],
-        "patches": [PATCH_0, PATCH_0, PATCH_1, PATCH_2],
-        "positions": [POS0, POS0, LEFT, RIGHT],
+        "patches": [PATCH_PAD, PATCH_PAD, PATCH_1, PATCH_2],
+        "positions": [POS_PAD, POS_PAD, LEFT, RIGHT],
         "input_type": [0, 0, 1, 1],
         "loss_mask": [0, 0, 1, 1],
     }
@@ -79,6 +75,7 @@ def test_interleave_episode():
     # 1 observation is composed of
     #     2 image patches (with the associated positions) and
     #     1 discrete observations composed of 3 ints
+    interleaver = Interleaver()
     sample_data = {
         "discrete_observations": {
             "input_ids": [[1, 2], [3, 4]],
@@ -90,13 +87,13 @@ def test_interleave_episode():
     }
     expected_output = {
         "input_ids": [0, 0, 1, 2, 0, 0, 3, 4],
-        "patches": [PATCH_1, PATCH_2, PATCH_0, PATCH_0, PATCH_3, PATCH_4, PATCH_0, PATCH_0],
-        "positions": [LEFT, RIGHT, POS0, POS0, LEFT, RIGHT, POS0, POS0],
+        "patches": [PATCH_1, PATCH_2, PATCH_PAD, PATCH_PAD, PATCH_3, PATCH_4, PATCH_PAD, PATCH_PAD],
+        "positions": [LEFT, RIGHT, POS_PAD, POS_PAD, LEFT, RIGHT, POS_PAD, POS_PAD],
         "input_type": [1, 1, 0, 0, 1, 1, 0, 0],
         "loss_mask": [0, 0, 0, 0, 0, 0, 0, 0],
     }
 
-    processed_data = _interleave_episode(sample_data)
+    processed_data = interleaver._interleave_episode(sample_data)
 
     # To make dicts easier to compare:
     processed_data["patches"] = [p.tolist() for p in processed_data["patches"]]
@@ -106,19 +103,20 @@ def test_interleave_episode():
 
 
 def test_interleave_standalone():
+    interleaver = Interleaver()
     input_data = {
         "text": {"input_ids": [1, 2]},
         "image": {"patches": [PATCH_1, PATCH_2], "positions": [LEFT, RIGHT]},
     }
     expected_output = {
         "input_ids": [0, 0, 1, 2],
-        "patches": [PATCH_1, PATCH_2, PATCH_0, PATCH_0],
-        "positions": [LEFT, RIGHT, POS0, POS0],
+        "patches": [PATCH_1, PATCH_2, PATCH_PAD, PATCH_PAD],
+        "positions": [LEFT, RIGHT, POS_PAD, POS_PAD],
         "input_type": [1, 1, 0, 0],
         "loss_mask": [0, 0, 1, 1],
     }
 
-    processed_data = _interleave_standalone(input_data)
+    processed_data = interleaver._interleave_standalone(input_data)
 
     # To make dicts easier to compare:
     processed_data["patches"] = [p.tolist() for p in processed_data["patches"]]
@@ -133,7 +131,7 @@ def test_is_episode():
         "image": {"patches": [], "positions": []},
         "text": {"input_ids": []},
     }
-    assert not _is_episode(sample_data_1)
+    assert not Interleaver._is_episode(sample_data_1)
 
     # Test valid episode case
     sample_data_2 = {
@@ -142,7 +140,7 @@ def test_is_episode():
         "discrete_observations": {"input_ids": []},
         "continuous_actions": {"input_ids": []},
     }
-    assert _is_episode(sample_data_2)
+    assert Interleaver._is_episode(sample_data_2)
 
     # Test invalid mixed case
     sample_data_3 = {
@@ -151,7 +149,7 @@ def test_is_episode():
         "continuous_actions": {"input_ids": []},
     }
     with pytest.raises(ValueError):
-        _is_episode(sample_data_3)
+        Interleaver._is_episode(sample_data_3)
 
     # Test case with extra keys
     sample_data_4 = {
@@ -160,10 +158,11 @@ def test_is_episode():
         "extra_key": {"input_ids": []},
     }
     with pytest.raises(ValueError):
-        _is_episode(sample_data_4)
+        Interleaver._is_episode(sample_data_4)
 
 
 def test_interleave_batch_episode():
+    interleaver = Interleaver()
     input_data = {
         "text_observations": {
             "input_ids": [
@@ -194,25 +193,12 @@ def test_interleave_batch_episode():
             [1, 2, 15, 16, 3, 4, 17, 18, 5, 6, 19, 20],
         ],
         "patches": [
-            [PATCH_1, PATCH_2, PATCH_0, PATCH_0, PATCH_3, PATCH_4, PATCH_0, PATCH_0],
-            [
-                PATCH_0,
-                PATCH_0,
-                PATCH_0,
-                PATCH_0,
-                PATCH_0,
-                PATCH_0,
-                PATCH_0,
-                PATCH_0,
-                PATCH_0,
-                PATCH_0,
-                PATCH_0,
-                PATCH_0,
-            ],
+            [PATCH_1, PATCH_2, PATCH_PAD, PATCH_PAD, PATCH_3, PATCH_4, PATCH_PAD, PATCH_PAD],
+            [PATCH_PAD] * 12,
         ],
         "positions": [
-            [LEFT, RIGHT, POS0, POS0, LEFT, RIGHT, POS0, POS0],
-            [POS0, POS0, POS0, POS0, POS0, POS0, POS0, POS0, POS0, POS0, POS0, POS0],
+            [LEFT, RIGHT, POS_PAD, POS_PAD, LEFT, RIGHT, POS_PAD, POS_PAD],
+            [POS_PAD] * 12,
         ],
         "input_type": [
             [1, 1, 0, 0, 1, 1, 0, 0],
@@ -223,7 +209,7 @@ def test_interleave_batch_episode():
             [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
         ],
     }
-    processed_data = interleave_batch(input_data)
+    processed_data = interleaver(input_data)
 
     # To make dicts easier to compare:
     processed_data["patches"] = [[p.tolist() for p in ep] for ep in processed_data["patches"]]
@@ -233,6 +219,7 @@ def test_interleave_batch_episode():
 
 
 def test_interleave_batch_standalone():
+    interleaver = Interleaver()
     input_data = {
         "text": {
             "input_ids": [None, [1, 2], [3, 4]],
@@ -250,13 +237,13 @@ def test_interleave_batch_standalone():
         ],
         "patches": [
             [PATCH_1, PATCH_2],
-            [PATCH_0, PATCH_0],
-            [PATCH_3, PATCH_4, PATCH_0, PATCH_0],
+            [PATCH_PAD, PATCH_PAD],
+            [PATCH_3, PATCH_4, PATCH_PAD, PATCH_PAD],
         ],
         "positions": [
             [LEFT, RIGHT],
-            [POS0, POS0],
-            [LEFT, RIGHT, POS0, POS0],
+            [POS_PAD, POS_PAD],
+            [LEFT, RIGHT, POS_PAD, POS_PAD],
         ],
         "input_type": [
             [1, 1],
@@ -266,7 +253,7 @@ def test_interleave_batch_standalone():
         "loss_mask": [[0, 0], [1, 1], [0, 0, 1, 1]],
     }
 
-    processed_data = interleave_batch(input_data)
+    processed_data = interleaver(input_data)
 
     # To make dicts easier to compare:
     processed_data["patches"] = [[p.tolist() for p in ep] for ep in processed_data["patches"]]
@@ -276,6 +263,7 @@ def test_interleave_batch_standalone():
 
 
 def test_interleave_batch_mixed():
+    interleaver = Interleaver()
     input_data = {
         "text": {
             "input_ids": [
@@ -306,12 +294,12 @@ def test_interleave_batch_mixed():
             [0, 0, 11, 12, 0, 0, 13, 14],
         ],
         "patches": [
-            [PATCH_0, PATCH_0],
-            [PATCH_1, PATCH_2, PATCH_0, PATCH_0, PATCH_3, PATCH_4, PATCH_0, PATCH_0],
+            [PATCH_PAD, PATCH_PAD],
+            [PATCH_1, PATCH_2, PATCH_PAD, PATCH_PAD, PATCH_3, PATCH_4, PATCH_PAD, PATCH_PAD],
         ],
         "positions": [
-            [POS0, POS0],
-            [LEFT, RIGHT, POS0, POS0, LEFT, RIGHT, POS0, POS0],
+            [POS_PAD, POS_PAD],
+            [LEFT, RIGHT, POS_PAD, POS_PAD, LEFT, RIGHT, POS_PAD, POS_PAD],
         ],
         "input_type": [
             [0, 0],
@@ -323,7 +311,7 @@ def test_interleave_batch_mixed():
         ],
     }
 
-    processed_data = interleave_batch(input_data)
+    processed_data = interleaver(input_data)
 
     # To make dicts easier to compare:
     processed_data["patches"] = [[p.tolist() for p in ep] for ep in processed_data["patches"]]
