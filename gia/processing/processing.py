@@ -303,19 +303,19 @@ class GiaProcessor:
         max_length: Optional[int] = None,
     ):
         """
-        _summary_
+        Process input. Returns tokens, patches, positions, and loss masks.
 
         Args:
-            text (Optional[str], optional): _description_. Defaults to None.
-            image (Optional[np.ndarray], optional): _description_. Defaults to None.
-            text_observations (NestedList[str], optional): _description_. Defaults to None.
-            image_observations (NestedList[np.ndarray], optional): _description_. Defaults to None.
-            discrete_observations (NestedList[int], optional): _description_. Defaults to None.
-            continuous_observations (NestedList[float], optional): _description_. Defaults to None.
-            discrete_actions (NestedList[int], optional): _description_. Defaults to None.
-            continuous_actions (NestedList[float], optional): _description_. Defaults to None.
-            rewards (NestedList[float], optional): _description_. Defaults to None.
-            interleave (bool, optional): _description_. Defaults to True.
+            text (Optional[str], optional): Standalone text input. Defaults to None.
+            image (Optional[np.ndarray], optional): Standalone image input. Defaults to None.
+            text_observations (NestedList[str], optional): Episode text observations. Defaults to None.
+            image_observations (NestedList[np.ndarray], optional): Episode image observations. Defaults to None.
+            discrete_observations (NestedList[int], optional): Episode discrete observations. Defaults to None.
+            continuous_observations (NestedList[float], optional): Episode continuous observations. Defaults to None.
+            discrete_actions (NestedList[int], optional): Episode discrete actions. Defaults to None.
+            continuous_actions (NestedList[float], optional): Episode continuous actions. Defaults to None.
+            rewards (NestedList[float], optional): Rewards. Defaults to None.
+            interleave (bool, optional): Interleave observations and actions. Defaults to True.
             truncation (Union[bool, str]): Specifies the truncation strategy.
                 - 'residual' (default): Truncate to a maximum length specified with `max_length` or to the maximum
                     acceptable input length for the model if `max_length` is not provided. Any residual elements that
