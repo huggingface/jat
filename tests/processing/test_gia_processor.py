@@ -152,24 +152,6 @@ def data():
         ],
     }
 
-    # truncation (Union[bool, str]): Specifies the truncation strategy.
-    #     - 'residual' (default): Truncate to a maximum length specified with `max_length` or to the maximum acceptable
-    #         input length for the model if `max_length` is not provided. Any residual elements that don't
-    #         reach `max_length` in length are used to form a new sub-sequence.
-    #     - True or 'max_length': Truncate to a maximum length specified with `max_length` or to the maximum
-    #         acceptable input length for the model if `max_length` is not provided.
-    #     - False or 'do_not_truncate': No truncation (i.e., can output a batch with sequences of different
-    #         lengths).
-    # padding (Union[bool, str]): Specifies the padding strategy.
-    #     - True or 'longest': Pad to the length of the longest sequence in the batch (or no padding if only a
-    #         single sequence if provided).
-    #     - 'max_length': Pad to a maximum length specified with `max_length` or to the maximum acceptable input
-    #         length for the model if `max_length` is not provided.
-    #     - False or 'do_not_pad' (default): No padding (i.e., can output a batch with sequences of different
-    #         lengths).
-    # max_length (Optional[int]): Specifies the maximum length for padding and truncation. If not provided, the
-    #     maximum acceptable input length for the model is used.
-
 
 def test_gia_processor_padding_default(data):
     args = DatasetArguments(nb_bins=16)
