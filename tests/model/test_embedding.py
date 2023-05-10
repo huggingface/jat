@@ -62,6 +62,33 @@ def test_image_position_encoding_values_eval():
     torch.testing.assert_close(pos_encoding[0], pos_encoding[1])
 
 
+def test_image_encoder():
+    batch_size = 8
+    in_channels = 4
+    num_res_channels = 32
+    out_features = 128
+    num_groups = 4
+    patch_size = 16
+
+    image_encoder = ImageEncoder(in_channels, num_res_channels, out_features, num_groups, patch_size)
+
+    # Test with input images of shape (batch_size, 3, patch_size, patch_size)
+    input_images = torch.randn(batch_size, 3, patch_size, patch_size)
+    encoded_images = image_encoder(input_images)
+    assert encoded_images.shape == (
+        batch_size,
+        out_features,
+    ), f"Expected shape ({batch_size}, {out_features}), got {encoded_images.shape}"
+
+    # Test with input images of shape (batch_size, 4, patch_size, patch_size)
+    input_images = torch.randn(batch_size, 4, patch_size, patch_size)
+    encoded_images = image_encoder(input_images)
+    assert encoded_images.shape == (
+        batch_size,
+        out_features,
+    ), f"Expected shape ({batch_size}, {out_features}), got {encoded_images.shape}"
+
+
 def test_local_position_encodings():
     batch_size, seq_len, num_tokens = 8, 16, 20
     vocab_size, embed_dim = 128, 2048
@@ -91,97 +118,15 @@ def test_local_position_encodings_same():
     torch.testing.assert_close(pos_emb[:, :, 1:], pos_emb[:, :, :-1], msg="Position encodings should not vary locally")
 
 
-def test_image_encoder():
-    batch_size = 8
-    in_channels = 4
-    num_res_channels = 32
-    out_features = 128
-    num_groups = 4
-    patch_size = 16
-
-    image_encoder = ImageEncoder(in_channels, num_res_channels, out_features, num_groups, patch_size)
-
-    # Test with input images of shape (batch_size, 3, patch_size, patch_size)
-    input_images = torch.randn(batch_size, 3, patch_size, patch_size)
-    encoded_images = image_encoder(input_images)
-    assert encoded_images.shape == (
-        batch_size,
-        out_features,
-    ), f"Expected shape ({batch_size}, {out_features}), got {encoded_images.shape}"
-
-    # Test with input images of shape (batch_size, 4, patch_size, patch_size)
-    input_images = torch.randn(batch_size, 4, patch_size, patch_size)
-    encoded_images = image_encoder(input_images)
-    assert encoded_images.shape == (
-        batch_size,
-        out_features,
-    ), f"Expected shape ({batch_size}, {out_features}), got {encoded_images.shape}"
-
-
-@pytest.mark.parametrize("obs_modality", ["discrete", "continuous", "text"])
-@pytest.mark.parametrize("act_modality", ["discrete", "continuous", "text"])
-@pytest.mark.parametrize("use_seprator", [True, False])
-def test_embeddings(obs_modality, act_modality, use_seprator):
-    batch_size, seq_len = 8, 4
-    num_obs_tokens = 4
-    num_act_tokens = 3
-    obs_min, obs_max = (0, 32_000) if obs_modality == "text" else (32_000, 32_010)
-    act_min, act_max = (0, 32_000) if act_modality == "text" else (32_000, 32_010)
-    obs_shape = (batch_size, seq_len, num_obs_tokens)
-    act_shape = (batch_size, seq_len, num_act_tokens)
-    batch = {
-        f"{obs_modality}_observations": torch.randint(obs_min, obs_max, obs_shape),
-        f"{obs_modality}_observations_loss_mask": torch.randint(0, 2, obs_shape).bool(),
-        f"{obs_modality}_observations_attention_mask": torch.randint(0, 2, obs_shape).bool(),
-        f"{act_modality}_actions": torch.randint(act_min, act_max, act_shape),
-        f"{act_modality}_actions_loss_mask": torch.randint(0, 2, act_shape).bool(),
-        f"{act_modality}_actions_attention_mask": torch.randint(0, 2, act_shape).bool(),
-    }
-    args = ModelArguments(embed_dim=32, use_separator=use_seprator)
-    embed = Embeddings(args)
-    embeddings = embed(batch)
-    # observations and actions are concatenated
-    num_tokens = num_obs_tokens + num_act_tokens
-    if use_seprator:
-        num_tokens += 1
-    expected_shape = (batch_size, seq_len * num_tokens)
-    assert embeddings["tokens"].shape == expected_shape
-    assert embeddings["attention_mask"].shape == expected_shape
-    assert embeddings["loss_mask"].shape == expected_shape
-    assert embeddings["embeddings"].shape == (*expected_shape, 32)
-
-
-@pytest.mark.parametrize("act_modality", ["discrete", "continuous", "text"])
-@pytest.mark.parametrize("use_seprator", [True, False])
-def test_embeddings_image(act_modality, use_seprator):
-    batch_size, seq_len = 8, 4
-    num_patches, patch_size = 20, 16
-    num_act_tokens = 3
-    act_min, act_max = (0, 32_000) if act_modality == "text" else (32_000, 32_010)
-    obs_shape = (batch_size, seq_len, num_patches)
-    act_shape = (batch_size, seq_len, num_act_tokens)
-
-    batch = {
-        "image_observations": torch.randint(0, 255, (*obs_shape, 3, patch_size, patch_size), dtype=torch.uint8),
-        "image_observations_loss_mask": torch.randint(0, 2, obs_shape).bool(),
-        "image_observations_attention_mask": torch.randint(0, 2, obs_shape).bool(),
-        "patches_positions": random_positions(obs_shape),
-        f"{act_modality}_actions": torch.randint(act_min, act_max, act_shape),
-        f"{act_modality}_actions_loss_mask": torch.randint(0, 2, act_shape).bool(),
-        f"{act_modality}_actions_attention_mask": torch.randint(0, 2, act_shape).bool(),
-    }
-    args = ModelArguments(embed_dim=32, use_separator=use_seprator)
-    embed = Embeddings(args)
-    embeddings = embed(batch)
-    # observations and actions are concatenated
-    num_tokens = num_patches + num_act_tokens
-    if use_seprator:
-        num_tokens += 1
-    expected_shape = (batch_size, seq_len * num_tokens)
-    assert embeddings["tokens"].shape == expected_shape
-    assert embeddings["attention_mask"].shape == expected_shape
-    assert embeddings["loss_mask"].shape == expected_shape
-    assert embeddings["embeddings"].shape == (*expected_shape, 32)
+def test_embeddings():
+    module = Embeddings(embed_dim=128, token_vocab_size=256)
+    input_ids = torch.randint(0, 256, (2, 32))
+    patches = torch.rand(2, 32, 4, 16, 16)
+    positions = random_positions((2, 32))
+    input_type = torch.randint(0, 2, (2, 32))
+    attention_mask = torch.randint(0, 2, (2, 32), dtype=torch.bool)
+    output_tensor = module(input_ids, patches, positions, input_type, attention_mask)
+    assert output_tensor.shape == (2, 32, 128)
 
 
 def test_embed_real_data():
@@ -190,8 +135,8 @@ def test_embed_real_data():
     processor = GiaProcessor(args)
     dataset = DatasetDict(processor(**dataset))
     dataloader = DataLoader(dataset, batch_size=args.batch_size, collate_fn=collate_fn)
-    embeddings = Embeddings(args)
+    embeddings = Embeddings(embed_dim=args.embed_dim, token_vocab_size=32000 + 1024)
     batch = next(iter(dataloader))
+    batch.pop("loss_mask")  # not an arg of embeddings
     embeds = embeddings(**batch)
-    assert len(embeds) == args.batch_size
-    assert set(embeds[0].keys()) == set(["embeddings", "loss_mask", "attention_mask", "tokens"])
+    assert embeds.shape == (args.batch_size, args.max_seq_len, args.embed_dim)
