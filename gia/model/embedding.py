@@ -318,7 +318,10 @@ class Embeddings(nn.Module):
         # The total number of tokens is the number of observation tokens + 1 for the unique action token
         self.local_pos_embeddings = LocalPositionEncodings(args.max_nb_observation_tokens + 1, args.embed_dim)
 
-    def forward(self, batch: Dict[str, Tensor]) -> Tensor:
+    def forward(self, input_ids, patches, positions, input_type, loss_mask, attention_mask) -> Tensor:
+        embeds = torch.zeros(batch_size, self.embed_dim)
+        x = self.embeddings(input_ids[input_type==0])
+
         # Here, batch is a dictionary containing the following keys:
         # - "observations[/*]": A tensor of shape (batch_size, L, n_obs_tokens) if observation is not an image.
         #                       A tensor of shape (batch_size, L, num_patches, num_channels, height, width) if

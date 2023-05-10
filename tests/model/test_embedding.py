@@ -3,13 +3,10 @@ import torch
 from torch.utils.data import DataLoader
 
 from gia.config import Arguments, ModelArguments
-from gia.datasets import collate_fn, load_mixed_dataset
-from gia.model.embedding import (
-    Embeddings,
-    ImageEncoder,
-    ImagePositionEncoding,
-    LocalPositionEncodings,
-)
+from gia.datasets import collate_fn, load_gia_dataset
+from gia.datasets.utils import DatasetDict
+from gia.model.embedding import Embeddings, ImageEncoder, ImagePositionEncoding, LocalPositionEncodings
+from gia.processing import GiaProcessor
 
 
 def random_positions(size):  # Ensure that min < max
@@ -189,10 +186,12 @@ def test_embeddings_image(act_modality, use_seprator):
 
 def test_embed_real_data():
     args = Arguments(task_names=["mujoco-ant"], embed_dim=128, output_dir="tests/test_embed_real_data")
-    dataset = load_mixed_dataset(args)
+    dataset = load_gia_dataset(args.task_names)
+    processor = GiaProcessor(args)
+    dataset = DatasetDict(processor(**dataset))
     dataloader = DataLoader(dataset, batch_size=args.batch_size, collate_fn=collate_fn)
     embeddings = Embeddings(args)
     batch = next(iter(dataloader))
-    embeds = [embeddings(sample) for sample in batch["batch"]]
+    embeds = embeddings(**batch)
     assert len(embeds) == args.batch_size
     assert set(embeds[0].keys()) == set(["embeddings", "loss_mask", "attention_mask", "tokens"])

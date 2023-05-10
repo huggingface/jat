@@ -1,4 +1,4 @@
-from typing import Dict, List, Union
+from typing import List
 
 import torch
 from torch import Tensor, nn
@@ -49,39 +49,10 @@ class GiaModel(nn.Module):
 
         self.emb = Embeddings(args)
 
-    def forward(
-        self, batch: Union[List[Dict[str, Tensor]], Dict[str, Tensor]], eval: bool = False
-    ) -> CausalLMOutputWithPast:
-        if isinstance(batch, Dict):  # To allow that the input only a single dict
-            batch = [batch]
-
-        # hotfix to allow eval in embedding. Try to make it cleaner later
-        # add loss_mask to batch
-        if eval:
-            for sample in batch:
-                keys = [key for key in sample.keys() if key.endswith(("observations", "actions"))]
-                for key in keys:
-                    sample[key + "_loss_mask"] = torch.ones_like(sample[key + "_attention_mask"])
-
-        # embed_list is a list of dicts whose keys are "embeddings", "attention_mask", "tokens", "loss_mask"
-        # We need to concatenate all the tensors along the batch dimension.
-        # Pad the tensors first to ensure they all have the same size along the concatenation dimension.
-        embed_list = [self.emb(sample) for sample in batch]
-        max_len = max([embed["tokens"].shape[1] for embed in embed_list])
-        embeddings = pad_and_cat([embed["embeddings"] for embed in embed_list], max_len)
-        attention_mask = pad_and_cat([embed["attention_mask"] for embed in embed_list], max_len)
-
-        # The model requires us to provide position ids, otherwise it will generate them
-        # qgallouedec: I've removed position_ids=batch["local_position_ids"]. Is this a problem?
-        if eval:  # No need to compute the loss
-            out = self.model(inputs_embeds=embeddings, attention_mask=attention_mask)
-        else:
-            labels = pad_and_cat([embed["tokens"] for embed in embed_list], max_len)
-            assert all("loss_mask" in embed for embed in embed_list), "loss_mask not found"
-            loss_mask = pad_and_cat([embed["loss_mask"] for embed in embed_list], max_len)
-            # All labels set to -100 are ignored (masked), the loss is only computed for labels in
-            # [0, ..., config.vocab_size]
-            labels[loss_mask == 0] = -100
-            out = self.model(inputs_embeds=embeddings, attention_mask=attention_mask, labels=labels)
-
-        return out
+    def forward(self, input_ids, patches, positions, input_type, loss_mask, attention_mask) -> CausalLMOutputWithPast:
+        embeds = self.emb(input_ids, patches, positions, input_type, loss_mask, attention_mask)
+        labels = embeds["tokens"]
+        # All labels set to -100 are ignored (masked), the loss is only computed for labels in
+        # [0, ..., config.vocab_size]
+        labels[loss_mask == 0] = -100
+        return self.model(inputs_embeds=embeds, attention_mask=attention_mask, labels=labels)
