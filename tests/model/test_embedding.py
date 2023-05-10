@@ -2,7 +2,7 @@ import pytest
 import torch
 from torch.utils.data import DataLoader
 
-from gia.config import Arguments, ModelArguments
+from gia.config import Arguments
 from gia.datasets import collate_fn, load_gia_dataset
 from gia.datasets.utils import DatasetDict
 from gia.model.embedding import Embeddings, ImageEncoder, ImagePositionEncoding, LocalPositionEncodings

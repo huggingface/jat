@@ -327,8 +327,8 @@ class GiaProcessor:
             padding (Union[bool, str]): Specifies the padding strategy.
                 - True or 'longest': Pad to the length of the longest sequence in the batch (or no padding if only a
                     single sequence if provided).
-                - 'max_length' (default): Pad to a maximum length specified with `max_length` or to the maximum acceptable input
-                    length for the model if `max_length` is not provided.
+                - 'max_length' (default): Pad to a maximum length specified with `max_length` or to the maximum
+                    acceptable input length for the model if `max_length` is not provided.
                 - False or 'do_not_pad': No padding (i.e., can output a batch with sequences of different
                     lengths).
             max_length (Optional[int]): Specifies the maximum length for padding and truncation. If not provided, the
