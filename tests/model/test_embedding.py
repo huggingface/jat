@@ -139,4 +139,4 @@ def test_embed_real_data():
     batch = next(iter(dataloader))
     batch.pop("loss_mask")  # not an arg of embeddings
     embeds = embeddings(**batch)
-    assert embeds.shape == (args.batch_size, args.max_seq_len, args.embed_dim)
+    assert embeds.shape == (args.batch_size, args.seq_len, args.embed_dim)
