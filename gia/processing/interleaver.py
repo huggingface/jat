@@ -1,9 +1,6 @@
-from typing import Any, Dict, List, Optional, Tuple, TypeVar
+from typing import Any, Dict, List, Optional
 
 import numpy as np
-
-
-T = TypeVar("T")
 
 
 class Interleaver:
@@ -283,47 +280,3 @@ class Interleaver:
                 output[key].append(x[key])
 
         return output
-
-
-def split_and_pad_sequences(
-    sequences: List[List[T]], max_len: int, pad_value: T
-) -> Tuple[List[List[T]], List[List[int]]]:
-    """
-    Splits input sequences into sub-sequences of length max_len and pads them if necessary.
-    Generates a mask indicating the padding positions.
-
-    Args:
-        sequences (List[List[T]]): A list of sequences, where each sequence is a list.
-        max_len (int): Maximum length for the output sub-sequences.
-        pad_value (T): Value to use for padding.
-
-    Returns:
-        Tuple[List[List[T]], List[List[int]]]: padded_subsequences padded masks
-
-    Example:
-        >>> sequences = [[1, 2, 3, 4, 5], [6, 7, 8, 9]]
-        >>> out, mask = split_and_pad_sequences(sequences, max_len=3, pad_value=0)
-        >>> out
-        [[1, 2, 3], [4, 5, 0], [6, 7, 8], [9, 0, 0]]
-        >>> mask
-        [[1, 1, 1], [1, 1, 0], [1, 1, 1], [1, 0, 0]]
-    """
-    padded_subsequences = []
-    masks = []
-
-    for sequence in sequences:
-        for i in range(0, len(sequence), max_len):
-            # Take a subsequence of max_len elements
-            subsequence = sequence[i : i + max_len]
-            mask = [1] * len(subsequence)
-
-            # If the subsequence is smaller than max_len, pad it
-            if len(subsequence) < max_len:
-                padding_length = max_len - len(subsequence)
-                subsequence += [pad_value] * padding_length
-                mask += [0] * padding_length
-
-            padded_subsequences.append(subsequence)
-            masks.append(mask)
-
-    return padded_subsequences, masks

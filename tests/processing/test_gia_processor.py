@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from gia.config import DatasetArguments
 from gia.processing import GiaProcessor
@@ -129,40 +130,215 @@ def test_tokenize_mixed_batch():
     assert len(tokens["continuous_actions"]["input_ids"][1]) == 2
 
 
-def test_gia_processor():
+# Fixture for data
+@pytest.fixture
+def data():
+    return {
+        "continuous_observations": [
+            [[0.1, 0.2], [0.3, 0.4]],
+            None,
+        ],
+        "discrete_observations": [
+            None,
+            [[1, 2, 3], [4, 5, 6]],
+        ],
+        "continuous_actions": [
+            [[0.5, 0.6], [0.7, 0.8]],
+            [[0.9, 1.0], [1.1, 1.2]],
+        ],
+        "rewards": [
+            [1.0, 2.0],
+            [3.0, 4.0],
+        ],
+    }
+
+    # truncation (Union[bool, str]): Specifies the truncation strategy.
+    #     - 'residual' (default): Truncate to a maximum length specified with `max_length` or to the maximum acceptable
+    #         input length for the model if `max_length` is not provided. Any residual elements that don't
+    #         reach `max_length` in length are used to form a new sub-sequence.
+    #     - True or 'max_length': Truncate to a maximum length specified with `max_length` or to the maximum
+    #         acceptable input length for the model if `max_length` is not provided.
+    #     - False or 'do_not_truncate': No truncation (i.e., can output a batch with sequences of different
+    #         lengths).
+    # padding (Union[bool, str]): Specifies the padding strategy.
+    #     - True or 'longest': Pad to the length of the longest sequence in the batch (or no padding if only a
+    #         single sequence if provided).
+    #     - 'max_length': Pad to a maximum length specified with `max_length` or to the maximum acceptable input
+    #         length for the model if `max_length` is not provided.
+    #     - False or 'do_not_pad' (default): No padding (i.e., can output a batch with sequences of different
+    #         lengths).
+    # max_length (Optional[int]): Specifies the maximum length for padding and truncation. If not provided, the
+    #     maximum acceptable input length for the model is used.
+
+
+def test_gia_processor_padding_default(data):
     args = DatasetArguments(nb_bins=16)
     processor = GiaProcessor(args=args)
-    continuous_observations = [
-        [[0.1, 0.2], [0.3, 0.4]],
-        None,
-    ]
-    discrete_observations = [
-        None,
-        [[1, 2], [3, 4]],
-    ]
-    continuous_actions = [
-        [[0.5, 0.6], [0.7, 0.8]],
-        [[0.9, 1.0], [1.1, 1.2]],
-    ]
-    rewards = [
-        [1.0, 2.0],
-        [3.0, 4.0],
-    ]
-    out = processor(
-        continuous_observations=continuous_observations,
-        discrete_observations=discrete_observations,
-        continuous_actions=continuous_actions,
-        rewards=rewards,
-    )
+    out = processor(**data)
 
-    assert isinstance(out, dict)
-    assert set(out.keys()) == {"input_ids", "patches", "positions", "input_type", "attention_mask"}
+    for sequences in out.values():
+        assert len(sequences) == 2
+        assert len(sequences[0]) == 8
+        assert len(sequences[1]) == 10
 
-    # Check that the number of samples is correct
-    assert len(out["input_ids"]) == 2
-    assert len(out["patches"]) == 2
-    assert len(out["positions"]) == 2
 
-    # Check that the sequence length is correct
-    assert len(out["input_ids"][0]) == 1024
-    assert sum(out["attention_mask"][0]) == 2 * 2 * 2  #  2 timesteps, 2 observations, 2 actions
+def test_gia_processor_padding_true(data):
+    args = DatasetArguments(nb_bins=16)
+    processor = GiaProcessor(args=args)
+    out = processor(**data, padding=True)
+    for sequences in out.values():
+        assert len(sequences) == 2
+        assert len(sequences[0]) == 10
+        assert len(sequences[1]) == 10
+
+
+def test_gia_processor_padding_longest(data):
+    args = DatasetArguments(nb_bins=16)
+    processor = GiaProcessor(args=args)
+    out = processor(**data, padding="longest")
+    for sequences in out.values():
+        assert len(sequences[0]) == 10
+        assert len(sequences[1]) == 10
+
+
+def test_gia_processor_padding_max_length_no_value(data):
+    args = DatasetArguments(nb_bins=16)
+    processor = GiaProcessor(args=args)
+    out = processor(**data, padding="max_length")
+    for sequences in out.values():
+        assert len(sequences[0]) == args.seq_len
+        assert len(sequences[1]) == args.seq_len
+
+
+def test_gia_processor_padding_max_length_with_value(data):
+    args = DatasetArguments(nb_bins=16)
+    processor = GiaProcessor(args=args)
+    out = processor(**data, padding="max_length", max_length=14)
+    for sequences in out.values():
+        assert len(sequences[0]) == 14
+        assert len(sequences[1]) == 14
+
+
+def test_gia_processor_padding_false(data):
+    args = DatasetArguments(nb_bins=16)
+    processor = GiaProcessor(args=args)
+    out = processor(**data, padding=False)
+    for sequences in out.values():
+        assert len(sequences[0]) == 8
+        assert len(sequences[1]) == 10
+
+
+def test_gia_processor_padding_do_not_pad(data):
+    args = DatasetArguments(nb_bins=16)
+    processor = GiaProcessor(args=args)
+    out = processor(**data, padding="do_not_pad")
+    for sequences in out.values():
+        assert len(sequences[0]) == 8
+        assert len(sequences[1]) == 10
+
+
+def test_gia_processor_truncation_default(data):
+    args = DatasetArguments(nb_bins=16)
+    processor = GiaProcessor(args=args)
+    out = processor(**data)
+    for sequences in out.values():
+        assert len(sequences) == 2
+        assert len(sequences[0]) == 8
+        assert len(sequences[1]) == 10
+
+
+def test_gia_processor_truncation_residual_no_value(data):
+    args = DatasetArguments(nb_bins=16)
+    processor = GiaProcessor(args=args)
+    out = processor(**data, truncation="residual")
+    for sequences in out.values():
+        assert len(sequences) == 2
+        assert len(sequences[0]) == 8
+        assert len(sequences[1]) == 10
+
+
+def test_gia_processor_truncation_residual_with_value(data):
+    args = DatasetArguments(nb_bins=16)
+    processor = GiaProcessor(args=args)
+    out = processor(**data, truncation="residual", max_length=9)
+    for sequences in out.values():
+        assert len(sequences) == 3
+        assert len(sequences[0]) == 8
+        assert len(sequences[1]) == 9
+        assert len(sequences[2]) == 1
+
+
+def test_gia_processor_truncation_true_no_value(data):
+    args = DatasetArguments(nb_bins=16)
+    processor = GiaProcessor(args=args)
+    out = processor(**data, truncation=True)
+    for sequences in out.values():
+        assert len(sequences) == 2
+        assert len(sequences[0]) == 8
+        assert len(sequences[1]) == 10
+
+
+def test_gia_processor_truncation_true_with_value(data):
+    args = DatasetArguments(nb_bins=16)
+    processor = GiaProcessor(args=args)
+    out = processor(**data, truncation=True, max_length=9)
+    for sequences in out.values():
+        assert len(sequences) == 2
+        assert len(sequences[0]) == 8
+        assert len(sequences[1]) == 9
+
+
+def test_gia_processor_truncation_max_length_no_value(data):
+    args = DatasetArguments(nb_bins=16)
+    processor = GiaProcessor(args=args)
+    out = processor(**data, truncation="max_length")
+    for sequences in out.values():
+        assert len(sequences) == 2
+        assert len(sequences[0]) == 8
+        assert len(sequences[1]) == 10
+
+
+def test_gia_processor_truncation_max_length_with_value(data):
+    args = DatasetArguments(nb_bins=16)
+    processor = GiaProcessor(args=args)
+    out = processor(**data, truncation="max_length", max_length=9)
+    for sequences in out.values():
+        assert len(sequences) == 2
+        assert len(sequences[0]) == 8
+        assert len(sequences[1]) == 9
+
+
+def test_gia_processor_truncation_false(data):
+    args = DatasetArguments(nb_bins=16)
+    processor = GiaProcessor(args=args)
+    out = processor(**data, truncation=False)
+    for sequences in out.values():
+        assert len(sequences) == 2
+        assert len(sequences[0]) == 8
+        assert len(sequences[1]) == 10
+
+
+def test_gia_processor_truncation_do_not_truncate(data):
+    args = DatasetArguments(nb_bins=16)
+    processor = GiaProcessor(args=args)
+    out = processor(**data, truncation="do_not_truncate")
+    for sequences in out.values():
+        assert len(sequences) == 2
+        assert len(sequences[0]) == 8
+        assert len(sequences[1]) == 10
+
+
+def test_gia_processor_truncate_residual_and_pad(data):
+    args = DatasetArguments(nb_bins=16)
+    processor = GiaProcessor(args=args)
+    out = processor(**data, truncation="residual", padding="max_length", max_length=9)
+    for sequences in out.values():
+        assert len(sequences) == 3
+        assert len(sequences[0]) == 9
+        assert len(sequences[1]) == 9
+        assert len(sequences[2]) == 9
+    assert out["attention_mask"] == [
+        [1, 1, 1, 1, 1, 1, 1, 1, 0],
+        [1, 1, 1, 1, 1, 1, 1, 1, 1],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0],
+    ]

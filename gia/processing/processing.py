@@ -8,7 +8,7 @@ from transformers import AutoTokenizer
 
 from gia.config import DatasetArguments
 
-from .interleaver import Interleaver, split_and_pad_sequences
+from .interleaver import Interleaver
 
 T = TypeVar("T")
 U = TypeVar("U")
@@ -222,89 +222,173 @@ class GiaProcessor:
     def __init__(self, args: DatasetArguments) -> None:
         super().__init__()
         self.tokenizer = GiaTokenizer(args)
+        self.interleaver = Interleaver()
         self.seq_len = args.seq_len
 
-    def __call__(self, **kwargs):
-        tokens_and_patches = self.tokenizer(**kwargs)
-        # pop the reward, if any
+        self.padding_value = {
+            "input_ids": 0,
+            "patches": np.zeros((4, args.patch_size, args.patch_size), dtype=np.uint8),
+            "positions": [[0.0, 0.0], [0.0, 0.0]],
+            "input_type": 0,
+            "loss_mask": 0,
+        }
+
+    @staticmethod
+    def truncate_residual(sequences: List[List[T]], max_len: int) -> List[List[T]]:
+        """
+        Truncate input sequences into sub-sequences of length up to max_len. Any residual elements
+        that don't reach max_len in length are used to form a new sub-sequence.
+
+        Args:
+            sequences (List[List[T]]): A list of sequences, where each sequence is a list of items.
+            max_len (int): Maximum length for the output sub-sequences.
+
+        Returns:
+            List[List[T]]: A list of truncated subsequences. Each subsequence has a length of up to max_len.
+                           If the original sequence doesn't evenly divide by max_len, the last subsequence
+                           will contain the remaining elements.
+
+        Example:
+            >>> sequences = [[1, 2, 3, 4, 5], [6, 7, 8, 9]]
+            >>> truncate_residual(sequences, max_len=3)
+            [[1, 2, 3], [4, 5], [6, 7, 8], [9]]
+        """
+        truncated = []
+        for sequence in sequences:
+            for i in range(0, len(sequence), max_len):
+                # Take a subsequence of max_len elements
+                subsequence = sequence[i : i + max_len]
+                truncated.append(subsequence)
+        return truncated
+
+    @staticmethod
+    def pad_sequences(sequences: List[T], max_len: int, padding_value: T) -> Tuple[List[T], List[int]]:
+        """
+        Pad sequences with a padding value to a maximum length.
+
+        Args:
+            sequences (List[T]): A list of sequences.
+            max_len (int): Maximum length for the output sequences.
+            padding_value (T): Padding value.
+
+        Returns:
+            Tuple[List[T], List[int]]: A tuple of padded sequences and masks.
+        """
+        padded = []
+        masks = []
+        for sequence in sequences:
+            if max_len < len(sequence):
+                raise RuntimeError(f"Sequence length {len(sequence)} is greater than max_len {max_len}.")
+            seq_len, pad_len = len(sequence), max_len - len(sequence)
+            sequence = sequence + [padding_value] * pad_len
+            mask = [1] * seq_len + [0] * pad_len
+            padded.append(sequence)
+            masks.append(mask)
+        return padded, masks
+
+    def __call__(
+        self,
+        text: Optional[str] = None,
+        image: Optional[np.ndarray] = None,
+        text_observations: NestedList[str] = None,
+        image_observations: NestedList[np.ndarray] = None,
+        discrete_observations: NestedList[int] = None,
+        continuous_observations: NestedList[float] = None,
+        discrete_actions: NestedList[int] = None,
+        continuous_actions: NestedList[float] = None,
+        rewards: NestedList[float] = None,
+        interleave: bool = True,
+        truncation: Union[bool, str] = "residual",
+        padding: Union[bool, str] = False,
+        max_length: Optional[int] = None,
+    ):
+        """
+        _summary_
+
+        Args:
+            text (Optional[str], optional): _description_. Defaults to None.
+            image (Optional[np.ndarray], optional): _description_. Defaults to None.
+            text_observations (NestedList[str], optional): _description_. Defaults to None.
+            image_observations (NestedList[np.ndarray], optional): _description_. Defaults to None.
+            discrete_observations (NestedList[int], optional): _description_. Defaults to None.
+            continuous_observations (NestedList[float], optional): _description_. Defaults to None.
+            discrete_actions (NestedList[int], optional): _description_. Defaults to None.
+            continuous_actions (NestedList[float], optional): _description_. Defaults to None.
+            rewards (NestedList[float], optional): _description_. Defaults to None.
+            interleave (bool, optional): _description_. Defaults to True.
+            truncation (Union[bool, str]): Specifies the truncation strategy.
+                - 'residual' (default): Truncate to a maximum length specified with `max_length` or to the maximum
+                    acceptable input length for the model if `max_length` is not provided. Any residual elements that
+                    don't reach `max_length` in length are used to form a new sub-sequence.
+                - True or 'max_length': Truncate to a maximum length specified with `max_length` or to the maximum
+                    acceptable input length for the model if `max_length` is not provided.
+                - False or 'do_not_truncate': No truncation (i.e., can output a batch with sequences of different
+                    lengths).
+            padding (Union[bool, str]): Specifies the padding strategy.
+                - True or 'longest': Pad to the length of the longest sequence in the batch (or no padding if only a
+                    single sequence if provided).
+                - 'max_length': Pad to a maximum length specified with `max_length` or to the maximum acceptable input
+                    length for the model if `max_length` is not provided.
+                - False or 'do_not_pad' (default): No padding (i.e., can output a batch with sequences of different
+                    lengths).
+            max_length (Optional[int]): Specifies the maximum length for padding and truncation. If not provided, the
+                maximum acceptable input length for the model is used.
+
+        Raises:
+            ValueError: Invalid truncation strategy.
+            ValueError: Invalid padding strategy.
+
+        Returns:
+            Dict[str, List[Any]]: A dictionary of tensors containing the tokenized inputs.
+        """
+
+        tokens_and_patches = self.tokenizer(
+            text,
+            image,
+            text_observations,
+            image_observations,
+            discrete_observations,
+            continuous_observations,
+            discrete_actions,
+            continuous_actions,
+            rewards,
+        )
+
+        # Pop the reward, if any
         tokens_and_patches.pop("rewards", None)
-        x = interleave_batch(tokens_and_patches)
 
-        PATCH_PAD = np.zeros((3, 16, 16), dtype=np.int64)
-        POSITION_PAD = [[0, 0], [0, 0]]
+        if interleave:
+            batch_data = self.interleaver(tokens_and_patches)
+        else:
+            return tokens_and_patches
 
-        padded_input_ids, masks_1 = split_and_pad_sequences(x["input_ids"], max_len=self.seq_len, pad_value=0)
-        padded_patches, masks_2 = split_and_pad_sequences(
-            x["patches"], max_len=self.seq_len, pad_value=PATCH_PAD
-        )
-        assert masks_1 == masks_2
-        padded_positions, masks = split_and_pad_sequences(
-            x["positions"], max_len=self.seq_len, pad_value=POSITION_PAD
-        )
-        padded_input_type, masks = split_and_pad_sequences(x["input_type"], max_len=self.seq_len, pad_value=0)
+        # Truncate sequences
+        if truncation in [True, "max_length", "residual"]:
+            max_length = max_length or self.seq_len
+            for key, value in batch_data.items():
+                if truncation == "residual":
+                    batch_data[key] = self.truncate_residual(value, max_len=max_length)
+                else:
+                    batch_data[key] = [sequence[:max_length] for sequence in value]
+        elif truncation in [False, "do_not_truncate"]:
+            pass
+        else:
+            raise ValueError(f"Invalid truncation value: {truncation}")
 
-        x["input_ids"] = padded_input_ids
-        x["patches"] = padded_patches
-        x["positions"] = padded_positions
-        x["input_type"] = padded_input_type
-        x["attention_mask"] = masks
-        return x
+        # Pad sequences
+        if padding in [True, "longest", "max_length"]:
+            if padding in [True, "longest"]:
+                max_length = max(len(sequence) for sequence in batch_data["input_ids"])
+            else:
+                max_length = max_length or self.seq_len
 
+            for key, value in batch_data.items():
+                padding_value = self.padding_value[key]
+                batch_data[key], mask = self.pad_sequences(value, max_length, padding_value)
+            batch_data["attention_mask"] = mask
+        elif padding in [False, "do_not_pad"]:
+            pass
+        else:
+            raise ValueError(f"Invalid value for `padding`: {padding}")
 
-# def split_and_pad_sequences(sequences: List[List[Any]], max_len: int) -> Tuple[List[List[Any]], List[List[int]]]:
-#     """
-#     Splits input sequences into sub-sequences of length max_len and pads them if necessary.
-#     Generates a mask indicating the padding positions.
-
-#     Args:
-#         sequences (List[List[int]]): A list of sequences, where each sequence is a list of integers.
-#         max_len (int): Maximum length for the output sub-sequences.
-
-#     Returns:
-#         Tuple[List[List[int]], List[List[int]]]: A tuple containing two lists:
-#             - The first list contains the padded sub-sequences.
-#             - The second list contains the masks for the sub-sequences, with 1 indicating an original
-#               element and 0 indicating a padded element.
-
-#     Example:
-#         >>> sequences = [[1, 2, 3, 4, 5], [6, 7, 8, 9]]
-#         >>> out, mask = split_and_pad_sequences(sequences, max_len=3)
-#         >>> out
-#         [[1, 2, 3], [4, 5, 4], [6, 7, 8], [9, 9, 9]]
-#         >>> mask
-#         [[1, 1, 1], [1, 1, 0], [1, 1, 1], [1, 0, 0]]
-#     """
-#     padded_subsequences = []
-#     masks = []
-
-#     for sequence in sequences:
-#         for i in range(0, len(sequence), max_len):
-#             # Take a subsequence of max_len elements
-#             subsequence = sequence[i : i + max_len]
-#             mask = [1] * len(subsequence)
-
-#             # If the subsequence is smaller than max_len, pad it
-#             if len(subsequence) < max_len:
-#                 padding_length = max_len - len(subsequence)
-#                 subsequence += [subsequence[0]] * padding_length
-#                 mask += [0] * padding_length
-
-#             padded_subsequences.append(subsequence)
-#             masks.append(mask)
-
-#     return padded_subsequences, masks
-
-
-# class Padder:
-#     """ """
-
-#     def __call__(self, x: Dict) -> Any:
-#         for mod, processed in x.items():
-#             if isinstance(processed, dict):  # keys are input_ids, or patches and positions for images
-#                 keys = list(processed.keys())  # to avoid modifying the dict while iterating over it
-#                 for key in keys:
-#                     if isinstance(processed[key], list) and isinstance(processed[key][0], list):
-#                         # list of lists is actually a sequence
-#                         out, mask = split_and_pad_sequences(processed[key], 3)
-#                         x[mod][key] = out
-#                     x[mod]["attention_mask"] = mask  # mask is the same for all keys
+        return batch_data
