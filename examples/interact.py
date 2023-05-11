@@ -23,7 +23,7 @@ def run():
 
     # Prompt buffer
     # TODO: Prompt the buffer
-    
+
     observation, info = env.reset()
 
     for i in range(100):
