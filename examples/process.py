@@ -1,6 +1,9 @@
 import numpy as np
 
 from gia.config import DatasetArguments
+from gia.datasets import collate_fn
+from torch.utils.data import DataLoader
+from gia.datasets.utils import DatasetDict
 from gia.processing import GiaProcessor
 
 image_1 = np.random.randint(0, 255, (3, 32, 32), dtype=np.uint8)
@@ -23,29 +26,38 @@ dataset = {
 
 args = DatasetArguments()
 processor = GiaProcessor(args)
-processed = processor(**dataset)
+dataset = DatasetDict(processor(**dataset))
 
-patches_first_elmt = [[patch[0][0][0] for patch in patches] for patches in processed["patches"]]
-patch_positions_first_elmt = [[round(pos[0][0], 2) for pos in positions] for positions in processed["patch_positions"]]
+dataloader = DataLoader(dataset, batch_size=args.batch_size, collate_fn=collate_fn)
+batch = next(iter(dataloader))
 
 print(
     f"""
-First sample:
-    Tokens:                {processed['input_ids'][0]}
-    Patches (1st elemt):   {patches_first_elmt[0]}
-    Positions (1st elemt): {patch_positions_first_elmt[0]}
-    Input type:            {processed['input_types'][0]}
+First sample [:20]:
+    Tokens:                      {batch['input_ids'][0, :20].tolist()}
+    Local positions:             {batch['local_positions'][0, :20].tolist()}
+    Patches (1st elemt):         {batch['patches'][0, :20, 0, 0, 0].tolist()}
+    Patch positions (1st elemt): {batch["patch_positions"][0, :20, 0, 0].tolist()}
+    Input type:                  {batch['input_types'][0, :20].tolist()}
+    Attention mask:              {batch['attention_mask'][0, :20].tolist()}
+    Loss mask:                   {batch['loss_mask'][0, :20].tolist()}
 
-Second sample:
-    Tokens:                {processed['input_ids'][1]}
-    Patches (1st elemt):   {patches_first_elmt[1]}
-    Positions (1st elemt): {patch_positions_first_elmt[1]}
-    Input type:            {processed['input_types'][1]}
+Second sample [:20]:
+    Tokens:                      {batch['input_ids'][1, :20].tolist()}
+    Local positions:             {batch['local_positions'][1, :20].tolist()}
+    Patches (1st elemt):         {batch['patches'][1, :20, 0, 0, 0].tolist()}
+    Patch positions (1st elemt): {batch["patch_positions"][1, :20, 0, 0].tolist()}
+    Input type:                  {batch['input_types'][1, :20].tolist()}
+    Attention mask:              {batch['attention_mask'][1, :20].tolist()}
+    Loss mask:                   {batch['loss_mask'][1, :20].tolist()}
 
-Third sample:
-    Tokens:                {processed['input_ids'][2]}
-    Patches (1st elemt):   {patches_first_elmt[2]}
-    Positions (1st elemt): {patch_positions_first_elmt[2]}
-    Input type:            {processed['input_types'][2]}
+Third sample [:20]:
+    Tokens:                      {batch['input_ids'][2, :20].tolist()}
+    Local positions:             {batch['local_positions'][2, :20].tolist()}
+    Patches (1st elemt):         {batch['patches'][2, :20, 0, 0, 0].tolist()}
+    Patch positions (1st elemt): {batch["patch_positions"][2, :20, 0, 0].tolist()}
+    Input type:                  {batch['input_types'][2, :20].tolist()}
+    Attention mask:              {batch['attention_mask'][2, :20].tolist()}
+    Loss mask:                   {batch['loss_mask'][2, :20].tolist()}
 """
 )

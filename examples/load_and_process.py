@@ -32,7 +32,7 @@ Second sample [:15]:
     Patch positions (1st elemt): {batch["patch_positions"][1, :15, 0, 0].tolist()}
     Input type:                  {batch['input_types'][1, :15].tolist()}
     Attention mask:              {batch['attention_mask'][1, :15].tolist()}
-    Loss mask:                   {batch['loss_mask'][0, :15].tolist()}
+    Loss mask:                   {batch['loss_mask'][1, :15].tolist()}
 
 Third sample [:15]:
     Tokens:                      {batch['input_ids'][2, :15].tolist()}
@@ -41,6 +41,6 @@ Third sample [:15]:
     Patch positions (1st elemt): {batch["patch_positions"][2, :15, 0, 0].tolist()}
     Input type:                  {batch['input_types'][2, :15].tolist()}
     Attention mask:              {batch['attention_mask'][2, :15].tolist()}
-    Loss mask:                   {batch['loss_mask'][0, :15].tolist()}
+    Loss mask:                   {batch['loss_mask'][2, :15].tolist()}
 """
 )
