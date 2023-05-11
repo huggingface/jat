@@ -7,12 +7,6 @@ from torch.utils.data import DataLoader
 
 from gia.datasets import collate_fn, generate_prompts, load_gia_dataset
 
-BATCH_SIZE = 128
-C, H, W = 3, 16, 16
-PATCH_SIZE = 8
-OBS_SIZE = 4
-SEQ_LEN = 32
-
 
 @pytest.mark.parametrize("split", ["all", "train", "test"])
 def test_load_gia_dataset(split):
