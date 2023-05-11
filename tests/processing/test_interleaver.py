@@ -19,16 +19,19 @@ def test_dict_append_input_ids():
     batch_data = {"input_ids": [101, 102]}
     processed_data = {
         "input_ids": [1, 2],
+        "local_positions": [11, 22],  # Should never be those values, but here for testing purposes
         "patches": [PATCH_PAD, PATCH_PAD],
         "patch_positions": [POS_PAD, POS_PAD],
         "input_types": [0, 0],
         "loss_mask": [0, 0],
     }
+    local_positions = [33, 44]
 
-    interleaver._dict_append(batch_data, processed_data, loss_mask_value=1)
+    interleaver._dict_append(batch_data, processed_data, local_positions, loss_mask_value=1)
 
     expected_output = {
         "input_ids": [1, 2, 101, 102],
+        "local_positions": [11, 22, 33, 44],
         "patches": [PATCH_PAD, PATCH_PAD, PATCH_PAD, PATCH_PAD],
         "patch_positions": [POS_PAD, POS_PAD, POS_PAD, POS_PAD],
         "input_types": [0, 0, 0, 0],
@@ -47,16 +50,19 @@ def test_dict_append_patches_and_patch_positions():
     batch_data = {"patches": [PATCH_1, PATCH_2], "patch_positions": [LEFT, RIGHT]}
     processed_data = {
         "input_ids": [1, 2],
+        "local_positions": [11, 22],  # Should never be those values, but here for testing purposes
         "patches": [PATCH_PAD, PATCH_PAD],
         "patch_positions": [POS_PAD, POS_PAD],
         "input_types": [0, 0],
         "loss_mask": [0, 0],
     }
+    local_positions = [33, 44]
 
-    interleaver._dict_append(batch_data, processed_data, loss_mask_value=1)
+    interleaver._dict_append(batch_data, processed_data, local_positions, loss_mask_value=1)
 
     expected_output = {
         "input_ids": [1, 2, 0, 0],
+        "local_positions": [11, 22, 33, 44],
         "patches": [PATCH_PAD, PATCH_PAD, PATCH_1, PATCH_2],
         "patch_positions": [POS_PAD, POS_PAD, LEFT, RIGHT],
         "input_types": [0, 0, 1, 1],
@@ -87,6 +93,7 @@ def test_interleave_episode():
     }
     expected_output = {
         "input_ids": [0, 0, 1, 2, 0, 0, 3, 4],
+        "local_positions": [0, 1, 2, 3, 0, 1, 2, 3],
         "patches": [PATCH_1, PATCH_2, PATCH_PAD, PATCH_PAD, PATCH_3, PATCH_4, PATCH_PAD, PATCH_PAD],
         "patch_positions": [LEFT, RIGHT, POS_PAD, POS_PAD, LEFT, RIGHT, POS_PAD, POS_PAD],
         "input_types": [1, 1, 0, 0, 1, 1, 0, 0],
@@ -110,6 +117,7 @@ def test_interleave_standalone():
     }
     expected_output = {
         "input_ids": [0, 0, 1, 2],
+        "local_positions": [0, 0, 0, 0],
         "patches": [PATCH_1, PATCH_2, PATCH_PAD, PATCH_PAD],
         "patch_positions": [LEFT, RIGHT, POS_PAD, POS_PAD],
         "input_types": [1, 1, 0, 0],
@@ -192,6 +200,10 @@ def test_interleave_batch_episode():
             [0, 0, 11, 12, 0, 0, 13, 14],
             [1, 2, 15, 16, 3, 4, 17, 18, 5, 6, 19, 20],
         ],
+        "local_positions": [
+            [0, 1, 0, 0, 0, 1, 0, 0],
+            [0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0],
+        ],
         "patches": [
             [PATCH_1, PATCH_2, PATCH_PAD, PATCH_PAD, PATCH_3, PATCH_4, PATCH_PAD, PATCH_PAD],
             [PATCH_PAD] * 12,
@@ -234,6 +246,11 @@ def test_interleave_batch_standalone():
             [0, 0],
             [1, 2],
             [0, 0, 3, 4],
+        ],
+        "local_positions": [
+            [0, 0],
+            [0, 0],
+            [0, 0, 0, 0],
         ],
         "patches": [
             [PATCH_1, PATCH_2],
@@ -292,6 +309,10 @@ def test_interleave_batch_mixed():
         "input_ids": [
             [1, 2],
             [0, 0, 11, 12, 0, 0, 13, 14],
+        ],
+        "local_positions": [
+            [0, 0],
+            [0, 1, 0, 0, 0, 1, 0, 0],
         ],
         "patches": [
             [PATCH_PAD, PATCH_PAD],

@@ -227,6 +227,7 @@ class GiaProcessor:
 
         self.padding_value = {
             "input_ids": 0,
+            "local_positions": 0,  # probably not a good idea to use 0 as padding value
             "patches": np.zeros((4, args.patch_size, args.patch_size), dtype=np.uint8),
             "patch_positions": [[0.0, 0.0], [0.0, 0.0]],
             "input_types": 0,

@@ -8,45 +8,51 @@ class Interleaver:
     Interleaver is a class that interleaves a batch of data into a unified dictionary of data lists.
 
     Example:
-        # In this example, the batch is composed of one standalone sample and one episode sample.
-        # The standalone sample is composed of two tokens of text.
-        # The episode sample is composed of two timesteps. The observations at each timestep are composed of
-        # two image patches (with the associated positions) and one discrete observation composed of 2 ints.
+        In this example, the batch is composed of one standalone sample and one episode sample.
+        The standalone sample is composed of two tokens of text.
+        The episode sample is composed of two timesteps. The observations at each timestep are composed of
+        two image patches (with the associated positions) and one discrete observation composed of 2 ints.
         >>> interleaver = Interleaver()
-        >>> batch_data = {"text": {"input_ids": [[1, 2], None]},
-        ...               "image_observations": {"patches": [None, [[PATCH_1, PATCH_2], [PATCH_3, PATCH_4]]],
-        ...                                      "patch_positions": [None, [[LEFT, RIGHT], [LEFT, RIGHT]]]},
-        ...               "continuous_actions": {"input_ids": [None, [[11, 12], [13, 14]]]}}
+        >>> batch_data = {
+        ...     "text":                  {"input_ids":       [[1, 2], None]},
+        ...     "image_observations":    {"patches":         [None,   [[PATCH_1, PATCH_2], [PATCH_3, PATCH_4]]],
+        ...                               "patch_positions": [None,   [[LEFT, RIGHT], [LEFT, RIGHT]]]},
+        ...     "discrete_observations": {"input_ids":       [None,   [3, 4]]},
+        ...     "continuous_actions":    {"input_ids":       [None,   [[5, 6], [7, 8]]]}}
         >>> interleaver(batch_data)
         {
             "input_ids": [
                 [1, 2],
-                [0, 0, 11, 12, 0, 0, 13, 14],
+                [0, 0, 3, 5, 6, 0, 0, 4, 7, 8],
             ],
+            "local_positions": [
+                [0, 0],
+                [0, 1, 2, 0, 0, 0, 1, 2, 0, 0],
             "patches": [
                 [PATCH_PAD, PATCH_PAD],
-                [PATCH_1, PATCH_2, PATCH_PAD, PATCH_PAD, PATCH_3, PATCH_4, PATCH_PAD, PATCH_PAD],
+                [PATCH_1, PATCH_2, PATCH_PAD, PATCH_PAD, PATCH_PAD, PATCH_3, PATCH_4, PATCH_PAD, PATCH_PAD, PATCH_PAD],
             ],
             "patch_positions": [
                 [POS_PAD, POS_PAD],
-                [LEFT, RIGHT, POS_PAD, POS_PAD, LEFT, RIGHT, POS_PAD, POS_PAD],
+                [LEFT, RIGHT, POS_PAD, POS_PAD, POS_PAD, LEFT, RIGHT, POS_PAD, POS_PAD, POS_PAD],
             ],
             "input_types": [
                 [0, 0],
-                [1, 1, 0, 0, 1, 1, 0, 0],
+                [1, 1, 0, 0, 0, 1, 1, 0, 0, 0],
             ],
             "loss_mask": [
                 [1, 1],
-                [0, 0, 1, 1, 0, 0, 1, 1],
+                [0, 0, 0, 1, 1, 0, 0, 0, 1, 1],
             ],
         }
     """
 
     # Here, we define the pads for the patches and positions.
     # For memory efficiency, we use the same pad for all patches and positions.
-    PATCH_PAD = np.zeros((3, 16, 16), dtype=np.int64)
-    POSITION_PAD = [[0.0, 0.0], [0.0, 0.0]]
     TOKEN_PAD = 0
+    LOCAL_POSITION_PAD = 0  # Probably not a good idea
+    PATCH_PAD = np.zeros((3, 16, 16), dtype=np.int64)
+    PATCH_POSITION_PAD = [[0.0, 0.0], [0.0, 0.0]]
 
     TOKEN_TYPE_ID = 0
     PATCH_TYPE_ID = 1
@@ -119,7 +125,11 @@ class Interleaver:
 
     @classmethod
     def _dict_append(
-        cls, batch_data: Dict[str, Dict[str, Any]], processed_data: Dict[str, List[Any]], loss_mask_value: int
+        cls,
+        batch_data: Dict[str, Dict[str, Any]],
+        processed_data: Dict[str, List[Any]],
+        local_positions: List[int],
+        loss_mask_value: int,
     ) -> None:
         """
         Appends the data from a single episode to the processed data dictionary.
@@ -158,7 +168,7 @@ class Interleaver:
         # Get the input ids, patches, positions, input type and loss mask
         input_ids = batch_data.get("input_ids", [cls.TOKEN_PAD] * num_elements)
         patches = batch_data.get("patches", [cls.PATCH_PAD] * num_elements)
-        patch_positions = batch_data.get("patch_positions", [cls.POSITION_PAD] * num_elements)
+        patch_positions = batch_data.get("patch_positions", [cls.PATCH_POSITION_PAD] * num_elements)
         if "input_ids" in batch_data:
             input_types = [cls.TOKEN_TYPE_ID] * num_elements
         elif "patches" in batch_data and "patch_positions" in batch_data:
@@ -169,6 +179,7 @@ class Interleaver:
 
         # Append the data to the processed data dictionary
         processed_data["input_ids"].extend(input_ids)
+        processed_data["local_positions"].extend(local_positions)
         processed_data["patches"].extend(patches)
         processed_data["patch_positions"].extend(patch_positions)
         processed_data["input_types"].extend(input_types)
@@ -205,7 +216,25 @@ class Interleaver:
             The function assumes that all data sequences in the provided episode have the same length.
             It will raise an assertion error if this is not the case.
         """
-        output = {"input_ids": [], "patches": [], "patch_positions": [], "input_types": [], "loss_mask": []}
+        output = {
+            "input_ids": [],
+            "local_positions": [],
+            "patches": [],
+            "patch_positions": [],
+            "input_types": [],
+            "loss_mask": [],
+        }
+
+        observation_keys = [
+            "text_observations",
+            "image_observations",
+            "discrete_observations",
+            "continuous_observations",
+        ]
+        action_keys = [
+            "discrete_actions",
+            "continuous_actions",
+        ]
 
         # Get the length of each sequence in the d and make sure they are all equal
         sequence_lengths = [len(episode) for episodes in episode_data.values() for episode in episodes.values()]
@@ -215,20 +244,35 @@ class Interleaver:
         # Interleave the data
         # Order: observation (text, image, discrete, continuous), then action (discrete, continuous)
         for t in range(common_length):
+
+            local_position = 0
             # Extract the current element from each sequence in the d
-            timestep_data = self._extract_idx_element(episode_data, t)
-            if "text_observations" in timestep_data:
-                self._dict_append(timestep_data["text_observations"], output, loss_mask_value=1)
-            if "image_observations" in timestep_data:
-                self._dict_append(timestep_data["image_observations"], output, loss_mask_value=0)
-            if "discrete_observations" in timestep_data:
-                self._dict_append(timestep_data["discrete_observations"], output, loss_mask_value=0)
-            if "continuous_observations" in timestep_data:
-                self._dict_append(timestep_data["continuous_observations"], output, loss_mask_value=0)
-            if "discrete_actions" in timestep_data:
-                self._dict_append(timestep_data["discrete_actions"], output, loss_mask_value=1)
-            if "continuous_actions" in timestep_data:
-                self._dict_append(timestep_data["continuous_actions"], output, loss_mask_value=1)
+            data_t = self._extract_idx_element(episode_data, t)
+
+            ordered_keys = [key for key in observation_keys + action_keys if key in data_t]
+
+            for mod_key in ordered_keys:
+                # If the data is not a list, convert it to a list of size 1
+                for func_key in data_t[mod_key]:
+                    if not isinstance(data_t[mod_key][func_key], list):
+                        data_t[mod_key][func_key] = [data_t[mod_key][func_key]]
+                    # Get the number of elements in the data (should be the same for all func keys)
+                    num_elements = len(data_t[mod_key][func_key])
+
+                # Compute the local positions of the data
+                if mod_key in observation_keys:
+                    local_positions = list(range(local_position, local_position + num_elements))
+                    local_position += num_elements
+                else:  # mod_key in action_keys
+                    local_positions = [self.LOCAL_POSITION_PAD] * num_elements
+
+                # Compute the loss mask value
+                if mod_key in action_keys + ["text_observations"]:
+                    loss_mask_value = 1
+                else:  # mod_key in ["image_observations", "discrete_observations", "continuous_observations"]
+                    loss_mask_value = 0
+
+                self._dict_append(data_t[mod_key], output, local_positions, loss_mask_value)
         return output
 
     def _interleave_standalone(self, standalone_data: Dict[str, Dict[str, Any]]) -> Dict[str, List[Any]]:
@@ -254,15 +298,32 @@ class Interleaver:
              'input_types': [0, 0, 1, 1],
              'loss_mask': [0, 0, 1, 1]}
         """
-        output = {"input_ids": [], "patches": [], "patch_positions": [], "input_types": [], "loss_mask": []}
+        output = {
+            "input_ids": [],
+            "local_positions": [],
+            "patches": [],
+            "patch_positions": [],
+            "input_types": [],
+            "loss_mask": [],
+        }
+
         if "image" in standalone_data:
-            self._dict_append(standalone_data["image"], output, loss_mask_value=0)
+            local_positions = [0] * len(standalone_data["image"]["patches"])
+            self._dict_append(standalone_data["image"], output, local_positions, loss_mask_value=0)
         if "text" in standalone_data:
-            self._dict_append(standalone_data["text"], output, loss_mask_value=1)
+            local_positions = [0] * len(standalone_data["text"]["input_ids"])
+            self._dict_append(standalone_data["text"], output, local_positions, loss_mask_value=1)
         return output
 
     def __call__(self, batch_data: Dict[str, Dict[str, Any]]) -> Dict[str, List[Any]]:
-        output = {"input_ids": [], "patches": [], "patch_positions": [], "input_types": [], "loss_mask": []}
+        output = {
+            "input_ids": [],
+            "local_positions": [],
+            "patches": [],
+            "patch_positions": [],
+            "input_types": [],
+            "loss_mask": [],
+        }
 
         # Get the batch size
         first_mod = next(iter(batch_data.values()))
