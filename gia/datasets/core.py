@@ -176,7 +176,7 @@ def collate_fn(batch: List[Dict[str, List]]) -> Dict[str, List[Union[torch.Tenso
 
     for key in keys:
         val = [sample[key] for sample in batch]
-        if isinstance(val[0], np.ndarray):
+        if isinstance(val[0][0], np.ndarray):
             val = np.array(val)  # to avoid creating a tensor from a list of arrays
         d[key] = torch.as_tensor(val)
 
