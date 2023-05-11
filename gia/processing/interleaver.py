@@ -15,7 +15,7 @@ class Interleaver:
         >>> interleaver = Interleaver()
         >>> batch_data = {"text": {"input_ids": [[1, 2], None]},
         ...               "image_observations": {"patches": [None, [[PATCH_1, PATCH_2], [PATCH_3, PATCH_4]]],
-        ...                                      "positions": [None, [[LEFT, RIGHT], [LEFT, RIGHT]]]},
+        ...                                      "patch_positions": [None, [[LEFT, RIGHT], [LEFT, RIGHT]]]},
         ...               "continuous_actions": {"input_ids": [None, [[11, 12], [13, 14]]]}}
         >>> interleaver(batch_data)
         {
@@ -27,11 +27,11 @@ class Interleaver:
                 [PATCH_PAD, PATCH_PAD],
                 [PATCH_1, PATCH_2, PATCH_PAD, PATCH_PAD, PATCH_3, PATCH_4, PATCH_PAD, PATCH_PAD],
             ],
-            "positions": [
+            "patch_positions": [
                 [POS_PAD, POS_PAD],
                 [LEFT, RIGHT, POS_PAD, POS_PAD, LEFT, RIGHT, POS_PAD, POS_PAD],
             ],
-            "input_type": [
+            "input_types": [
                 [0, 0],
                 [1, 1, 0, 0, 1, 1, 0, 0],
             ],
@@ -130,21 +130,21 @@ class Interleaver:
             loss_mask_value (int): The value to use for the loss mask.
 
         Raises:
-            ValueError: If the batch data does not contain either "input_ids" or "patches" and "positions".
+            ValueError: If the batch data does not contain either "input_ids" or "patches" and "patch_positions".
 
         Example:
             >>> batch_data = {"input_ids": [43]}
-            >>> processed_data = {"input_ids": [42], "patches": [PATCH_PAD], "positions": [POS_PAD], "input_type": [0],
-            ...                   "loss_mask": [1]}
+            >>> processed_data = {"input_ids": [42], "patches": [PATCH_PAD], "patch_positions": [POS_PAD],
+            ...                   "input_types": [0], "loss_mask": [1]}
             >>> _dict_append(batch_data, processed_data, loss_mak_value=0)
             >>> processed_data
-            {"input_ids": [42, 43], "patches": [PATCH_PAD, PATCH_PAD], "positions": [POS_PAD, POS_PAD],
-                "input_type": [0, 0], "loss_mask": [1, 0]}
-            >>> batch_data = {"patches": [np.ones((3, 16, 16))], "positions": [[[0.0, 0.0], [0.2, 0.5]]]}
+            {"input_ids": [42, 43], "patches": [PATCH_PAD, PATCH_PAD], "patch_positions": [POS_PAD, POS_PAD],
+                "input_types": [0, 0], "loss_mask": [1, 0]}
+            >>> batch_data = {"patches": [np.ones((3, 16, 16))], "patch_positions": [[[0.0, 0.0], [0.2, 0.5]]]}
             >>> _dict_append(batch_data, processed_data, loss_mak_value=0)
             >>> processed_data
             {"input_ids": [42, 43, 0], "patches": [PATCH_PAD, PATCH_PAD, np.ones((3, 16, 16))],
-                "positions": [POS_PAD, POS_PAD, [[0.0, 0.0], [0.2, 0.5]]], "input_type": [0, 0, 1],
+                "patch_positions": [POS_PAD, POS_PAD, [[0.0, 0.0], [0.2, 0.5]]], "input_types": [0, 0, 1],
                 "loss_mask": [1, 0, 1]}
         """
         # If the batch data is not a list, convert it to a list of size 1
@@ -158,20 +158,20 @@ class Interleaver:
         # Get the input ids, patches, positions, input type and loss mask
         input_ids = batch_data.get("input_ids", [cls.TOKEN_PAD] * num_elements)
         patches = batch_data.get("patches", [cls.PATCH_PAD] * num_elements)
-        positions = batch_data.get("positions", [cls.POSITION_PAD] * num_elements)
+        patch_positions = batch_data.get("patch_positions", [cls.POSITION_PAD] * num_elements)
         if "input_ids" in batch_data:
-            input_type = [cls.TOKEN_TYPE_ID] * num_elements
-        elif "patches" in batch_data and "positions" in batch_data:
-            input_type = [cls.PATCH_TYPE_ID] * num_elements
+            input_types = [cls.TOKEN_TYPE_ID] * num_elements
+        elif "patches" in batch_data and "patch_positions" in batch_data:
+            input_types = [cls.PATCH_TYPE_ID] * num_elements
         else:
-            raise ValueError("Batch data must contain either input_ids or patches and positions.")
+            raise ValueError("Batch data must contain either input_ids or patches and patch_positions.")
         loss_maskes = [loss_mask_value] * num_elements
 
         # Append the data to the processed data dictionary
         processed_data["input_ids"].extend(input_ids)
         processed_data["patches"].extend(patches)
-        processed_data["positions"].extend(positions)
-        processed_data["input_type"].extend(input_type)
+        processed_data["patch_positions"].extend(patch_positions)
+        processed_data["input_types"].extend(input_types)
         processed_data["loss_mask"].extend(loss_maskes)
 
     def _interleave_episode(self, episode_data: Dict[str, Dict[str, Any]]) -> Dict[str, List[Any]]:
@@ -181,31 +181,31 @@ class Interleaver:
 
         Args:
             episode_data (Dict[str, Dict[str, Any]]): A dictionary containing a single episode's data, categorized
-            by type. At the first level, keys must be "input_ids", "patches", "positions". At the second level,
+            by type. At the first level, keys must be "input_ids", "patches", "patch_positions". At the second level,
             keys must be "text_observations", "image_observations", "discrete_observations", "continuous_observations",
             "discrete_actions", and "continuous_actions".
 
         Returns:
             Dict[str, List[Any]]: A dictionary containing the interleaved episode data. The keys are "input_ids",
-            "patches",  "positions", "input_type", and "loss_mask". Each key corresponds to a list, where each list
-            item represents data from a specific time step.
+            "patches",  "patch_positions", "input_types", and "loss_mask". Each key corresponds to a list, where each
+            list item represents data from a specific time step.
 
         Example:
             >>> episode_data = {"image_observations": {"patches": [[P1, P2], [P3, P4]],
-            ...                                        "positions": [[LEFT, RIGHT], [LEFT, RIGHT]]},
+            ...                                        "patch_positions": [[LEFT, RIGHT], [LEFT, RIGHT]]},
             ...                 "discrete_actions": {"input_ids": [[1, 2], [3, 4]]}
             >>> _interleave_episode(episode_data)
             {'input_ids': [0, 0, 1, 2, 0, 0, 3, 4],
              'patches': [P1, P2, PATCH_PAD, PATCH_PAD, P3, P4, PATCH_PAD, PATCH_PAD],
-             'positions': [LEFT, RIGHT, POS_PAD, POS_PAD, LEFT, RIGHT, POS_PAD, POS_PAD],
-             'input_type': [0, 0, 1, 1, 0, 0, 1, 1],
+             'patch_positions': [LEFT, RIGHT, POS_PAD, POS_PAD, LEFT, RIGHT, POS_PAD, POS_PAD],
+             'input_types': [0, 0, 1, 1, 0, 0, 1, 1],
              'loss_mask': [0, 0, 1, 1, 0, 0, 1, 1]}
 
         Note:
             The function assumes that all data sequences in the provided episode have the same length.
             It will raise an assertion error if this is not the case.
         """
-        output = {"input_ids": [], "patches": [], "positions": [], "input_type": [], "loss_mask": []}
+        output = {"input_ids": [], "patches": [], "patch_positions": [], "input_types": [], "loss_mask": []}
 
         # Get the length of each sequence in the d and make sure they are all equal
         sequence_lengths = [len(episode) for episodes in episode_data.values() for episode in episodes.values()]
@@ -238,23 +238,23 @@ class Interleaver:
         Args:
             data (Dict[str, Dict[str, Any]]): A dictionary containing data categorized by type.
             The first level keys can be "image" or "text". The second level keys can be "input_ids",
-            "patches", "positions", etc.
+            "patches", "patch_positions", etc.
 
         Returns:
             dict: A dictionary containing the interleaved data. The keys are "input_ids", "patches",
-            "positions", "input_type", and "loss_mask". Each key corresponds to a list of data points.
+            "patch_positions", "input_types", and "loss_mask". Each key corresponds to a list of data points.
 
         Example:
-            >>> standalone_data = {"image": {"patches": [P1, P2], "positions": [LEFT, RIGHT]},
+            >>> standalone_data = {"image": {"patches": [P1, P2], "patch_positions": [LEFT, RIGHT]},
                         "text": {"input_ids": [1, 2]}
             >>> _interleave_standalone(standalone_data)
             {'input_ids': [0, 0, 1, 2],
              'patches': [P1, P2, PATCH_PAD, PATCH_PAD],
-             'positions': [LEFT, RIGHT, POS_PAD, POS_PAD],
-             'input_type': [0, 0, 1, 1],
+             'patch_positions': [LEFT, RIGHT, POS_PAD, POS_PAD],
+             'input_types': [0, 0, 1, 1],
              'loss_mask': [0, 0, 1, 1]}
         """
-        output = {"input_ids": [], "patches": [], "positions": [], "input_type": [], "loss_mask": []}
+        output = {"input_ids": [], "patches": [], "patch_positions": [], "input_types": [], "loss_mask": []}
         if "image" in standalone_data:
             self._dict_append(standalone_data["image"], output, loss_mask_value=0)
         if "text" in standalone_data:
@@ -262,7 +262,7 @@ class Interleaver:
         return output
 
     def __call__(self, batch_data: Dict[str, Dict[str, Any]]) -> Dict[str, List[Any]]:
-        output = {"input_ids": [], "patches": [], "positions": [], "input_type": [], "loss_mask": []}
+        output = {"input_ids": [], "patches": [], "patch_positions": [], "input_types": [], "loss_mask": []}
 
         # Get the batch size
         first_mod = next(iter(batch_data.values()))

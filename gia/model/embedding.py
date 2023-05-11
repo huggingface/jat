@@ -18,7 +18,7 @@ class ImagePositionEncoding(nn.Module):
         embed_dim (int, optional): The embedding dimension. Defaults to 512.
 
     Inputs:
-        patch_pos (torch.Tensor): A tensor of shape (B, 2, 2) containing the interval of the patch positions.
+        patch_positions (torch.Tensor): A tensor of shape (B, 2, 2) containing the interval of the patch position.
             Each element describes the interval with an array [[x_min, y_min], [x_max, y_max]].
         eval (bool, optional): A flag indicating whether the module is being used for evaluation. Defaults to False.
 
@@ -29,13 +29,13 @@ class ImagePositionEncoding(nn.Module):
     Example:
         >>> import torch
         >>> pos_enc = ImagePositionEncoding()
-        >>> positions = torch.tensor(
+        >>> patch_positions = torch.tensor(
         ...     [
         ...         [[0.0, 0.0], [0.2, 0.3]],
         ...         [[0.1, 0.3], [0.2, 0.4]],
         ...     ]
         ... )
-        >>> pos_encoding = pos_enc(positions)
+        >>> pos_encoding = pos_enc(patch_positions)
         >>> pos_encoding.shape
         torch.Size([2, 2048])
     """
@@ -46,11 +46,11 @@ class ImagePositionEncoding(nn.Module):
         self.row_embedding = nn.Embedding(vocab_size, embed_dim)
         self.column_embedding = nn.Embedding(vocab_size, embed_dim)
 
-    def forward(self, patch_pos: Tensor, eval: bool = False) -> Tensor:
+    def forward(self, patch_positions: Tensor, eval: bool = False) -> Tensor:
         # The row and column normalized intervals are then quantized into a vocabulary
         # size (we use 128) and are used to index a row and column table of learnable position encodings.
-        quant_row_intervals = (patch_pos[..., 0] * self.vocab_size).floor().long()
-        quant_col_intervals = (patch_pos[..., 1] * self.vocab_size).floor().long()
+        quant_row_intervals = (patch_positions[..., 0] * self.vocab_size).floor().long()
+        quant_col_intervals = (patch_positions[..., 1] * self.vocab_size).floor().long()
 
         # Edge case (when the high value is 1.0) is handled by setting the high value to vocab_size - 1
         quant_col_intervals[quant_col_intervals == self.vocab_size] = self.vocab_size - 1
@@ -60,8 +60,8 @@ class ImagePositionEncoding(nn.Module):
         # on whether we are training or evaluating the model: during training a random index is uniformly
         # sampled from the quantized interval, while during evaluation we deterministically take the
         # (rounded) mean of the interval
-        sampled_row_idx = torch.zeros(patch_pos.shape[0], dtype=torch.long, device=patch_pos.device)
-        sampled_col_idx = torch.zeros(patch_pos.shape[0], dtype=torch.long, device=patch_pos.device)
+        sampled_row_idx = torch.zeros(patch_positions.shape[0], dtype=torch.long, device=patch_positions.device)
+        sampled_col_idx = torch.zeros(patch_positions.shape[0], dtype=torch.long, device=patch_positions.device)
         if eval:
             sampled_row_idx = (quant_row_intervals[..., 0] + quant_row_intervals[..., 1]) // 2
             sampled_col_idx = (quant_col_intervals[..., 0] + quant_col_intervals[..., 1]) // 2
@@ -232,10 +232,10 @@ class Embeddings(nn.Module):
         >>> embed = Embeddings(embed_dim=4, token_vocab_size=10)
         >>> input_ids = torch.tensor([[1, 0, 2], [4, 0, 0]])
         >>> patches = torch.tensor([[PATCH_PAD, PATCH, PATCH_PAD], [PATCH_PAD, PATCH_PAD, PATCH_PAD]])
-        >>> positions = torch.tensor([[POS_PAD, POS, POS_PAD], [POS_PAD, POS_PAD, POS_PAD]])
-        >>> input_type = torch.tensor([[0, 1, 0], [0, 0, 0]])
+        >>> patch_positions = torch.tensor([[POS_PAD, POS, POS_PAD], [POS_PAD, POS_PAD, POS_PAD]])
+        >>> input_types = torch.tensor([[0, 1, 0], [0, 0, 0]])
         >>> attention_mask = torch.tensor([[1, 1, 1], [1, 0, 0]])
-        >>> print(embed(input_ids, patches, positions, input_type, attention_mask))
+        >>> print(embed(input_ids, patches, patch_positions, input_types, attention_mask))
         tensor([[[ 0.6603, -1.4121,  1.8346,  0.4562],
                  [ 0.1788,  0.8613,  0.6966,  0.1318],
                  [ 0.2750,  0.1993,  0.1091, -0.8430]],
@@ -270,16 +270,16 @@ class Embeddings(nn.Module):
         # The total number of tokens is the number of observation tokens + 1 for the unique action token
         self.local_pos_embeddings = LocalPositionEncodings(num_local_positions, embed_dim)
 
-    def forward(self, input_ids, patches, positions, input_type, attention_mask) -> Tensor:
+    def forward(self, input_ids, patches, patch_positions, input_types, attention_mask) -> Tensor:
         device = self.embeddings.weight.device
         batch_size = input_ids.shape[0]
         seq_len = input_ids.shape[1]
         embed = torch.zeros(batch_size, seq_len, self.embed_dim, dtype=torch.float32, device=device)
-        mask = torch.logical_and(input_type == 0, attention_mask)
+        mask = torch.logical_and(input_types == 0, attention_mask)
         embed[mask] = self.embeddings(input_ids[mask])
 
-        mask = torch.logical_and(input_type == 1, attention_mask)
+        mask = torch.logical_and(input_types == 1, attention_mask)
         normalized_images = patches[mask].float() * 2.0 / 255.0 - 1.0
-        embed[mask] = self.image_encoder(normalized_images) + self.image_pos_enc(positions[mask])
+        embed[mask] = self.image_encoder(normalized_images) + self.image_pos_enc(patch_positions[mask])
 
         return embed

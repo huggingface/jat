@@ -10,7 +10,7 @@ from gia.model import GiaModel
 from gia.processing import GiaProcessor
 
 
-def random_positions(size):  # Ensure that min < max
+def random_patch_positions(size):  # Ensure that min < max
     t1 = torch.rand(*size, 1, 2)  # Create a random tensor of shape (B, N, 1, 2) with values between 0 and 1
     t2 = torch.rand(*size, 1, 2)  # Create another random tensor of shape (B, N, 1, 2) with values between 0 and 1
     t_min = torch.min(t1, t2)  # Element-wise minimum of t1 and t2
@@ -39,10 +39,10 @@ def test_model():
     module = GiaModel(Arguments(output_dir="./"))
     input_ids = torch.randint(0, 256, (2, 32))
     patches = torch.rand(2, 32, 4, 16, 16)
-    positions = random_positions((2, 32))
-    input_type = torch.randint(0, 2, (2, 32))
+    patch_positions = random_patch_positions((2, 32))
+    input_types = torch.randint(0, 2, (2, 32))
     loss_mask = torch.randint(0, 2, (2, 32), dtype=torch.bool)
     attention_mask = torch.randint(0, 2, (2, 32), dtype=torch.bool)
-    output_tensor = module(input_ids, patches, positions, input_type, loss_mask, attention_mask)
+    output_tensor = module(input_ids, patches, patch_positions, input_types, loss_mask, attention_mask)
     assert output_tensor.loss.item() > 0.0
     assert output_tensor.logits.shape == (2, 32, 32000 + 1024 + 1)

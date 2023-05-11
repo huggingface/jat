@@ -26,26 +26,26 @@ processor = GiaProcessor(args)
 processed = processor(**dataset)
 
 patches_first_elmt = [[patch[0][0][0] for patch in patches] for patches in processed["patches"]]
-positions_first_elmt = [[round(position[0][0], 2) for position in positions] for positions in processed["positions"]]
+patch_positions_first_elmt = [[round(pos[0][0], 2) for pos in positions] for positions in processed["patch_positions"]]
 
 print(
     f"""
 First sample:
     Tokens:                {processed['input_ids'][0]}
     Patches (1st elemt):   {patches_first_elmt[0]}
-    Positions (1st elemt): {positions_first_elmt[0]}
-    Input type:            {processed['input_type'][0]}
+    Positions (1st elemt): {patch_positions_first_elmt[0]}
+    Input type:            {processed['input_types'][0]}
 
 Second sample:
     Tokens:                {processed['input_ids'][1]}
     Patches (1st elemt):   {patches_first_elmt[1]}
-    Positions (1st elemt): {positions_first_elmt[1]}
-    Input type:            {processed['input_type'][1]}
+    Positions (1st elemt): {patch_positions_first_elmt[1]}
+    Input type:            {processed['input_types'][1]}
 
 Third sample:
     Tokens:                {processed['input_ids'][2]}
     Patches (1st elemt):   {patches_first_elmt[2]}
-    Positions (1st elemt): {positions_first_elmt[2]}
-    Input type:            {processed['input_type'][2]}
+    Positions (1st elemt): {patch_positions_first_elmt[2]}
+    Input type:            {processed['input_types'][2]}
 """
 )

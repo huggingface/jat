@@ -9,7 +9,7 @@ from gia.model.embedding import Embeddings, ImageEncoder, ImagePositionEncoding,
 from gia.processing import GiaProcessor
 
 
-def random_positions(size):  # Ensure that min < max
+def random_patch_positions(size):  # Ensure that min < max
     t1 = torch.rand(*size, 1, 2)  # Create a random tensor of shape (B, N, 1, 2) with values between 0 and 1
     t2 = torch.rand(*size, 1, 2)  # Create another random tensor of shape (B, N, 1, 2) with values between 0 and 1
     t_min = torch.min(t1, t2)  # Element-wise minimum of t1 and t2
@@ -19,7 +19,7 @@ def random_positions(size):  # Ensure that min < max
 
 def test_image_position_encoding_shapes():
     batch_size = 4
-    positions = torch.tensor(
+    patch_positions = torch.tensor(
         [
             [[0.0, 0.0], [0.2, 0.3]],
             [[0.1, 0.3], [0.2, 0.4]],
@@ -29,36 +29,36 @@ def test_image_position_encoding_shapes():
     )
 
     pos_enc = ImagePositionEncoding(embed_dim=128)
-    pos_encoding = pos_enc(positions)
+    pos_encoding = pos_enc(patch_positions)
     assert pos_encoding.shape == (batch_size, 128)
 
-    pos_encoding_eval = pos_enc(positions, eval=True)
+    pos_encoding_eval = pos_enc(patch_positions, eval=True)
     assert pos_encoding_eval.shape == (batch_size, 128)
 
 
 def test_image_position_encoding_values():
     # The two patches should have the same encoding since they are under 1/vocab_size
-    positions = torch.tensor(
+    patch_positions = torch.tensor(
         [
             [[0.0, 0.0], [0.1, 0.2]],
             [[0.0, 0.1], [0.2, 0.2]],
         ]
     )
     pos_enc = ImagePositionEncoding(vocab_size=4)
-    pos_encoding = pos_enc(positions)
+    pos_encoding = pos_enc(patch_positions)
     torch.testing.assert_close(pos_encoding[0], pos_encoding[1])
 
 
 def test_image_position_encoding_values_eval():
     # The two patches should have the same encoding since they share the same mean position (0.2, 0.3)
-    positions = torch.tensor(
+    patch_positions = torch.tensor(
         [
             [[0.1, 0.0], [0.3, 0.6]],
             [[0.0, 0.2], [0.4, 0.4]],
         ]
     )
     pos_enc = ImagePositionEncoding(vocab_size=10)
-    pos_encoding = pos_enc(positions, eval=True)
+    pos_encoding = pos_enc(patch_positions, eval=True)
     torch.testing.assert_close(pos_encoding[0], pos_encoding[1])
 
 
@@ -122,10 +122,10 @@ def test_embeddings():
     module = Embeddings(embed_dim=128, token_vocab_size=256)
     input_ids = torch.randint(0, 256, (2, 32))
     patches = torch.rand(2, 32, 4, 16, 16)
-    positions = random_positions((2, 32))
-    input_type = torch.randint(0, 2, (2, 32))
+    patch_positions = random_patch_positions((2, 32))
+    input_types = torch.randint(0, 2, (2, 32))
     attention_mask = torch.randint(0, 2, (2, 32), dtype=torch.bool)
-    output_tensor = module(input_ids, patches, positions, input_type, attention_mask)
+    output_tensor = module(input_ids, patches, patch_positions, input_types, attention_mask)
     assert output_tensor.shape == (2, 32, 128)
 
 

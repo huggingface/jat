@@ -18,22 +18,22 @@ print(
 First sample:
     Tokens:                {batch['input_ids'][0]}
     Patches (1st elemt):   {batch['patches'][0, :, 0, 0, 0]}
-    Positions (1st elemt): {batch["positions"][0, :, 0, 0]}
-    Input type:            {batch['input_type'][0]}
+    Positions (1st elemt): {batch["patch_positions"][0, :, 0, 0]}
+    Input type:            {batch['input_types'][0]}
     Attention mask:        {batch['attention_mask'][0]}
 
 Second sample:
     Tokens:                {batch['input_ids'][1]}
     Patches (1st elemt):   {batch['patches'][1, :, 0, 0, 0]}
-    Positions (1st elemt): {batch["positions"][1, :, 0, 0]}
-    Input type:            {batch['input_type'][1]}
+    Positions (1st elemt): {batch["patch_positions"][1, :, 0, 0]}
+    Input type:            {batch['input_types'][1]}
     Attention mask:        {batch['attention_mask'][1]}
 
 Third sample:
     Tokens:                {batch['input_ids'][2]}
     Patches (1st elemt):   {batch['patches'][2, :, 0, 0, 0]}
-    Positions (1st elemt): {batch["positions"][2, :, 0, 0]}
-    Input type:            {batch['input_type'][2]}
+    Positions (1st elemt): {batch["patch_positions"][2, :, 0, 0]}
+    Input type:            {batch['input_types'][2]}
     Attention mask:        {batch['attention_mask'][2]}
 """
 )

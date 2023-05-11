@@ -98,7 +98,7 @@ class GiaTokenizer:
             Tuple of:
                 - patches (np.ndarray): Patches extracted from the image. Output has shape (N, C, P, P), where P
                     is the patch size. Patches are flattened in row-major order.
-                - positions (np.ndarray): Relative position intervals of the patches. Output has shape
+                - patch_positions (np.ndarray): Relative position intervals of the patches. Output has shape
                     (N, 2, 2), where the last two dimensions are the start and end positions of the patch.
         """
         P = self.patch_size
@@ -115,7 +115,7 @@ class GiaTokenizer:
         # relative position intervals of the patches within the image
         # described with array [[x_min, y_min], [x_max, y_max]]
         # Output shape is (N, 2, 2)
-        positions = np.array(
+        patch_positions = np.array(
             [
                 [[i / (H // P), j / (W // P)], [(i + 1) / (H // P), (j + 1) / (W // P)]]
                 for i in range(H // P)
@@ -124,7 +124,7 @@ class GiaTokenizer:
             dtype=np.float32,
         ).tolist()
 
-        return patches, positions
+        return patches, patch_positions
 
     @nested_decorator
     def tokenize_discrete(self, x: int) -> int:
@@ -190,15 +190,15 @@ class GiaTokenizer:
             output["text"] = {"input_ids": self.tokenize_text(text)}
 
         if image is not None:
-            patches, positions = self.extract_patches(image)
-            output["image"] = {"patches": patches, "positions": positions}
+            patches, patch_positions = self.extract_patches(image)
+            output["image"] = {"patches": patches, "patch_positions": patch_positions}
 
         if text_observations is not None:
             output["text_observations"] = {"input_ids": self.tokenize_text(text_observations)}
 
         if image_observations is not None:
-            patches, positions = self.extract_patches(image_observations)
-            output["image_observations"] = {"patches": patches, "positions": positions}
+            patches, patch_positions = self.extract_patches(image_observations)
+            output["image_observations"] = {"patches": patches, "patch_positions": patch_positions}
 
         if discrete_observations is not None:
             output["discrete_observations"] = {"input_ids": self.tokenize_discrete(discrete_observations)}
@@ -228,8 +228,8 @@ class GiaProcessor:
         self.padding_value = {
             "input_ids": 0,
             "patches": np.zeros((4, args.patch_size, args.patch_size), dtype=np.uint8),
-            "positions": [[0.0, 0.0], [0.0, 0.0]],
-            "input_type": 0,
+            "patch_positions": [[0.0, 0.0], [0.0, 0.0]],
+            "input_types": 0,
             "loss_mask": 0,
         }
 
@@ -303,7 +303,7 @@ class GiaProcessor:
         max_length: Optional[int] = None,
     ):
         """
-        Process input. Returns tokens, patches, positions, and loss masks.
+        Process input. Returns tokens, patches, patch_positions, and loss masks.
 
         Args:
             text (Optional[str], optional): Standalone text input. Defaults to None.

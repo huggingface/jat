@@ -38,7 +38,7 @@ dict_keys(['rewards', 'dones', 'continuous_observations', 'continuous_actions', 
 torch.Size([8, 28, 27])
 >>> batch[1].keys()
 dict_keys(['rewards', 'dones', 'text_observations', 'discrete_observations', 'image_observations',
-    'discrete_actions', 'patches_positions', 'text_observations_loss_mask', 'discrete_observations_loss_mask',
+    'discrete_actions', 'patch_positions', 'text_observations_loss_mask', 'discrete_observations_loss_mask',
     'image_observations_loss_mask', 'discrete_actions_loss_mask', 'rewards_attention_mask',
     'dones_attention_mask', 'text_observations_attention_mask', 'discrete_observations_attention_mask',
     'discrete_actions_attention_mask', 'image_observations_attention_mask'])
