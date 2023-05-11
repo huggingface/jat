@@ -34,9 +34,8 @@ def run():
         # To torch tensors
         for key in processed.keys():
             processed[key] = torch.as_tensor(processed[key], device=device)
-        action = model.generate(**processed, num_tokens=action_dim)
-        # action_tokens = output.logits[:, -action_dim:].argmax(2).cpu().numpy()
-        # action = processor.tokenizer.decode_continuous(action_tokens)
+        action_tokens = model.generate(**processed, num_tokens=action_dim)
+        action = processor.tokenizer.decode_continuous(action_tokens.cpu().numpy())
 
         # Step the environment
         observation, reward, terminated, truncated, info = env.step(action)
