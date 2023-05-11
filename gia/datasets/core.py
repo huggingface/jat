@@ -1,6 +1,7 @@
 import random
 from typing import Dict, List, Union
 
+import numpy as np
 import torch
 from datasets import Dataset, get_dataset_config_names, load_dataset
 
@@ -171,4 +172,12 @@ def collate_fn(batch: List[Dict[str, List]]) -> Dict[str, List[Union[torch.Tenso
     """
     # All samples must have the same keys
     keys = batch[0].keys()
-    return {key: torch.tensor([sample[key] for sample in batch]) for key in keys}
+    d = {}
+
+    for key in keys:
+        val = [sample[key] for sample in batch]
+        if isinstance(val[0], np.ndarray):
+            val = np.array(val)  # to avoid creating a tensor from a list of arrays
+        d[key] = torch.as_tensor(val)
+
+    return d
