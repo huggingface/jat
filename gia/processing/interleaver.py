@@ -118,6 +118,8 @@ class Interleaver:
         output: Dict[str, Dict[str, Any]] = {}
         for outer_key, inner_dict in nested_dict.items():
             for inner_key, inner_list in inner_dict.items():
+                if len(inner_list) <= index:
+                    continue
                 element = inner_list[index]
                 if element is not None:
                     output.setdefault(outer_key, {})[inner_key] = element
@@ -237,20 +239,34 @@ class Interleaver:
         ]
 
         # Get the length of each sequence in the d and make sure they are all equal
-        sequence_lengths = [len(episode) for episodes in episode_data.values() for episode in episodes.values()]
-        common_length = sequence_lengths[0]
-        assert all(common_length == length for length in sequence_lengths)
+        obs_total_timesteps = None
+        for key in observation_keys:
+            if key in episode_data:
+                for ep in episode_data[key].values():
+                    if obs_total_timesteps is None:
+                        obs_total_timesteps = len(ep)
+                    assert obs_total_timesteps == len(ep)
+
+        action_total_timesteps = None
+        for key in action_keys:
+            if key in episode_data:
+                for ep in episode_data[key].values():
+                    if action_total_timesteps is None:
+                        action_total_timesteps = len(ep)
+                    assert action_total_timesteps == len(ep)
+
+        # It is possible that the number of observations exceeds the number of actions by 1 (when the model has
+        # to predict the next action)
+        assert obs_total_timesteps is not None, "No observations found in the episode data."
 
         # Interleave the data
         # Order: observation (text, image, discrete, continuous), then action (discrete, continuous)
-        for t in range(common_length):
-
+        for t in range(obs_total_timesteps):
             local_position = 0
             # Extract the current element from each sequence in the d
             data_t = self._extract_idx_element(episode_data, t)
 
             ordered_keys = [key for key in observation_keys + action_keys if key in data_t]
-
             for mod_key in ordered_keys:
                 # If the data is not a list, convert it to a list of size 1
                 for func_key in data_t[mod_key]:

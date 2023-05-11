@@ -1,6 +1,7 @@
 from torch import nn
-from transformers import AutoConfig, AutoModelForCausalLM
+from transformers import AutoConfig, AutoModelForCausalLM, GenerationConfig
 from transformers.modeling_outputs import CausalLMOutputWithPast
+
 from gia.config import ModelArguments
 from gia.model.embedding import Embeddings
 
@@ -33,7 +34,7 @@ class GiaModel(nn.Module):
         )
 
     def forward(
-        self, input_ids, local_positions, patches, patch_positions, input_types, loss_mask, attention_mask
+        self, input_ids, local_positions, patches, patch_positions, input_types, loss_mask, attention_mask=None
     ) -> CausalLMOutputWithPast:
         embeds = self.emb(input_ids, local_positions, patches, patch_positions, input_types, attention_mask)
         labels = input_ids.clone()
@@ -41,3 +42,18 @@ class GiaModel(nn.Module):
         # [0, ..., config.vocab_size]
         labels[loss_mask == 0] = -100
         return self.model(inputs_embeds=embeds, attention_mask=attention_mask, labels=labels)
+
+    def generate(
+        self,
+        input_ids,
+        local_positions,
+        patches,
+        patch_positions,
+        input_types,
+        num_tokens,
+        attention_mask=None,
+        **kwargs,
+    ):
+        config = GenerationConfig(max_new_tokens=num_tokens, min_new_tokens=num_tokens)
+        embeds = self.emb(input_ids, local_positions, patches, patch_positions, input_types, attention_mask)
+        return self.model.generate(inputs_embeds=embeds, generation_config=config, attention_mask=attention_mask)

@@ -21,7 +21,7 @@ def nested_decorator(func: Callable[[T], U]) -> Callable[[NestedList[T]], Nested
     def wrapper(self, x):
         if x is None:
             return None
-        if isinstance(x, list):
+        if isinstance(x, (list, np.ndarray)):
             return [wrapper(self, x_i) for x_i in x]
         else:
             return func(self, x)
@@ -154,7 +154,7 @@ class GiaTokenizer:
         return token
 
     @nested_decorator
-    def inverse_tokenize_continuous(self, token: int) -> float:
+    def decode_continuous(self, token: int) -> float:
         """
         Inverse of tokenize_continuous.
 
@@ -165,7 +165,7 @@ class GiaTokenizer:
             NestedFloatList: Continuous value
         """
         # Subtract token shift
-        token = token - self.token_shift
+        token = max(0, token - self.token_shift)
 
         # Maps tokens from [0, nb_bins-1] to [-1, 1]
         # We map the bin number to the center of the bin

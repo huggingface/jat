@@ -222,9 +222,13 @@ class Embeddings(nn.Module):
         # The total number of tokens is the number of observation tokens + 1 for the unique action token
         self.local_pos_embeddings = nn.Embedding(num_local_positions, embed_dim)
 
-    def forward(self, input_ids, local_positions, patches, patch_positions, input_types, attention_mask) -> Tensor:
+    def forward(
+        self, input_ids, local_positions, patches, patch_positions, input_types, attention_mask=None
+    ) -> Tensor:
         device = self.embeddings.weight.device
         batch_size, seq_len = input_ids.shape
+        if attention_mask is None:
+            attention_mask = torch.ones_like(input_ids)
 
         # Initialize the embeddings with zeros
         embed = torch.zeros(batch_size, seq_len, self.embed_dim, dtype=torch.float32, device=device)
