@@ -3,11 +3,11 @@ import pytest
 
 from gia.processing.interleaver import Interleaver
 
-PATCH_PAD = np.zeros(shape=(3, 16, 16), dtype=np.uint8)  # PAD
-PATCH_1 = np.random.randint(0, 255, (3, 16, 16), dtype=np.uint8)
-PATCH_2 = np.random.randint(0, 255, (3, 16, 16), dtype=np.uint8)
-PATCH_3 = np.random.randint(0, 255, (3, 16, 16), dtype=np.uint8)
-PATCH_4 = np.random.randint(0, 255, (3, 16, 16), dtype=np.uint8)
+PATCH_PAD = np.zeros(shape=(4, 16, 16), dtype=np.uint8)  # PAD
+PATCH_1 = np.random.randint(0, 255, (4, 16, 16), dtype=np.uint8)
+PATCH_2 = np.random.randint(0, 255, (4, 16, 16), dtype=np.uint8)
+PATCH_3 = np.random.randint(0, 255, (4, 16, 16), dtype=np.uint8)
+PATCH_4 = np.random.randint(0, 255, (4, 16, 16), dtype=np.uint8)
 
 POS_PAD = [[0.0, 0.0], [0.0, 0.0]]  # PAD
 LEFT = [[0.0, 0.0], [1.0, 0.5]]

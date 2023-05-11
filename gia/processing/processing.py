@@ -96,24 +96,28 @@ class GiaTokenizer:
 
         Returns:
             Tuple of:
-                - patches (np.ndarray): Patches extracted from the image. Output has shape (N, C, P, P), where P
+                - patches (np.ndarray): Patches extracted from the image. Output has shape (N, 4, P, P), where P
                     is the patch size. Patches are flattened in row-major order.
                 - patch_positions (np.ndarray): Relative position intervals of the patches. Output has shape
                     (N, 2, 2), where the last two dimensions are the start and end positions of the patch.
         """
         P = self.patch_size
         C, H, W = image.shape
-        # First, reshape to the closest above multiple of the patch size
+        # Reshape to the closest above multiple of the patch size
         # cv2 works with channels last, so we need to transpose the image.
         image = image.transpose(1, 2, 0)
         H = H - H % P + P if H % P != 0 else H
         W = W - W % P + P if W % P != 0 else W
         resized_image = cv2.resize(image, (W, H), interpolation=cv2.INTER_AREA)
         image = resized_image.transpose(2, 0, 1)  # Back to channels first
+        # Extract patches
         patches = image.reshape(C, H // P, P, W // P, P).transpose(1, 3, 0, 2, 4)
         patches = patches.reshape(-1, C, P, P)
-        # relative position intervals of the patches within the image
-        # described with array [[x_min, y_min], [x_max, y_max]]
+        # Pad the image with 0 to have 4 channels
+        pad_width = ((0, 0), (0, 4 - C), (0, 0), (0, 0))
+        patches = np.pad(patches, pad_width, mode="constant", constant_values=0)
+        # Compute the relative position intervals of the patches within the image
+        # They are described as [[x_min, y_min], [x_max, y_max]]
         # Output shape is (N, 2, 2)
         patch_positions = np.array(
             [
@@ -342,7 +346,6 @@ class GiaProcessor:
         Returns:
             Dict[str, List[Any]]: A dictionary of tensors containing the tokenized inputs.
         """
-
         tokens_and_patches = self.tokenizer(
             text,
             image,

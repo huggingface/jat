@@ -51,7 +51,7 @@ class Interleaver:
     # For memory efficiency, we use the same pad for all patches and positions.
     TOKEN_PAD = 0
     LOCAL_POSITION_PAD = 0  # Probably not a good idea
-    PATCH_PAD = np.zeros((3, 16, 16), dtype=np.int64)
+    PATCH_PAD = np.zeros((4, 16, 16), dtype=np.int64)
     PATCH_POSITION_PAD = [[0.0, 0.0], [0.0, 0.0]]
 
     TOKEN_TYPE_ID = 0
@@ -150,10 +150,10 @@ class Interleaver:
             >>> processed_data
             {"input_ids": [42, 43], "patches": [PATCH_PAD, PATCH_PAD], "patch_positions": [POS_PAD, POS_PAD],
                 "input_types": [0, 0], "loss_mask": [1, 0]}
-            >>> batch_data = {"patches": [np.ones((3, 16, 16))], "patch_positions": [[[0.0, 0.0], [0.2, 0.5]]]}
+            >>> batch_data = {"patches": [np.ones((4, 16, 16))], "patch_positions": [[[0.0, 0.0], [0.2, 0.5]]]}
             >>> _dict_append(batch_data, processed_data, loss_mak_value=0)
             >>> processed_data
-            {"input_ids": [42, 43, 0], "patches": [PATCH_PAD, PATCH_PAD, np.ones((3, 16, 16))],
+            {"input_ids": [42, 43, 0], "patches": [PATCH_PAD, PATCH_PAD, np.ones((4, 16, 16))],
                 "patch_positions": [POS_PAD, POS_PAD, [[0.0, 0.0], [0.2, 0.5]]], "input_types": [0, 0, 1],
                 "loss_mask": [1, 0, 1]}
         """

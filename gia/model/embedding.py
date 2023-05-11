@@ -156,7 +156,6 @@ class ImageEncoder(nn.Module):
 
     def forward(self, x: Tensor) -> Tensor:
         # Pad the input images with zeros if they have less channels than the encoder expects
-        x = F.pad(x, (0, 0, 0, 0, 0, self.in_channels - x.shape[1]))
         x = self.conv(x)
         x = self.residual_block(x)
         x = x.flatten(start_dim=1)
@@ -231,15 +230,16 @@ class Embeddings(nn.Module):
         embed = torch.zeros(batch_size, seq_len, self.embed_dim, dtype=torch.float32, device=device)
 
         # Set the embeddings for the tokens
-        mask = torch.logical_and(input_types == 0, attention_mask)
+        mask = torch.logical_and(input_types == 0, attention_mask.bool())
         embed[mask] = self.embeddings(input_ids[mask])
 
         # Set the embeddings for the image patches
-        mask = torch.logical_and(input_types == 1, attention_mask)
+        mask = torch.logical_and(input_types == 1, attention_mask.bool())
         normalized_images = patches[mask].float() * 2.0 / 255.0 - 1.0
         embed[mask] = self.image_encoder(normalized_images) + self.image_pos_enc(patch_positions[mask])
 
         # Add the local position embeddings
-        embed[attention_mask] = embed[attention_mask] + self.local_pos_embeddings(local_positions[attention_mask])
+        mask = attention_mask.bool()
+        embed[mask] = embed[mask] + self.local_pos_embeddings(local_positions[mask])
 
         return embed

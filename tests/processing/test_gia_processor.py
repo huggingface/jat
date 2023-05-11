@@ -95,6 +95,42 @@ def test_tokenize_text():
     assert all(token < tokenizer.token_shift for tokens in text_tokens for token in tokens)  # Tokens aren't shifted
 
 
+def test_tokenize_image():
+    # In image-only dataset, we don't have episodes
+    # The model should handle this case
+    args = DatasetArguments(nb_bins=16, seq_len=16)
+    tokenizer = GiaTokenizer(args)
+    images = [np.random.randint(0, 255, (3, 32, 32), dtype=np.uint8) for _ in range(2)]
+    tokens = tokenizer(image_observations=images)
+    # Check that the returned object is a dict with the correct keys
+    assert isinstance(tokens, dict)
+    assert "image_observations" in tokens
+    patches = tokens["image_observations"]["patches"]
+    patch_positions = tokens["image_observations"]["patch_positions"]
+    # Check that we have the correct number of samples
+    assert len(patches) == len(images)
+    assert len(patch_positions) == len(images)
+    # Check that the dtype is correct
+    for ep_idx in range(len(images)):
+        for t in range(len(patches[ep_idx])):
+            assert isinstance(patches[ep_idx][t], np.ndarray)
+            assert patches[ep_idx][t].dtype == np.uint8
+            assert patches[ep_idx][t].shape == (4, 16, 16)
+            # Check that position looks like [[x1, y1], [x2, y2]
+            assert isinstance(patch_positions[ep_idx][t], list)
+            assert len(patch_positions[ep_idx][t]) == 2
+            assert all(isinstance(position, list) for position in patch_positions[ep_idx][t])
+            assert all(len(position) == 2 for position in patch_positions[ep_idx][t])
+            # Check that x1 < x2 and y1 < y2
+            assert patch_positions[ep_idx][t][0][0] < patch_positions[ep_idx][t][1][0]
+            assert patch_positions[ep_idx][t][0][1] < patch_positions[ep_idx][t][1][1]
+
+    # The two images are different, so their patches should be different
+    assert any(np.any(p1 != p2) for p1, p2 in zip(*patches))
+    # But they have the size, so the positions should be the same
+    assert all(p1 == p2 for p1, p2 in zip(*patch_positions))
+
+
 def test_tokenize_mixed_batch():
     args = DatasetArguments(nb_bins=16, seq_len=16)
     tokenizer = GiaTokenizer(args)
