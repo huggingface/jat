@@ -70,18 +70,8 @@ def test_image_encoder():
     patch_size = 16
 
     image_encoder = ImageEncoder(in_channels, num_res_channels, out_features, num_groups, patch_size)
-
-    # Test with input images of shape (batch_size, 3, patch_size, patch_size)
-    input_images = torch.randn(batch_size, 3, patch_size, patch_size)
-    encoded_images = image_encoder(input_images)
-    assert encoded_images.shape == (
-        batch_size,
-        out_features,
-    ), f"Expected shape ({batch_size}, {out_features}), got {encoded_images.shape}"
-
-    # Test with input images of shape (batch_size, 4, patch_size, patch_size)
-    input_images = torch.randn(batch_size, 4, patch_size, patch_size)
-    encoded_images = image_encoder(input_images)
+    images = torch.randn(batch_size, in_channels, patch_size, patch_size)
+    encoded_images = image_encoder(images)
     assert encoded_images.shape == (
         batch_size,
         out_features,

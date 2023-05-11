@@ -61,7 +61,7 @@ class Interleaver:
     def _is_episode(sample_data: Dict[str, Dict[str, Any]]) -> bool:
         """
         Determines if the keys of the sample_data dictionary follow the episode format. Keys can be either in
-        ["image", "text"] or in ["image_observations", "text_observations", "discrete_observations",
+        ["images", "text"] or in ["image_observations", "text_observations", "discrete_observations",
         "continuous_observations", "discrete_actions", "continuous_actions"]. They can't be in both.
 
         Args:
@@ -84,7 +84,7 @@ class Interleaver:
                 "continuous_actions",
             ]
         )
-        standalone_keys = set(["image", "text"])
+        standalone_keys = set(["images", "text"])
 
         if key_set.issubset(epsiode_keys):
             return True
@@ -280,16 +280,15 @@ class Interleaver:
         Interleaves standalone data, such as images or text, into a unified dictionary of data lists.
 
         Args:
-            data (Dict[str, Dict[str, Any]]): A dictionary containing data categorized by type.
-            The first level keys can be "image" or "text". The second level keys can be "input_ids",
-            "patches", "patch_positions", etc.
+            data (Dict[str, Dict[str, Any]]): A dictionary containing data categorized by type. The first level keys
+                can be "images" or "text". The second level keys can be "input_ids", "patches", "patch_positions", etc.
 
         Returns:
-            dict: A dictionary containing the interleaved data. The keys are "input_ids", "patches",
-            "patch_positions", "input_types", and "loss_mask". Each key corresponds to a list of data points.
+            dict: A dictionary containing the interleaved data. The keys are "input_ids", "patches", "patch_positions",
+                "input_types", and "loss_mask". Each key corresponds to a list of data points.
 
         Example:
-            >>> standalone_data = {"image": {"patches": [P1, P2], "patch_positions": [LEFT, RIGHT]},
+            >>> standalone_data = {"images": {"patches": [P1, P2], "patch_positions": [LEFT, RIGHT]},
                         "text": {"input_ids": [1, 2]}
             >>> _interleave_standalone(standalone_data)
             {'input_ids': [0, 0, 1, 2],
@@ -307,9 +306,9 @@ class Interleaver:
             "loss_mask": [],
         }
 
-        if "image" in standalone_data:
-            local_positions = [0] * len(standalone_data["image"]["patches"])
-            self._dict_append(standalone_data["image"], output, local_positions, loss_mask_value=0)
+        if "images" in standalone_data:
+            local_positions = [0] * len(standalone_data["images"]["patches"])
+            self._dict_append(standalone_data["images"], output, local_positions, loss_mask_value=0)
         if "text" in standalone_data:
             local_positions = [0] * len(standalone_data["text"]["input_ids"])
             self._dict_append(standalone_data["text"], output, local_positions, loss_mask_value=1)

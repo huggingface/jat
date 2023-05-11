@@ -113,7 +113,7 @@ def test_interleave_standalone():
     interleaver = Interleaver()
     input_data = {
         "text": {"input_ids": [1, 2]},
-        "image": {"patches": [PATCH_1, PATCH_2], "patch_positions": [LEFT, RIGHT]},
+        "images": {"patches": [PATCH_1, PATCH_2], "patch_positions": [LEFT, RIGHT]},
     }
     expected_output = {
         "input_ids": [0, 0, 1, 2],
@@ -136,7 +136,7 @@ def test_interleave_standalone():
 def test_is_episode():
     # Test valid non-episode case
     sample_data_1 = {
-        "image": {"patches": [], "patch_positions": []},
+        "images": {"patches": [], "patch_positions": []},
         "text": {"input_ids": []},
     }
     assert not Interleaver._is_episode(sample_data_1)
@@ -152,7 +152,7 @@ def test_is_episode():
 
     # Test invalid mixed case
     sample_data_3 = {
-        "image": {"patches": [], "patch_positions": []},
+        "images": {"patches": [], "patch_positions": []},
         "text_observations": {"input_ids": []},
         "continuous_actions": {"input_ids": []},
     }
@@ -161,7 +161,7 @@ def test_is_episode():
 
     # Test case with extra keys
     sample_data_4 = {
-        "image": {"patches": [], "patch_positions": []},
+        "images": {"patches": [], "patch_positions": []},
         "text": {"input_ids": []},
         "extra_key": {"input_ids": []},
     }
@@ -236,7 +236,7 @@ def test_interleave_batch_standalone():
         "text": {
             "input_ids": [None, [1, 2], [3, 4]],
         },
-        "image": {
+        "images": {
             "patches": [[PATCH_1, PATCH_2], None, [PATCH_3, PATCH_4]],
             "patch_positions": [[LEFT, RIGHT], None, [LEFT, RIGHT]],
         },

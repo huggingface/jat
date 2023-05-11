@@ -18,7 +18,7 @@ dataset = {
     "discrete_observations": [[2, 3], None, None],
     "discrete_actions": [[1, 2], [[3, 4], [5, 6]], None],
     "text": [None, None, "Hello world!"],
-    "image": [None, None, image_3],
+    "images": [None, None, image_3],
 }
 
 args = DatasetArguments()

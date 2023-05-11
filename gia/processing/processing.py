@@ -89,7 +89,7 @@ class GiaTokenizer:
     @tuple_nested_decorator
     def extract_patches(self, image: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """
-        Extract patches from images.
+        Extract patches from an image.
 
         Args:
             image (np.ndarray): Image to extract patches from of shape (C, H, W).
@@ -180,7 +180,7 @@ class GiaTokenizer:
     def __call__(
         self,
         text: Optional[str] = None,
-        image: Optional[np.ndarray] = None,
+        images: Optional[np.ndarray] = None,
         text_observations: NestedList[str] = None,
         image_observations: NestedList[np.ndarray] = None,
         discrete_observations: NestedList[int] = None,
@@ -193,9 +193,9 @@ class GiaTokenizer:
         if text is not None:
             output["text"] = {"input_ids": self.tokenize_text(text)}
 
-        if image is not None:
-            patches, patch_positions = self.extract_patches(image)
-            output["image"] = {"patches": patches, "patch_positions": patch_positions}
+        if images is not None:
+            patches, patch_positions = self.extract_patches(images)
+            output["images"] = {"patches": patches, "patch_positions": patch_positions}
 
         if text_observations is not None:
             output["text_observations"] = {"input_ids": self.tokenize_text(text_observations)}
@@ -294,7 +294,7 @@ class GiaProcessor:
     def __call__(
         self,
         text: Optional[str] = None,
-        image: Optional[np.ndarray] = None,
+        images: Optional[np.ndarray] = None,
         text_observations: NestedList[str] = None,
         image_observations: NestedList[np.ndarray] = None,
         discrete_observations: NestedList[int] = None,
@@ -312,7 +312,7 @@ class GiaProcessor:
 
         Args:
             text (Optional[str], optional): Standalone text input. Defaults to None.
-            image (Optional[np.ndarray], optional): Standalone image input. Defaults to None.
+            images (Optional[np.ndarray], optional): Standalone image input. Defaults to None.
             text_observations (NestedList[str], optional): Episode text observations. Defaults to None.
             image_observations (NestedList[np.ndarray], optional): Episode image observations. Defaults to None.
             discrete_observations (NestedList[int], optional): Episode discrete observations. Defaults to None.
@@ -348,7 +348,7 @@ class GiaProcessor:
         """
         tokens_and_patches = self.tokenizer(
             text,
-            image,
+            images,
             text_observations,
             image_observations,
             discrete_observations,
