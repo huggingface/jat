@@ -164,53 +164,6 @@ class ImageEncoder(nn.Module):
         return x
 
 
-class LocalPositionEncodings(nn.Module):
-    """
-    A module for computing local position encodings.
-
-    Args:
-        vocab_size (int, optional): The size of the vocabulary. Defaults to 128.
-        embed_dim (int, optional): The dimension of the embedding. Defaults to 2048.
-
-    Inputs:
-        shape (torch.Size): The shape of the input tensor, which should be of the form
-            (batch_size, seq_len, num_tokens, embed_dim).
-        same (bool, optional): Whether to use the same position encodings for all tokens in a sequence.
-
-    Outputs:
-        Tensor: The local position encodings of shape (batch_size, seq_len, num_tokens, embed_dim).
-
-    Example:
-        >>> import torch
-        >>> import torch.nn as nn
-        >>> batch_size, seq_len, num_tokens = 8, 16, 20
-        >>> vocab_size, embed_dim = 128, 2048
-        >>> pos_enc = LocalPositionEncodings(vocab_size, embed_dim)
-        >>> shape = torch.Size([batch_size, seq_len, num_tokens, embed_dim])
-        >>> pos_emb = pos_enc(shape)
-        >>> pos_emb.shape
-        torch.Size([8, 16, 20, 2048])
-    """
-
-    def __init__(self, vocab_size: int = 128, embed_dim: int = 2048) -> None:
-        super().__init__()
-        self.vocab_size = vocab_size
-        self.embed_dim = embed_dim
-        self.embedding = nn.Embedding(vocab_size, embed_dim)
-
-    def forward(self, shape: torch.Size, same: bool = False) -> Tensor:
-        batch_size, seq_len, num_tokens, embed_dim = shape
-        device = self.embedding.weight.device
-        assert embed_dim == self.embed_dim
-        if same:
-            pos_emb_idxs = torch.full((num_tokens,), self.vocab_size - 1, dtype=torch.long, device=device)
-        else:
-            pos_emb_idxs = torch.arange(num_tokens, device=device)
-        pos_emb_idxs = pos_emb_idxs.view(1, 1, num_tokens)
-        pos_emb_idxs = pos_emb_idxs.expand(batch_size, seq_len, num_tokens)
-        return self.embedding(pos_emb_idxs)
-
-
 class Embeddings(nn.Module):
     """
     Embeddings layer.
@@ -268,18 +221,25 @@ class Embeddings(nn.Module):
 
         # Learnable local position encodings in the sequence
         # The total number of tokens is the number of observation tokens + 1 for the unique action token
-        self.local_pos_embeddings = LocalPositionEncodings(num_local_positions, embed_dim)
+        self.local_pos_embeddings = nn.Embedding(num_local_positions, embed_dim)
 
-    def forward(self, input_ids, patches, patch_positions, input_types, attention_mask) -> Tensor:
+    def forward(self, input_ids, local_positions, patches, patch_positions, input_types, attention_mask) -> Tensor:
         device = self.embeddings.weight.device
-        batch_size = input_ids.shape[0]
-        seq_len = input_ids.shape[1]
+        batch_size, seq_len = input_ids.shape
+
+        # Initialize the embeddings with zeros
         embed = torch.zeros(batch_size, seq_len, self.embed_dim, dtype=torch.float32, device=device)
+
+        # Set the embeddings for the tokens
         mask = torch.logical_and(input_types == 0, attention_mask)
         embed[mask] = self.embeddings(input_ids[mask])
 
+        # Set the embeddings for the image patches
         mask = torch.logical_and(input_types == 1, attention_mask)
         normalized_images = patches[mask].float() * 2.0 / 255.0 - 1.0
         embed[mask] = self.image_encoder(normalized_images) + self.image_pos_enc(patch_positions[mask])
+
+        # Add the local position embeddings
+        embed[attention_mask] = embed[attention_mask] + self.local_pos_embeddings(local_positions[attention_mask])
 
         return embed

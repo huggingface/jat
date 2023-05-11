@@ -38,11 +38,12 @@ def test_gia_accelerate(use_accelerate):
 def test_model():
     module = GiaModel(Arguments(output_dir="./"))
     input_ids = torch.randint(0, 256, (2, 32))
+    local_positions = torch.arange(32).repeat(2, 1)
     patches = torch.rand(2, 32, 4, 16, 16)
     patch_positions = random_patch_positions((2, 32))
     input_types = torch.randint(0, 2, (2, 32))
     loss_mask = torch.randint(0, 2, (2, 32), dtype=torch.bool)
     attention_mask = torch.randint(0, 2, (2, 32), dtype=torch.bool)
-    output_tensor = module(input_ids, patches, patch_positions, input_types, loss_mask, attention_mask)
-    assert output_tensor.loss.item() > 0.0
-    assert output_tensor.logits.shape == (2, 32, 32000 + 1024 + 1)
+    output = module(input_ids, local_positions, patches, patch_positions, input_types, loss_mask, attention_mask)
+    assert output.loss.item() > 0.0
+    assert output.logits.shape == (2, 32, 32000 + 1024 + 1)

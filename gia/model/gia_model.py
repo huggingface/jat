@@ -33,9 +33,9 @@ class GiaModel(nn.Module):
         )
 
     def forward(
-        self, input_ids, patches, patch_positions, input_types, loss_mask, attention_mask
+        self, input_ids, local_positions, patches, patch_positions, input_types, loss_mask, attention_mask
     ) -> CausalLMOutputWithPast:
-        embeds = self.emb(input_ids, patches, patch_positions, input_types, attention_mask)
+        embeds = self.emb(input_ids, local_positions, patches, patch_positions, input_types, attention_mask)
         labels = input_ids.clone()
         # All labels set to -100 are ignored (masked), the loss is only computed for labels in
         # [0, ..., config.vocab_size]

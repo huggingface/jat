@@ -1,11 +1,10 @@
-import pytest
 import torch
 from torch.utils.data import DataLoader
 
 from gia.config import Arguments
 from gia.datasets import collate_fn, load_gia_dataset
 from gia.datasets.utils import DatasetDict
-from gia.model.embedding import Embeddings, ImageEncoder, ImagePositionEncoding, LocalPositionEncodings
+from gia.model.embedding import Embeddings, ImageEncoder, ImagePositionEncoding
 from gia.processing import GiaProcessor
 
 
@@ -89,43 +88,15 @@ def test_image_encoder():
     ), f"Expected shape ({batch_size}, {out_features}), got {encoded_images.shape}"
 
 
-def test_local_position_encodings():
-    batch_size, seq_len, num_tokens = 8, 16, 20
-    vocab_size, embed_dim = 128, 2048
-    pos_enc = LocalPositionEncodings(vocab_size, embed_dim)
-    shape = torch.Size([batch_size, seq_len, num_tokens, embed_dim])
-
-    # Test when same is False
-    pos_emb = pos_enc(shape)
-    assert pos_emb.shape == shape, f"Expected shape {shape}, got {pos_emb.shape}"
-    torch.testing.assert_close(pos_emb[1:], pos_emb[:-1], msg="Position encodings should not depend on batch index")
-    torch.testing.assert_close(pos_emb[:, 1:], pos_emb[:, :-1], msg="Position encodings should not depend on timestep")
-    with pytest.raises(AssertionError):
-        torch.testing.assert_close(pos_emb[:, :, 1:], pos_emb[:, :, :-1], msg="Position encodings should vary locally")
-
-
-def test_local_position_encodings_same():
-    batch_size, seq_len, num_tokens = 8, 16, 20
-    vocab_size, embed_dim = 128, 2048
-    pos_enc = LocalPositionEncodings(vocab_size, embed_dim)
-    shape = torch.Size([batch_size, seq_len, num_tokens, embed_dim])
-
-    # Test when same is False
-    pos_emb = pos_enc(shape, same=True)
-    assert pos_emb.shape == shape, f"Expected shape {shape}, got {pos_emb.shape}"
-    torch.testing.assert_close(pos_emb[1:], pos_emb[:-1], msg="Position encodings should not depend on batch index")
-    torch.testing.assert_close(pos_emb[:, 1:], pos_emb[:, :-1], msg="Position encodings should not depend on timestep")
-    torch.testing.assert_close(pos_emb[:, :, 1:], pos_emb[:, :, :-1], msg="Position encodings should not vary locally")
-
-
 def test_embeddings():
     module = Embeddings(embed_dim=128, token_vocab_size=256)
     input_ids = torch.randint(0, 256, (2, 32))
+    local_positions = torch.arange(32).repeat(2, 1)
     patches = torch.rand(2, 32, 4, 16, 16)
     patch_positions = random_patch_positions((2, 32))
     input_types = torch.randint(0, 2, (2, 32))
     attention_mask = torch.randint(0, 2, (2, 32), dtype=torch.bool)
-    output_tensor = module(input_ids, patches, patch_positions, input_types, attention_mask)
+    output_tensor = module(input_ids, local_positions, patches, patch_positions, input_types, attention_mask)
     assert output_tensor.shape == (2, 32, 128)
 
 
