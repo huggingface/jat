@@ -226,7 +226,8 @@ class GiaProcessor:
     def __init__(self, args: DatasetArguments) -> None:
         super().__init__()
         self.tokenizer = GiaTokenizer(args)
-        self.interleaver = Interleaver()
+        separator_token = args.text_vocab_size + args.nb_bins if args.use_separator else -1
+        self.interleaver = Interleaver(separator_token)
         self.seq_len = args.seq_len
 
         self.padding_value = {

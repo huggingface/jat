@@ -243,7 +243,7 @@ class Embeddings(nn.Module):
         embed[mask] = self.image_encoder(normalized_images) + self.image_pos_enc(patch_positions[mask])
 
         # Add the local position embeddings
-        mask = attention_mask.bool()
+        mask = torch.logical_and(attention_mask.bool(), local_positions != -1)
         embed[mask] = embed[mask] + self.local_pos_embeddings(local_positions[mask])
 
         return embed

@@ -3,11 +3,11 @@ import pytest
 
 from gia.processing.interleaver import Interleaver
 
-PATCH_PAD = np.zeros(shape=(4, 16, 16), dtype=np.uint8)  # PAD
-PATCH_1 = np.random.randint(0, 255, (4, 16, 16), dtype=np.uint8)
-PATCH_2 = np.random.randint(0, 255, (4, 16, 16), dtype=np.uint8)
-PATCH_3 = np.random.randint(0, 255, (4, 16, 16), dtype=np.uint8)
-PATCH_4 = np.random.randint(0, 255, (4, 16, 16), dtype=np.uint8)
+PPAD = np.zeros(shape=(4, 16, 16), dtype=np.uint8)  # PAD
+P1 = np.random.randint(0, 255, (4, 16, 16), dtype=np.uint8)
+P2 = np.random.randint(0, 255, (4, 16, 16), dtype=np.uint8)
+P3 = np.random.randint(0, 255, (4, 16, 16), dtype=np.uint8)
+P4 = np.random.randint(0, 255, (4, 16, 16), dtype=np.uint8)
 
 POS_PAD = [[0.0, 0.0], [0.0, 0.0]]  # PAD
 LEFT = [[0.0, 0.0], [1.0, 0.5]]
@@ -20,7 +20,7 @@ def test_dict_append_input_ids():
     processed_data = {
         "input_ids": [1, 2],
         "local_positions": [11, 22],  # Should never be those values, but here for testing purposes
-        "patches": [PATCH_PAD, PATCH_PAD],
+        "patches": [PPAD, PPAD],
         "patch_positions": [POS_PAD, POS_PAD],
         "input_types": [0, 0],
         "loss_mask": [0, 0],
@@ -32,7 +32,7 @@ def test_dict_append_input_ids():
     expected_output = {
         "input_ids": [1, 2, 101, 102],
         "local_positions": [11, 22, 33, 44],
-        "patches": [PATCH_PAD, PATCH_PAD, PATCH_PAD, PATCH_PAD],
+        "patches": [PPAD, PPAD, PPAD, PPAD],
         "patch_positions": [POS_PAD, POS_PAD, POS_PAD, POS_PAD],
         "input_types": [0, 0, 0, 0],
         "loss_mask": [0, 0, 1, 1],
@@ -47,11 +47,11 @@ def test_dict_append_input_ids():
 
 def test_dict_append_patches_and_patch_positions():
     interleaver = Interleaver()
-    batch_data = {"patches": [PATCH_1, PATCH_2], "patch_positions": [LEFT, RIGHT]}
+    batch_data = {"patches": [P1, P2], "patch_positions": [LEFT, RIGHT]}
     processed_data = {
         "input_ids": [1, 2],
         "local_positions": [11, 22],  # Should never be those values, but here for testing purposes
-        "patches": [PATCH_PAD, PATCH_PAD],
+        "patches": [PPAD, PPAD],
         "patch_positions": [POS_PAD, POS_PAD],
         "input_types": [0, 0],
         "loss_mask": [0, 0],
@@ -63,7 +63,7 @@ def test_dict_append_patches_and_patch_positions():
     expected_output = {
         "input_ids": [1, 2, 0, 0],
         "local_positions": [11, 22, 33, 44],
-        "patches": [PATCH_PAD, PATCH_PAD, PATCH_1, PATCH_2],
+        "patches": [PPAD, PPAD, P1, P2],
         "patch_positions": [POS_PAD, POS_PAD, LEFT, RIGHT],
         "input_types": [0, 0, 1, 1],
         "loss_mask": [0, 0, 1, 1],
@@ -81,23 +81,25 @@ def test_interleave_episode():
     # 1 observation is composed of
     #     2 image patches (with the associated patch_positions) and
     #     1 discrete observations composed of 3 ints
-    interleaver = Interleaver()
+    st = 42
+    lppv = -1
+    interleaver = Interleaver(separator_token=st, local_position_pad_value=lppv)
     sample_data = {
         "discrete_observations": {
             "input_ids": [[1, 2], [3, 4]],
         },
         "image_observations": {
-            "patches": [[PATCH_1, PATCH_2], [PATCH_3, PATCH_4]],
+            "patches": [[P1, P2], [P3, P4]],
             "patch_positions": [[LEFT, RIGHT], [LEFT, RIGHT]],
         },
     }
     expected_output = {
-        "input_ids": [0, 0, 1, 2, 0, 0, 3, 4],
-        "local_positions": [0, 1, 2, 3, 0, 1, 2, 3],
-        "patches": [PATCH_1, PATCH_2, PATCH_PAD, PATCH_PAD, PATCH_3, PATCH_4, PATCH_PAD, PATCH_PAD],
-        "patch_positions": [LEFT, RIGHT, POS_PAD, POS_PAD, LEFT, RIGHT, POS_PAD, POS_PAD],
-        "input_types": [1, 1, 0, 0, 1, 1, 0, 0],
-        "loss_mask": [0, 0, 0, 0, 0, 0, 0, 0],
+        "input_ids": [0, 0, 1, 2, st, 0, 0, 3, 4, st],
+        "local_positions": [0, 1, 2, 3, lppv, 0, 1, 2, 3, lppv],
+        "patches": [P1, P2, PPAD, PPAD, PPAD, P3, P4, PPAD, PPAD, PPAD],
+        "patch_positions": [LEFT, RIGHT, POS_PAD, POS_PAD, POS_PAD, LEFT, RIGHT, POS_PAD, POS_PAD, POS_PAD],
+        "input_types": [1, 1, 0, 0, 0, 1, 1, 0, 0, 0],
+        "loss_mask": [0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
     }
 
     processed_data = interleaver._interleave_episode(sample_data)
@@ -113,12 +115,12 @@ def test_interleave_standalone():
     interleaver = Interleaver()
     input_data = {
         "text": {"input_ids": [1, 2]},
-        "images": {"patches": [PATCH_1, PATCH_2], "patch_positions": [LEFT, RIGHT]},
+        "images": {"patches": [P1, P2], "patch_positions": [LEFT, RIGHT]},
     }
     expected_output = {
         "input_ids": [0, 0, 1, 2],
-        "local_positions": [0, 0, 0, 0],
-        "patches": [PATCH_1, PATCH_2, PATCH_PAD, PATCH_PAD],
+        "local_positions": [-1, -1, -1, -1],
+        "patches": [P1, P2, PPAD, PPAD],
         "patch_positions": [LEFT, RIGHT, POS_PAD, POS_PAD],
         "input_types": [1, 1, 0, 0],
         "loss_mask": [0, 0, 1, 1],
@@ -170,7 +172,9 @@ def test_is_episode():
 
 
 def test_interleave_batch_episode():
-    interleaver = Interleaver()
+    st = 42
+    lppv = -1
+    interleaver = Interleaver(separator_token=st, local_position_pad_value=lppv)
     input_data = {
         "text_observations": {
             "input_ids": [
@@ -180,7 +184,7 @@ def test_interleave_batch_episode():
         },
         "image_observations": {
             "patches": [
-                [[PATCH_1, PATCH_2], [PATCH_3, PATCH_4]],
+                [[P1, P2], [P3, P4]],
                 None,
             ],
             "patch_positions": [
@@ -197,28 +201,28 @@ def test_interleave_batch_episode():
     }
     expected_output = {
         "input_ids": [
-            [0, 0, 11, 12, 0, 0, 13, 14],
-            [1, 2, 15, 16, 3, 4, 17, 18, 5, 6, 19, 20],
+            [0, 0, st, 11, 12, 0, 0, st, 13, 14],
+            [1, 2, st, 15, 16, 3, 4, st, 17, 18, 5, 6, st, 19, 20],
         ],
         "local_positions": [
-            [0, 1, 0, 0, 0, 1, 0, 0],
-            [0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0],
+            [0, 1, lppv, lppv, lppv, 0, 1, lppv, lppv, lppv],
+            [0, 1, lppv, lppv, lppv, 0, 1, lppv, lppv, lppv, 0, 1, lppv, lppv, lppv],
         ],
         "patches": [
-            [PATCH_1, PATCH_2, PATCH_PAD, PATCH_PAD, PATCH_3, PATCH_4, PATCH_PAD, PATCH_PAD],
-            [PATCH_PAD] * 12,
+            [P1, P2, PPAD, PPAD, PPAD, P3, P4, PPAD, PPAD, PPAD],
+            [PPAD] * 15,
         ],
         "patch_positions": [
-            [LEFT, RIGHT, POS_PAD, POS_PAD, LEFT, RIGHT, POS_PAD, POS_PAD],
-            [POS_PAD] * 12,
+            [LEFT, RIGHT, POS_PAD, POS_PAD, POS_PAD, LEFT, RIGHT, POS_PAD, POS_PAD, POS_PAD],
+            [POS_PAD] * 15,
         ],
         "input_types": [
-            [1, 1, 0, 0, 1, 1, 0, 0],
-            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [1, 1, 0, 0, 0, 1, 1, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         ],
         "loss_mask": [
-            [0, 0, 1, 1, 0, 0, 1, 1],
-            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [0, 0, 1, 1, 1, 0, 0, 1, 1, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
         ],
     }
     processed_data = interleaver(input_data)
@@ -231,13 +235,15 @@ def test_interleave_batch_episode():
 
 
 def test_interleave_batch_standalone():
-    interleaver = Interleaver()
+    st = 42
+    lppv = -1
+    interleaver = Interleaver(separator_token=st, local_position_pad_value=lppv)
     input_data = {
         "text": {
             "input_ids": [None, [1, 2], [3, 4]],
         },
         "images": {
-            "patches": [[PATCH_1, PATCH_2], None, [PATCH_3, PATCH_4]],
+            "patches": [[P1, P2], None, [P3, P4]],
             "patch_positions": [[LEFT, RIGHT], None, [LEFT, RIGHT]],
         },
     }
@@ -248,14 +254,14 @@ def test_interleave_batch_standalone():
             [0, 0, 3, 4],
         ],
         "local_positions": [
-            [0, 0],
-            [0, 0],
-            [0, 0, 0, 0],
+            [lppv, lppv],
+            [lppv, lppv],
+            [lppv, lppv, lppv, lppv],
         ],
         "patches": [
-            [PATCH_1, PATCH_2],
-            [PATCH_PAD, PATCH_PAD],
-            [PATCH_3, PATCH_4, PATCH_PAD, PATCH_PAD],
+            [P1, P2],
+            [PPAD, PPAD],
+            [P3, P4, PPAD, PPAD],
         ],
         "patch_positions": [
             [LEFT, RIGHT],
@@ -280,7 +286,9 @@ def test_interleave_batch_standalone():
 
 
 def test_interleave_batch_mixed():
-    interleaver = Interleaver()
+    st = 42
+    lppv = -1
+    interleaver = Interleaver(separator_token=st, local_position_pad_value=lppv)
     input_data = {
         "text": {
             "input_ids": [
@@ -291,7 +299,7 @@ def test_interleave_batch_mixed():
         "image_observations": {
             "patches": [
                 None,
-                [[PATCH_1, PATCH_2], [PATCH_3, PATCH_4]],
+                [[P1, P2], [P3, P4]],
             ],
             "patch_positions": [
                 None,
@@ -308,27 +316,27 @@ def test_interleave_batch_mixed():
     expected_output = {
         "input_ids": [
             [1, 2],
-            [0, 0, 11, 12, 0, 0, 13, 14],
+            [0, 0, st, 11, 12, 0, 0, st, 13, 14],
         ],
         "local_positions": [
-            [0, 0],
-            [0, 1, 0, 0, 0, 1, 0, 0],
+            [-1, -1],
+            [0, 1, lppv, lppv, lppv, 0, 1, lppv, lppv, lppv],
         ],
         "patches": [
-            [PATCH_PAD, PATCH_PAD],
-            [PATCH_1, PATCH_2, PATCH_PAD, PATCH_PAD, PATCH_3, PATCH_4, PATCH_PAD, PATCH_PAD],
+            [PPAD, PPAD],
+            [P1, P2, PPAD, PPAD, PPAD, P3, P4, PPAD, PPAD, PPAD],
         ],
         "patch_positions": [
             [POS_PAD, POS_PAD],
-            [LEFT, RIGHT, POS_PAD, POS_PAD, LEFT, RIGHT, POS_PAD, POS_PAD],
+            [LEFT, RIGHT, POS_PAD, POS_PAD, POS_PAD, LEFT, RIGHT, POS_PAD, POS_PAD, POS_PAD],
         ],
         "input_types": [
             [0, 0],
-            [1, 1, 0, 0, 1, 1, 0, 0],
+            [1, 1, 0, 0, 0, 1, 1, 0, 0, 0],
         ],
         "loss_mask": [
             [1, 1],
-            [0, 0, 1, 1, 0, 0, 1, 1],
+            [0, 0, 1, 1, 1, 0, 0, 1, 1, 1],
         ],
     }
 

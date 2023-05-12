@@ -96,7 +96,8 @@ def test_embed_real_data():
     processor = GiaProcessor(args)
     dataset = DatasetDict(processor(**dataset))
     dataloader = DataLoader(dataset, batch_size=args.batch_size, collate_fn=collate_fn)
-    embeddings = Embeddings(embed_dim=args.embed_dim, token_vocab_size=30_000 + 1024)
+    token_vocab_size = args.text_vocab_size + args.nb_bins + 1  # +1 the separator token
+    embeddings = Embeddings(embed_dim=args.embed_dim, token_vocab_size=token_vocab_size)
     batch = next(iter(dataloader))
     batch.pop("loss_mask")  # not an arg of embeddings
     embeds = embeddings(**batch)

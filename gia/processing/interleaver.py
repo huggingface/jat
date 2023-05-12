@@ -7,6 +7,9 @@ class Interleaver:
     """
     Interleaver is a class that interleaves a batch of data into a unified dictionary of data lists.
 
+    Important:
+        For memory efficiency, we use the same pad object for all patches and positions.
+
     Example:
         In this example, the batch is composed of one standalone sample and one episode sample.
         The standalone sample is composed of two tokens of text.
@@ -47,15 +50,32 @@ class Interleaver:
         }
     """
 
-    # Here, we define the pads for the patches and positions.
-    # For memory efficiency, we use the same pad for all patches and positions.
-    TOKEN_PAD = 0
-    LOCAL_POSITION_PAD = 0  # Probably not a good idea
-    PATCH_PAD = np.zeros((4, 16, 16), dtype=np.int64)
-    PATCH_POSITION_PAD = [[0.0, 0.0], [0.0, 0.0]]
-
     TOKEN_TYPE_ID = 0
     PATCH_TYPE_ID = 1
+
+    def __init__(
+        self,
+        separator_token: Optional[int] = 31024,
+        token_pad_value: int = 0,
+        local_position_pad_value: int = -1,  # The one used for actions
+        patch_pad_value: Optional[np.ndarray] = None,
+        patch_position_pad_value: Optional[List[List[int]]] = None,
+    ) -> None:
+        self.token_pad_value = token_pad_value
+        self.patch_pad_value = np.zeros((4, 16, 16), dtype=np.int64) if patch_pad_value is None else patch_pad_value
+        self.local_position_pad_value = local_position_pad_value
+        self.patch_position_pad_value = (
+            [[0.0, 0.0], [0.0, 0.0]] if patch_position_pad_value is None else patch_position_pad_value
+        )
+        if separator_token is not None:
+            self.separator = {
+                "input_ids": [separator_token],
+                "patches": [self.patch_pad_value],
+                "patch_positions": [self.patch_position_pad_value],
+                "input_types": [self.TOKEN_TYPE_ID],
+            }
+        else:
+            self.separator = None
 
     @staticmethod
     def _is_episode(sample_data: Dict[str, Dict[str, Any]]) -> bool:
@@ -125,9 +145,8 @@ class Interleaver:
                     output.setdefault(outer_key, {})[inner_key] = element
         return output
 
-    @classmethod
     def _dict_append(
-        cls,
+        self,
         batch_data: Dict[str, Dict[str, Any]],
         processed_data: Dict[str, List[Any]],
         local_positions: List[int],
@@ -168,13 +187,13 @@ class Interleaver:
         num_elements = len(next(iter(batch_data.values())))
 
         # Get the input ids, patches, positions, input type and loss mask
-        input_ids = batch_data.get("input_ids", [cls.TOKEN_PAD] * num_elements)
-        patches = batch_data.get("patches", [cls.PATCH_PAD] * num_elements)
-        patch_positions = batch_data.get("patch_positions", [cls.PATCH_POSITION_PAD] * num_elements)
+        input_ids = batch_data.get("input_ids", [self.token_pad_value] * num_elements)
+        patches = batch_data.get("patches", [self.patch_pad_value] * num_elements)
+        patch_positions = batch_data.get("patch_positions", [self.patch_position_pad_value] * num_elements)
         if "input_ids" in batch_data:
-            input_types = [cls.TOKEN_TYPE_ID] * num_elements
+            input_types = [self.TOKEN_TYPE_ID] * num_elements
         elif "patches" in batch_data and "patch_positions" in batch_data:
-            input_types = [cls.PATCH_TYPE_ID] * num_elements
+            input_types = [self.PATCH_TYPE_ID] * num_elements
         else:
             raise ValueError("Batch data must contain either input_ids or patches and patch_positions.")
         loss_maskes = [loss_mask_value] * num_elements
@@ -266,10 +285,11 @@ class Interleaver:
             # Extract the current element from each sequence in the d
             data_t = self._extract_idx_element(episode_data, t)
 
-            ordered_keys = [key for key in observation_keys + action_keys if key in data_t]
-            for mod_key in ordered_keys:
-                # If the data is not a list, convert it to a list of size 1
+            ordered_obs_keys = [key for key in observation_keys if key in data_t]
+            ordered_action_keys = [key for key in action_keys if key in data_t]
+            for mod_key in ordered_obs_keys:
                 for func_key in data_t[mod_key]:
+                    # If the data is not a list, convert it to a list of size 1
                     if not isinstance(data_t[mod_key][func_key], list):
                         data_t[mod_key][func_key] = [data_t[mod_key][func_key]]
                     # Get the number of elements in the data (should be the same for all func keys)
@@ -280,7 +300,35 @@ class Interleaver:
                     local_positions = list(range(local_position, local_position + num_elements))
                     local_position += num_elements
                 else:  # mod_key in action_keys
-                    local_positions = [self.LOCAL_POSITION_PAD] * num_elements
+                    local_positions = [self.local_position_pad_value] * num_elements
+
+                # Compute the loss mask value
+                if mod_key in action_keys + ["text_observations"]:
+                    loss_mask_value = 1
+                else:  # mod_key in ["image_observations", "discrete_observations", "continuous_observations"]
+                    loss_mask_value = 0
+
+                self._dict_append(data_t[mod_key], output, local_positions, loss_mask_value)
+
+            if self.separator is not None:
+                self._dict_append(
+                    self.separator, output, local_positions=[self.local_position_pad_value], loss_mask_value=1
+                )
+
+            for mod_key in ordered_action_keys:
+                for func_key in data_t[mod_key]:
+                    # If the data is not a list, convert it to a list of size 1
+                    if not isinstance(data_t[mod_key][func_key], list):
+                        data_t[mod_key][func_key] = [data_t[mod_key][func_key]]
+                    # Get the number of elements in the data (should be the same for all func keys)
+                    num_elements = len(data_t[mod_key][func_key])
+
+                # Compute the local positions of the data
+                if mod_key in observation_keys:
+                    local_positions = list(range(local_position, local_position + num_elements))
+                    local_position += num_elements
+                else:  # mod_key in action_keys
+                    local_positions = [self.local_position_pad_value] * num_elements
 
                 # Compute the loss mask value
                 if mod_key in action_keys + ["text_observations"]:
@@ -323,10 +371,10 @@ class Interleaver:
         }
 
         if "images" in standalone_data:
-            local_positions = [0] * len(standalone_data["images"]["patches"])
+            local_positions = [self.local_position_pad_value] * len(standalone_data["images"]["patches"])
             self._dict_append(standalone_data["images"], output, local_positions, loss_mask_value=0)
         if "text" in standalone_data:
-            local_positions = [0] * len(standalone_data["text"]["input_ids"])
+            local_positions = [self.local_position_pad_value] * len(standalone_data["text"]["input_ids"])
             self._dict_append(standalone_data["text"], output, local_positions, loss_mask_value=1)
         return output
 
