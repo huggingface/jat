@@ -32,7 +32,7 @@ def test_gia_accelerate(use_accelerate):
     batch = next(iter(dataloader))
     output = model(**batch)
     assert output.loss.item() > 0.0
-    assert output.logits.shape == (args.batch_size, args.seq_len, 32000 + 1024 + 1)
+    assert output.logits.shape == (args.batch_size, args.seq_len, 30_000 + 1024 + 1)
 
 
 def test_model():
@@ -46,4 +46,4 @@ def test_model():
     attention_mask = torch.randint(0, 2, (2, 32), dtype=torch.bool)
     output = module(input_ids, local_positions, patches, patch_positions, input_types, loss_mask, attention_mask)
     assert output.loss.item() > 0.0
-    assert output.logits.shape == (2, 32, 32000 + 1024 + 1)
+    assert output.logits.shape == (2, 32, 30_000 + 1024 + 1)
