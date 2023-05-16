@@ -52,30 +52,31 @@ def create_babyai_dataset(name_env, hf_repo_name, max_num_frames=100000, push_to
 
     class BabyAIEnvDataset:
         def __init__(self):
-            self.missions = []
-            self.directions = []
-            self.images = []
-            self.rgb_images = []
-            self.actions = []
-            self.dones = []
-            self.rewards = []
+            self._data = {
+                "text_observations": [],
+                "discrete_observations": [],
+                "discrete_actions": [],
+                "rewards": []
+            }
 
-        def add_observation(self, obs):
-            self.missions.append(obs["mission"])
-            self.directions.append(obs["direction"])
-            self.images.append(obs["image"])
-            self.rgb_images.append(obs["rgb_image"])
+        def reset_episode(self, append_new=True):
+            for _, sequence in self._data.items():
+                if len(sequence) > 0:
+                    sequence[-1] = np.array(sequence[-1])
+
+                if append_new:
+                    sequence.append([])
+
+        def add_step(self, obs, act, rew):
+            self._data["text_observations"][-1].append(obs["mission"])
+            flattened_symbolic_obs = obs["image"].flatten()
+            concatenated_discrete_obs = np.append(obs["direction"], flattened_symbolic_obs)
+            self._data["discrete_observations"][-1].append(concatenated_discrete_obs)
+            self._data["discrete_actions"][-1].append(act)
+            self._data["rewards"][-1].append(rew)
 
         def to_dict(self):
-            return {
-                "missions": np.array(self.missions),
-                "directions": np.array(self.directions),
-                "images": np.array(self.images),
-                "rgb_images": np.array(self.rgb_images),
-                "actions": np.array(self.actions),
-                "dones": np.array(self.dones),
-                "rewards": np.array(self.rewards),
-            }
+            return {k: np.array(v) for k, v in self._data.items()}
 
     dataset = BabyAIEnvDataset()
 
@@ -85,15 +86,16 @@ def create_babyai_dataset(name_env, hf_repo_name, max_num_frames=100000, push_to
         return obs, policy
 
     obs, policy = reset_env_and_policy(env)
+    dataset.reset_episode()
     for i in range(max_num_frames):
-        dataset.add_observation(obs)
         action = policy.replan()
-        dataset.actions.append(action)
-        obs, r, done, _, i = env.step(action)
-        dataset.rewards.append(r)
-        dataset.dones.append(done)
+        obs, r, done, _, infos = env.step(action)
+        dataset.add_step(obs, int(action), r)
         if done:
             obs, policy = reset_env_and_policy(env)
+
+        if done or i == max_num_frames - 1:
+            dataset.reset_episode(append_new=i < max_num_frames - 1)
 
     env.close()
 
