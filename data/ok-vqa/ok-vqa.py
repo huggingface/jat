@@ -1,13 +1,18 @@
+import tarfile
 from io import BytesIO
 from zipfile import ZipFile
+from tarfile import TarFile
 from urllib.request import urlopen
 import os
 import json
 import argparse
-from huggingface_hub import HfApi, repocard, upload_folder
+import PIL.Image
+import io
 
 BASE_COCO_URL = "http://images.cocodataset.org/zips/"
 BASE_OK_VQA_URL = "https://okvqa.allenai.org/static/data/"
+
+FILES_PER_TAR = 100
 
 SPLITS = ["train", "val"]
 YEAR = "2014"
@@ -19,49 +24,27 @@ def download(url):
     return http_response.read()
 
 
-def download_and_unzip(url, extract_to='.'):
+def download_and_unzip(url, extract_to="."):
     downloaded_file = download(url)
     zipfile = ZipFile(BytesIO(downloaded_file))
     zipfile.extractall(path=extract_to)
 
 
-def generate_dataset_card(
-        dir_path: str,
-):
-    readme_path = os.path.join(dir_path, "README.md")
-    readme = f"""
-    The OK-VQA dataset (https://okvqa.allenai.org/) \n
-    This environment was created as part of the Generally Intelligent Agents project gia:
-    https://github.com/huggingface/gia \n
-    \n
-    """
-
-    with open(readme_path, "w", encoding="utf-8") as f:
-        f.write(readme)
-
-    metadata = {}
-    metadata["library_name"] = "gia"
-    metadata["tags"] = [
-        "deep-reinforcement-learning",
-        "reinforcement-learning",
-        "gia",
-        "multi-task",
-        "multi-modal",
-        "imitation-learning",
-        "offline-reinforcement-learning",
-    ]
-    repocard.metadata_save(readme_path, metadata)
+def resize_single_image(image: PIL.Image):
+    # Resize so that the bigger size is at most 352
+    width, height = image.size
+    if width > height:
+        new_width = 352
+        new_height = int(height * 352 / width)
+    else:
+        new_height = 352
+        new_width = int(width * 352 / height)
+    image = image.resize((new_width, new_height), PIL.Image.BILINEAR)
+    image = image.convert("RGB")
+    return image
 
 
-def push_to_hf(dir_path: str, repo_name: str):
-    _ = HfApi().create_repo(repo_id=repo_name, private=False, exist_ok=True, repo_type="dataset")
-
-    upload_folder(
-        repo_id=repo_name, folder_path=dir_path, path_in_repo=".", ignore_patterns=[".git/*"], repo_type="dataset"
-    )
-
-
-def main(hf_repo_name, push_to_hub=False, download_coco=True):
+def main(download_coco=True):
     os.makedirs(DATA_DIR, exist_ok=True)
     for split in SPLITS:
         print(f"Processing split {split}")
@@ -90,28 +73,39 @@ def main(hf_repo_name, push_to_hub=False, download_coco=True):
             with open(annotations_file, "r") as json_annotations_file:
                 questions = json.load(json_questions_file)["questions"]
                 annotations = json.load(json_annotations_file)["annotations"]
+                tar = None
                 for idx, question in enumerate(questions):
+                    if idx % FILES_PER_TAR == 0:
+                        if tar is not None:
+                            tar.close()
+                        tar = TarFile(f"{DATA_DIR}/{split}/images_{idx // FILES_PER_TAR}.tar.gz", mode="w")
+
                     annotation = annotations[idx]
-                    assert question["question_id"] == annotation["question_id"], \
-                        print(f"Question id doesn't match at index {idx}")
-                    assert question["image_id"] == annotation["image_id"], \
-                        print(f"Image id {idx} doesn't match at index {idx}")
+                    assert question["question_id"] == annotation["question_id"], print(
+                        f"Question id doesn't match at index {idx}"
+                    )
+                    assert question["image_id"] == annotation["image_id"], print(
+                        f"Image id {idx} doesn't match at index {idx}"
+                    )
 
                     text = f"Q: {question['question']} A: {annotation['answers'][0]['answer']}"
-                    image_idx = question["image_id"]
+                    image_name = f"COCO_{split}{YEAR}_{question['image_id']:012d}.jpg"
+                    image = PIL.Image.open(f"{DATA_DIR}/{split}/{image_name}")
+                    image = resize_single_image(image)
+                    output = io.BytesIO()
+                    image.save(output, format="JPEG")
+                    output.seek(0)
+                    info = tarfile.TarInfo(image_name)
+                    info.size = len(output.getvalue())
+                    tar.addfile(info, fileobj=output)
+                    output.close()
                     with open(f"{DATA_DIR}/{split}/metadata.csv", "a") as f:
-                        f.write(f"{image_idx:07d}.png,{text},{idx}\n")
-
-    if push_to_hub:
-        generate_dataset_card(DATA_DIR)
-        push_to_hf(DATA_DIR, hf_repo_name)
+                        f.write(f"{image_name},{text},{idx}\n")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--push_to_hub", action="store_true")
     parser.add_argument("--download_coco", action="store_true")
-    parser.add_argument("--hf_repo_name", type=str)
     args = parser.parse_args()
 
     main(**vars(args))
