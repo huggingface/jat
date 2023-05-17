@@ -5,7 +5,7 @@ import torch
 from datasets import Dataset
 from torch.utils.data import DataLoader
 
-from gia.datasets import collate_fn, generate_prompts, load_gia_dataset
+from gia.datasets.core import collate_fn, generate_prompts, load_gia_dataset, concatenate_datasets
 
 
 @pytest.mark.parametrize("split", ["all", "train", "test"])
@@ -77,6 +77,14 @@ def test_output_structure(example_dataset):
         example_dataset.column_names
     ), "Output dataset should have the same column names as the input dataset"
     assert all(isinstance(prompt["text"], list) for prompt in prompts), "Each prompt should be a list"
+
+
+def test_concatenate_dataset():
+    dataset1 = Dataset.from_dict({"a": [1, 2, 3], "b": [4, 5, 6]})
+    dataset2 = Dataset.from_dict({"a": [7, 8, 9], "c": [10, 11, 12]})
+    output = concatenate_datasets([dataset1, dataset2])
+    expected_output = {"a": [1, 2, 3, 7, 8, 9], "b": [4, 5, 6, None, None, None], "c": [None, None, None, 10, 11, 12]}
+    assert output == expected_output
 
 
 def test_collate_fn():

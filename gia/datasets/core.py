@@ -89,6 +89,36 @@ def needs_prompt(task_name: str) -> bool:
     return is_mujoco or is_metaworld
 
 
+def concatenate_datasets(datasets: List[Dataset]) -> DatasetDict:
+    """
+    Concatenate a list of datasets into a single dataset.
+
+    Args:
+        datasets (List[Dataset]): List of datasets to concatenate.
+
+    Returns:
+        DatasetDict: Concatenated dataset.
+
+    Example:
+        >>> dataset1 = Dataset.from_dict({"a": [1, 2, 3], "b": [4, 5, 6]})
+        >>> dataset2 = Dataset.from_dict({"a": [7, 8, 9], "c": [10, 11, 12]})
+        >>> concatenate_datasets([dataset1, dataset2])
+        {'a': [1, 2, 3, 7, 8, 9],
+         'b': [4, 5, 6, None, None, None],
+         'c': [None, None, None, 10, 11, 12]}
+    """
+    all_keys = set().union(*[d.column_names for d in datasets])  # Datasets can have different keys
+    lengths = [len(d) for d in datasets]
+    dataset = {key: [] for key in all_keys}
+    for key in all_keys:
+        for dataset_idx in range(len(datasets)):
+            if key in datasets[dataset_idx].column_names:
+                dataset[key].extend(datasets[dataset_idx][key])
+            else:
+                dataset[key].extend([None] * lengths[dataset_idx])
+    return DatasetDict(dataset)
+
+
 def load_gia_dataset(
     task_names: Union[str, List[str]],
     split: str = "all",
@@ -144,9 +174,8 @@ def load_gia_dataset(
             datasets[dataset_idx] = dataset.map(cat_prompt_left, with_indices=True)
 
     # Concatenate the datasets
-    all_keys = set().union(*[d.column_names for d in datasets])
-    datasets = {key: sum([d[key] if key in d.column_names else None for d in datasets], []) for key in all_keys}
-    return DatasetDict(datasets)
+    dataset = concatenate_datasets(datasets)
+    return dataset
 
 
 def collate_fn(batch: List[Dict[str, List]]) -> Dict[str, List[Union[torch.Tensor, None]]]:
