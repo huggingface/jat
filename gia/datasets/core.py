@@ -30,12 +30,7 @@ def get_task_name_list(task_names: Union[str, List[str]]) -> List[str]:
     # Convrt to list if needed
     task_names = [task_names] if isinstance(task_names, str) else task_names
     # Get all task names from gia dataset
-    all_tasks = set(
-        get_dataset_config_names(
-            "gia-project/gia-dataset",
-            revision="episode_structure",  # TODO: change this to the new dataset name
-        )
-    )
+    all_tasks = set(get_dataset_config_names("gia-project/gia-dataset"))
     # If the task name is a domain, load all the tasks of that domain
     for task_name in task_names:
         if task_name == "all":
@@ -127,13 +122,7 @@ def load_gia_dataset(
     task_names = get_task_name_list(task_names)
     download_mode = "force_redownload" if not load_from_cache else None
     datasets = [
-        load_dataset(
-            "gia-project/gia-dataset",
-            task_name,
-            split=split,
-            revision="episode_structure",  # TODO: change to "main" when the new version is released
-            download_mode=download_mode,
-        )
+        load_dataset("gia-project/gia-dataset", task_name, split=split, download_mode=download_mode)
         for task_name in task_names
     ]
     # Print the first component of the first observation of every episode
