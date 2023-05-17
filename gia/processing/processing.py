@@ -4,6 +4,7 @@ from typing import Callable, Dict, List, Optional, Tuple, TypeVar, Union
 
 import cv2
 import numpy as np
+from PIL import Image
 from transformers import AutoTokenizer
 
 from gia.config import DatasetArguments
@@ -87,12 +88,12 @@ class GiaTokenizer:
         return output["input_ids"]
 
     @tuple_nested_decorator
-    def extract_patches(self, image: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def extract_patches(self, image: Union[np.ndarray, Image.Image]) -> Tuple[np.ndarray, np.ndarray]:
         """
         Extract patches from an image.
 
         Args:
-            image (np.ndarray): Image to extract patches from of shape (C, H, W).
+            image (Union[np.ndarray, Image.Image]): Image to extract patches from of shape (C, H, W).
 
         Returns:
             Tuple of:
@@ -101,6 +102,8 @@ class GiaTokenizer:
                 - patch_positions (np.ndarray): Relative position intervals of the patches. Output has shape
                     (N, 2, 2), where the last two dimensions are the start and end positions of the patch.
         """
+        if isinstance(image, Image.Image):
+            image = np.transpose(np.array(image), (2, 0, 1))
         P = self.patch_size
         C, H, W = image.shape
         # Reshape to the closest above multiple of the patch size
@@ -182,7 +185,7 @@ class GiaTokenizer:
         text: Optional[str] = None,
         images: Optional[np.ndarray] = None,
         text_observations: NestedList[str] = None,
-        image_observations: NestedList[np.ndarray] = None,
+        image_observations: NestedList[Union[np.ndarray, Image.Image]] = None,
         discrete_observations: NestedList[int] = None,
         continuous_observations: NestedList[float] = None,
         discrete_actions: NestedList[int] = None,
@@ -297,7 +300,7 @@ class GiaProcessor:
         text: Optional[str] = None,
         images: Optional[np.ndarray] = None,
         text_observations: NestedList[str] = None,
-        image_observations: NestedList[np.ndarray] = None,
+        image_observations: NestedList[Union[np.ndarray, Image.Image]] = None,
         discrete_observations: NestedList[int] = None,
         continuous_observations: NestedList[float] = None,
         discrete_actions: NestedList[int] = None,
@@ -315,7 +318,8 @@ class GiaProcessor:
             text (Optional[str], optional): Standalone text input. Defaults to None.
             images (Optional[np.ndarray], optional): Standalone image input. Defaults to None.
             text_observations (NestedList[str], optional): Episode text observations. Defaults to None.
-            image_observations (NestedList[np.ndarray], optional): Episode image observations. Defaults to None.
+            image_observations (NestedList[Union[np.ndarray, Image]], optional): Episode image observations.
+                Defaults to None.
             discrete_observations (NestedList[int], optional): Episode discrete observations. Defaults to None.
             continuous_observations (NestedList[float], optional): Episode continuous observations. Defaults to None.
             discrete_actions (NestedList[int], optional): Episode discrete actions. Defaults to None.
