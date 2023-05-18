@@ -211,9 +211,9 @@ def test_dataloading_with_collate(use_accelerate):
         "continuous_actions_attention_mask",
     }
     for batch in dataloader:
-        assert isinstance(batch, list)
+        assert isinstance(batch["batch"], list)
         assert len(batch) <= 3  # usually 3, but sometimes less since drop_last=False
-        for sample in batch:
+        for sample in batch["batch"]:
             assert isinstance(sample, dict)
             assert set(sample.keys()) == expected_keys
             for value in sample.values():
