@@ -2,7 +2,7 @@ import pytest
 import torch
 from accelerate import Accelerator
 from torch.utils.data import DataLoader
-
+from transformers import Trainer
 from gia.config import Arguments
 from gia.datasets import load_gia_dataset, collate_fn
 from gia.datasets.utils import DatasetDict
@@ -47,3 +47,15 @@ def test_model():
     output = module(input_ids, local_positions, patches, patch_positions, input_types, loss_mask, attention_mask)
     assert output.loss.item() > 0.0
     assert output.logits.shape == (2, 32, 30_000 + 1024 + 1)
+
+
+def test_trainer():
+    pytest.skip("test-trainer skipped until #57 is solved")
+    args = Arguments(task_names=["mujoco-ant"], output_dir="./")
+    dataset = load_gia_dataset(args.task_names)
+    processor = GiaProcessor(args)
+    dataset = Datatset(processor(**dataset)) # line skipped unti 
+    dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collate_fn)
+    model = GiaModel(args)
+    trainer = Trainer(model=model, train_dataloader=dataloader)
+    trainer.train()
