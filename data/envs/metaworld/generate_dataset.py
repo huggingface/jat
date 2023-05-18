@@ -1,5 +1,5 @@
 import os
-from typing import Dict, Optional
+from typing import Dict, Optional, List, Any
 
 import gym
 import metaworld  # noqa: F401
@@ -93,7 +93,7 @@ def create_dataset(cfg: Config, dataset_size: int = 100_000, split: str = "train
         cfg.env_frameskip % eval_env_frameskip == 0
     ), f"{cfg.env_frameskip=} must be divisible by {eval_env_frameskip=}"
     cfg.env_frameskip = cfg.eval_env_frameskip = eval_env_frameskip
-    cfg.num_envs = 1
+    cfg.num_envs = 1  # only support 1 env
 
     # Create environment
     env = make_env_func_batched(cfg, env_config=AttrDict(worker_index=0, vector_index=0, env_id=0))
@@ -111,17 +111,19 @@ def create_dataset(cfg: Config, dataset_size: int = 100_000, split: str = "train
     checkpoint_dict = Learner.load_checkpoint(checkpoints, device)
     actor_critic.load_state_dict(checkpoint_dict["model"])
 
+    # Create dataset
+    dataset: Dict[str, List[List[Any]]] = {
+        "continuous_observations": [],  # [[s0, s1, s2, ..., sT-1], [s0, s1, ...]], # terminal observation not stored
+        "continuous_actions": [],  # [[a0, a1, a2, ..., aT-1], [a0, a1, ...]],
+        "rewards": [],  # [[r1, r2, r3, ...,   rT], [r1, r2, ...]],
+    }
+
     # Reset environment
     observations, _ = env.reset()
     rnn_states = torch.zeros([env.num_agents, get_rnn_size(cfg)], dtype=torch.float32, device=device)
 
-    # Create dataset
-    dataset = {
-        "observations": [],
-        "actions": [],
-        "dones": [],
-        "rewards": [],
-    }
+    for value in dataset:
+        value.append([])
 
     # Run the environment
     dones = [False]
@@ -139,14 +141,13 @@ def create_dataset(cfg: Config, dataset_size: int = 100_000, split: str = "train
             actions = preprocess_actions(env_info, actions)
 
             rnn_states = policy_outputs["new_rnn_states"]
-            dataset["observations"].append(observations["obs"].cpu().numpy()[0])
-            dataset["actions"].append(actions[0])
+            dataset["continuous_observations"][-1].append(observations["obs"].cpu().numpy()[0])
+            dataset["continuous_actions"][-1].append(actions[0])
 
             observations, rewards, terminated, truncated, _ = env.step(actions)
             dones = make_dones(terminated, truncated)
 
-            dataset["dones"].append(dones.cpu().numpy())
-            dataset["rewards"].append(rewards.cpu().numpy())
+            dataset["rewards"][-1].append(rewards.cpu().numpy())
 
             num_timesteps += 1
 
@@ -154,6 +155,8 @@ def create_dataset(cfg: Config, dataset_size: int = 100_000, split: str = "train
             for agent_idx, done in enumerate(dones):
                 if done:
                     rnn_states[agent_idx] = torch.zeros([get_rnn_size(cfg)], dtype=torch.float32, device=device)
+                    for value in dataset:
+                        value.append([])
 
     env.close()
     dataset = {
