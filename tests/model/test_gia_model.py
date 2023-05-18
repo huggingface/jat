@@ -3,8 +3,9 @@ import torch
 from accelerate import Accelerator
 from torch.utils.data import DataLoader
 from transformers import Trainer
+
 from gia.config import Arguments
-from gia.datasets import load_gia_dataset, collate_fn
+from gia.datasets import collate_fn, load_gia_dataset
 from gia.datasets.utils import DatasetDict
 from gia.model import GiaModel
 from gia.processing import GiaProcessor
@@ -54,7 +55,7 @@ def test_trainer():
     args = Arguments(task_names=["mujoco-ant"], output_dir="./")
     dataset = load_gia_dataset(args.task_names)
     processor = GiaProcessor(args)
-    dataset = Datatset(processor(**dataset)) # line skipped unti 
+    dataset = Datatset(processor(**dataset))  # line skipped unti
     dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collate_fn)
     model = GiaModel(args)
     trainer = Trainer(model=model, train_dataloader=dataloader)
