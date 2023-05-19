@@ -52,8 +52,8 @@ def main(download_coco=True):
         # Download images
         if download_coco:
             print("Downloading images file...")
-            download_and_unzip(f"{BASE_COCO_URL}{split}{YEAR}.zip", extract_to=DATA_DIR)
-            os.rename(f"{DATA_DIR}/{split}{YEAR}", split)
+            download_and_unzip(f"{BASE_COCO_URL}{split}{YEAR}.zip")
+            os.makedirs(f"{DATA_DIR}/{split}", exist_ok=True)
 
         # Download questions
         print("Downloading questions file...")
@@ -90,7 +90,7 @@ def main(download_coco=True):
 
                     text = f"Q: {question['question']} A: {annotation['answers'][0]['answer']}"
                     image_name = f"COCO_{split}{YEAR}_{question['image_id']:012d}.jpg"
-                    image = PIL.Image.open(f"{DATA_DIR}/{split}/{image_name}")
+                    image = PIL.Image.open(f"{split}{YEAR}/{image_name}")
                     image = resize_single_image(image)
                     output = io.BytesIO()
                     image.save(output, format="JPEG")
