@@ -230,17 +230,22 @@ class GiaProcessor:
         super().__init__()
         self.tokenizer = GiaTokenizer(args)
         separator_token = args.text_vocab_size + args.nb_bins if args.use_separator else -1
-        self.interleaver = Interleaver(separator_token)
-        self.seq_len = args.seq_len
-
+        token_pad_value = 0
+        local_position_pad_value = -1
+        patch_pad_value = np.zeros((1, 1, 1), dtype=np.uint8)
+        patch_position_pad_value = [[0.0, 0.0], [0.0, 0.0]]
         self.padding_value = {
-            "input_ids": 0,
-            "local_positions": 0,  # probably not a good idea to use 0 as padding value
-            "patches": np.zeros((4, args.patch_size, args.patch_size), dtype=np.uint8),
-            "patch_positions": [[0.0, 0.0], [0.0, 0.0]],
+            "input_ids": token_pad_value,
+            "local_positions": local_position_pad_value,
+            "patches": patch_pad_value,
+            "patch_positions": patch_position_pad_value,
             "input_types": 0,
             "loss_mask": 0,
         }
+        self.interleaver = Interleaver(
+            separator_token, token_pad_value, local_position_pad_value, patch_pad_value, patch_position_pad_value
+        )
+        self.seq_len = args.seq_len
 
     @staticmethod
     def truncate_residual(sequences: List[List[T]], max_len: int) -> List[List[T]]:

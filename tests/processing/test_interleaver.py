@@ -3,7 +3,7 @@ import pytest
 
 from gia.processing.interleaver import Interleaver
 
-PPAD = np.zeros(shape=(4, 16, 16), dtype=np.uint8)  # PAD
+PPAD = np.zeros(shape=(1, 1, 1), dtype=np.uint8)  # PAD
 P1 = np.random.randint(0, 255, (4, 16, 16), dtype=np.uint8)
 P2 = np.random.randint(0, 255, (4, 16, 16), dtype=np.uint8)
 P3 = np.random.randint(0, 255, (4, 16, 16), dtype=np.uint8)

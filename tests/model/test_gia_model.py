@@ -1,6 +1,7 @@
 import pytest
 import torch
 from accelerate import Accelerator
+from datasets import Dataset
 from torch.utils.data import DataLoader
 from transformers import Trainer
 
@@ -51,11 +52,10 @@ def test_model():
 
 
 def test_trainer():
-    pytest.skip("test-trainer skipped until #57 is solved")
     args = Arguments(task_names=["mujoco-ant"], output_dir="./")
     dataset = load_gia_dataset(args.task_names)
     processor = GiaProcessor(args)
-    dataset = Datatset(processor(**dataset))  # line skipped unti
+    dataset = Dataset(processor(**dataset))  # line skipped unti
     dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collate_fn)
     model = GiaModel(args)
     trainer = Trainer(model=model, train_dataloader=dataloader)

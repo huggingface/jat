@@ -4,6 +4,7 @@ from typing import Dict, List, Union
 import numpy as np
 import torch
 from datasets import Dataset, get_dataset_config_names, load_dataset
+from torch import Tensor
 
 from .utils import DatasetDict
 
@@ -178,7 +179,7 @@ def load_gia_dataset(
     return dataset
 
 
-def collate_fn(batch: List[Dict[str, List]]) -> Dict[str, List[Union[torch.Tensor, None]]]:
+def collate_fn(batch: List[Dict[str, List]]) -> Dict[str, Tensor]:
     """
     Collate function for the dataloader.
 
@@ -186,7 +187,7 @@ def collate_fn(batch: List[Dict[str, List]]) -> Dict[str, List[Union[torch.Tenso
         batch (List[Dict[str, List]]): List of samples.
 
     Returns:
-        Dict[str, Any]: Collated batch.
+        Dict[str, Tensor]: Collated batch.
     """
     # All samples must have the same keys
     keys = batch[0].keys()
@@ -194,6 +195,16 @@ def collate_fn(batch: List[Dict[str, List]]) -> Dict[str, List[Union[torch.Tenso
 
     for key in keys:
         val = [sample[key] for sample in batch]
+        if key == "patches":
+            B, L = len(val), len(val[0])
+            collated_data = torch.zeros((B, L, 4, 16, 16), dtype=torch.uint8)  # hard-coded for now
+            for i, ep in enumerate(val):
+                for j, patch in enumerate(ep):
+                    patch = torch.as_tensor(patch)
+                    shape = patch.shape
+                    collated_data[i, j, : shape[0], : shape[1], : shape[2]] = patch
+            val = collated_data
+
         if isinstance(val[0][0], np.ndarray):
             val = np.array(val)  # to avoid creating a tensor from a list of arrays
         d[key] = torch.as_tensor(val)

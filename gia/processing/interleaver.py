@@ -62,7 +62,7 @@ class Interleaver:
         patch_position_pad_value: Optional[List[List[int]]] = None,
     ) -> None:
         self.token_pad_value = token_pad_value
-        self.patch_pad_value = np.zeros((4, 16, 16), dtype=np.int64) if patch_pad_value is None else patch_pad_value
+        self.patch_pad_value = np.zeros((1, 1, 1), dtype=np.int64) if patch_pad_value is None else patch_pad_value
         self.local_position_pad_value = local_position_pad_value
         self.patch_position_pad_value = (
             [[0.0, 0.0], [0.0, 0.0]] if patch_position_pad_value is None else patch_position_pad_value
