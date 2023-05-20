@@ -7,7 +7,6 @@ from transformers import Trainer
 
 from gia.config import Arguments
 from gia.datasets import collate_fn, load_gia_dataset
-from gia.datasets.utils import DatasetDict
 from gia.model import GiaModel
 from gia.processing import GiaProcessor
 
