@@ -52,7 +52,7 @@ def test_model():
 
 
 def test_trainer():
-    args = Arguments(task_names=["mujoco-ant"], output_dir="./", batch_size=1, max_steps=1)
+    args = Arguments(task_names=["mujoco-ant"], output_dir="./", batch_size=1, max_steps=1, report_to=None)
     dataset = load_gia_dataset(args.task_names)
     processor = GiaProcessor(args)
     dataset = processor(**dataset)
