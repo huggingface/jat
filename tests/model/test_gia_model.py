@@ -2,6 +2,7 @@ import pytest
 import torch
 from accelerate import Accelerator
 from datasets import Dataset
+from torch.profiler import ProfilerActivity, profile
 from torch.utils.data import DataLoader
 from transformers import Trainer
 
@@ -52,11 +53,21 @@ def test_model():
 
 
 def test_trainer():
-    args = Arguments(task_names=["mujoco-ant"], output_dir="./", batch_size=1, max_steps=1, report_to="none")
+    args = Arguments(
+        task_names=["mujoco-ant"], output_dir="./", batch_size=1, max_steps=1, report_to="none", embed_dim=48
+    )
     dataset = load_gia_dataset(args.task_names)
     processor = GiaProcessor(args)
     dataset = processor(**dataset)
     dataset = Dataset.from_dict(dataset)
     model = GiaModel(args)
     trainer = Trainer(model=model, args=args, train_dataset=dataset, data_collator=collate_fn)
-    trainer.train()
+
+    with profile(activities=[ProfilerActivity.CPU], profile_memory=True, record_shapes=True) as prof:
+        trainer.train()
+
+    print(prof.key_averages().table(sort_by="self_cpu_memory_usage", row_limit=10))
+    print(prof.key_averages().table(sort_by="cpu_memory_usage", row_limit=10))
+
+
+test_trainer()
