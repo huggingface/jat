@@ -25,7 +25,8 @@ def test_gia_accelerate(use_accelerate):
     args = Arguments(task_names=["mujoco-ant"], embed_dim=48, seq_len=256, output_dir="./")
     dataset = load_gia_dataset(args.task_names)
     processor = GiaProcessor(args)
-    dataset = DatasetDict(processor(**dataset))
+    dataset = processor(**dataset)
+    dataset = Dataset.from_dict(dataset)
     dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collate_fn)
     model = GiaModel(args)
     if use_accelerate:
@@ -52,11 +53,11 @@ def test_model():
 
 
 def test_trainer():
-    args = Arguments(task_names=["mujoco-ant"], output_dir="./")
+    args = Arguments(task_names=["mujoco-ant"], output_dir="./", batch_size=1, max_steps=1)
     dataset = load_gia_dataset(args.task_names)
     processor = GiaProcessor(args)
-    dataset = Dataset(processor(**dataset))  # line skipped unti
-    dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collate_fn)
+    dataset = processor(**dataset)
+    dataset = Dataset.from_dict(dataset)
     model = GiaModel(args)
-    trainer = Trainer(model=model, train_dataloader=dataloader)
+    trainer = Trainer(model=model, args=args, train_dataset=dataset, data_collator=collate_fn)
     trainer.train()
