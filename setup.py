@@ -70,6 +70,7 @@ REQUIRED_PKGS = [
     "wandb",
     "datasets",
     "opencv-python",
+    "Pillow",
 ]
 
 
