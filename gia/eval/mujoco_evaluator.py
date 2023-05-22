@@ -89,7 +89,7 @@ class MujocoEvaluator(Evaluator):
             # Compute the output of the model
 
             action = np.zeros((num_envs, num_act_tokens))
-            token_shift = 32_000
+            token_shift = 30_000
 
             for i in range(num_act_tokens):
                 output = model(buffer, eval=True)

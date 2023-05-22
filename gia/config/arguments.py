@@ -36,9 +36,6 @@ class DatasetArguments:
     patch_size: int = field(
         default=16, metadata={"help": "The size of the patches to extract from image observations."}
     )
-    token_shift: int = field(
-        default=32_000, metadata={"help": "The token shift for continuous and discrete observations."}
-    )
     mu: float = field(
         default=100, metadata={"help": "The μ parameter for the μ-law companding of continuous observations."}
     )
@@ -69,7 +66,7 @@ class ModelArguments:
     max_nb_observation_tokens: int = field(
         default=512, metadata={"help": "The maximum number of tokens for one observation."}
     )
-    text_vocab_size: int = field(default=32_000, metadata={"help": "The size of the model vocabulary for text."})
+    text_vocab_size: int = field(default=30_000, metadata={"help": "The size of the model vocabulary for text."})
     nb_bins: int = field(
         default=1024, metadata={"help": "The number of bins for the discretization of continuous observations."}
     )
