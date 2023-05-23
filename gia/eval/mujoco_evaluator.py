@@ -1,15 +1,16 @@
-import gymnasium as gym
+import gym
 import numpy as np
-import torch
 from tqdm import tqdm
+import torch
 
+from datasets import load_dataset
 from gia.config.arguments import Arguments
-from gia.datasets.batch_generator import load_prompt_dataset
+from gia.datasets import collate_fn, generate_prompts
 from gia.model.gia_model import GiaModel
 from gia.processing import GiaProcessor
 
-from .evaluator import Evaluator
-from .mappings import DATASET_FILE_MAPPING, TASK_TO_ENV_MAPPING
+from gia.eval.evaluator import Evaluator
+from gia.eval.mappings import DATASET_FILE_MAPPING, TASK_TO_ENV_MAPPING
 
 
 def make_mujoco_env(env_name, render_mode=None):
@@ -28,16 +29,7 @@ class MujocoEvaluator(Evaluator):
         for env_name, dataset_name in zip(self.env_names, self.data_filepaths):
             stats[env_name] = self._evaluate_env(env_name, dataset_name, model)
 
-    def _evaluate_env(self, env_name, dataset_name, model):
-        num_envs = 2
-        # number of interactions per sequence. Hard-coded for now
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        # model = GiaModel(Arguments()).to(device)
-        env = gym.vector.make(env_name, num_envs)
-        num_obs_tokens = env.observation_space.shape[1]
-        num_act_tokens = env.action_space.shape[1]
-        int_per_seq = self.args.seq_len // (num_obs_tokens + num_act_tokens)
-
+    def _create_buffer(self, num_envs, int_per_seq, num_obs_tokens, num_act_tokens, device):
         buffer = {
             "continuous_observations": torch.zeros(
                 (num_envs, int_per_seq, num_obs_tokens),
@@ -60,79 +52,106 @@ class MujocoEvaluator(Evaluator):
                 device=device,
             ),
         }
+        return buffer
 
-        prompt_dataset = load_prompt_dataset(dataset_name)
-        sampled_prompts_idxs = np.random.randint(0, len(prompt_dataset), size=num_envs)
+    @torch.no_grad()
+    def _evaluate_env(self, env_name, dataset_name, model):
+        num_envs = 1
 
-        # Fill (right side) the buffer with the prompts. Truncate if necessary.
-        for key in buffer.keys():
-            length = min(buffer[key].shape[1], prompt_dataset[key][sampled_prompts_idxs].shape[1])
-            buffer[key][:, -length:] = torch.from_numpy(prompt_dataset[key][sampled_prompts_idxs, -length:]).to(device)
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        env = gym.vector.make(env_name, num_envs)
+        num_obs_tokens = env.observation_space.shape[1]
+        num_act_tokens = env.action_space.shape[1]
+        tokens_per_step = num_obs_tokens + num_act_tokens + int(self.args.use_separator)
+        int_per_seq = (self.args.seq_len // tokens_per_step) - 1
+        max_kv_size = int_per_seq * tokens_per_step
+        dataset = load_dataset("gia-project/gia-dataset", dataset_name, split="train")
 
-        processor = GiaProcessor()
+        prompts = generate_prompts(
+            dataset,
+            self.args.n_episodes,
+        )  #  load_prompt_dataset(dataset_name)
+        processor = GiaProcessor(self.args)
+        token_shift = processor.tokenizer.token_shift
 
-        accum_rewards = np.zeros(num_envs)
         returns = []
-        obs, info = env.reset()
-        pbar = tqdm(total=self.args.n_episodes)
+        # due to how to KV cache is used, we only can evaluate one env instance at a time
+        for ep in tqdm(range(self.args.n_episodes)):
+            prompt = prompts[ep]
+            processed_prompt = processor(
+                continuous_observations=np.array(prompt["continuous_observations"]),
+                continuous_actions=np.array(prompt["continuous_actions"]),
+                padding=False,
+                truncation="max_length",
+            )
+            # To torch tensors
+            processed_prompt = collate_fn([{key: processed_prompt[key][0] for key in processed_prompt.keys()}])
+            for key in processed_prompt.keys():
+                processed_prompt[key] = processed_prompt[key].to(device)
+            # update the kv cache from the prompt
+            output = model(**processed_prompt, use_cache=True)
+            past_key_values = output.past_key_values
 
-        while len(returns) < self.args.n_episodes:
-            # First, roll the buffer
-            for key in buffer.keys():
-                buffer[key][:, :-1] = buffer[key][:, 1:]
+            # Other TODO:
+            # - confirm attention masks are not needed in this setting
+            accum_rewards = []
+            done = False
+            obs, info = env.reset()
+            while not done:
+                # process the current observation
 
-            # Then, add the last observation to the buffer and mask the last action
-            obs_tokens = processor({"continuous_observations": obs})["continuous_observations"]
-            buffer["continuous_observations"][:, -1] = torch.from_numpy(obs_tokens).to(device)
-            buffer["continuous_actions_attention_mask"][:, -1] = 0
+                processed = processor(
+                    continuous_observations=[obs],
+                    continuous_actions=[],
+                    padding=False,
+                    truncation="max_length",
+                )
+                processed = collate_fn([{key: processed[key][0] for key in processed.keys()}])
+                for key in processed.keys():
+                    processed[key] = processed[key].to(device)
+                action_tokens = []
+                for i in range(num_act_tokens):
+                    output = model(**processed, use_cache=True, past_key_values=past_key_values)
+                    past_key_values = output.past_key_values
+                    action_logits = output.logits[:, -1, token_shift:]
 
-            # Compute the output of the model
+                    action_token = torch.argmax(action_logits, -1) + token_shift
+                    action_tokens.append(action_token)
 
-            action = np.zeros((num_envs, num_act_tokens))
-            token_shift = 30_000
+                    processed["input_ids"] = action_token[None, :]
+                    processed["loss_mask"] = torch.ones(1, 1, dtype=torch.int64, device=device)
+                    processed["input_types"] = torch.zeros(1, 1, dtype=torch.int64, device=device)
+                    processed["patches"] = torch.zeros(1, 1, 4, 16, 16, dtype=torch.uint8, device=device)
+                    processed["patch_positions"] = torch.zeros(1, 1, 2, 2, dtype=torch.float32, device=device)
+                    processed["local_positions"] = -torch.ones(1, 1, dtype=torch.int64, device=device)
 
-            for i in range(num_act_tokens):
-                output = model(buffer, eval=True)
-                action_logits = output.logits[:, -num_act_tokens + i, token_shift:]
-                action_tokens = torch.argmax(action_logits, -1) + token_shift
-                buffer["continuous_actions"][:, -1, i] = action_tokens
-                action[:, i] = processor.inverse_tokenize_continuous(action_tokens.cpu()).numpy()
-                buffer["continuous_actions_attention_mask"][:, -1, i] = 1
+                # to ensure the KV cache includes the last action token
+                output = model(**processed, use_cache=True, past_key_values=past_key_values)
+                past_key_values = output.past_key_values
+                if past_key_values[0][0].shape[2] > max_kv_size:
+                    # remove one step of tokens, to ensure context < 1024
+                    past_key_values = [
+                        (k[:, :, tokens_per_step:], v[:, :, tokens_per_step:]) for (k, v) in past_key_values
+                    ]
+                action_tokens = torch.stack(action_tokens, dim=-1)
 
-            # TODO: use the output to sample an action
-            # action = ...
-            # action = env.action_space.sample()
+                # Decode the action tokens
+                action = processor.tokenizer.decode_continuous(action_tokens.cpu().numpy())
+                # TODO: Clamp action to be in domain of action space?
+                obs, reward, terminated, truncated, info = env.step(action)
 
-            # Add the action to the buffer and unmask it
-            act_tokens = processor({"continuous_actions": action})["continuous_actions"]
-            buffer["continuous_actions"][:, -1] = torch.from_numpy(act_tokens).to(device)
-            buffer["continuous_actions_attention_mask"][:, -1] = 1
+                done = terminated or truncated
+                accum_rewards.append(reward)
 
-            # Step the environment
-            next_obs, reward, terminated, truncated, info = env.step(action)
-            obs = next_obs
-            accum_rewards += reward
-            for i in range(num_envs):
-                if terminated[i] or truncated[i]:
-                    returns.append(accum_rewards[i])
-                    accum_rewards[i] = 0
-                    pbar.update(1)
-                    if len(returns) == self.args.n_episodes:
-                        break  # in case we finish two episodes at the same time
-                    # resample a new prompt and reset masks etc
-                    sampled_prompts_idxs = np.random.randint(0, len(prompt_dataset), size=1)
-
-                    # Fill (right side) the buffer with the prompts. Truncate if necessary.
-                    for key in buffer.keys():
-                        if "loss" in key:  # skip if this key in dict as the model modifies the dict TODO: fix this
-                            continue
-                        buffer[key][i] *= 0
-                        length = min(buffer[key].shape[1], prompt_dataset[key][sampled_prompts_idxs].shape[1])
-                        buffer[key][i, :, -length:] = torch.from_numpy(
-                            prompt_dataset[key][sampled_prompts_idxs, -length:]
-                        ).to(device)
-
-        pbar.close()
+            returns.append(sum(accum_rewards))
         env.close()
 
         return returns
+
+
+if __name__ == "__main__":
+    args = Arguments(output_dir="tmp", n_episodes=2)
+    model = GiaModel(args).to("cuda")
+
+    evaluator = MujocoEvaluator(args)
+    evaluator.evaluate(model)
