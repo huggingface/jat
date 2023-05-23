@@ -98,11 +98,12 @@ class MujocoEvaluator(Evaluator):
                     action_tokens.append(action_token)
 
                     processed["input_ids"] = action_token[None, :]
-                    processed["loss_mask"] = torch.ones(1, 1, dtype=torch.int64, device=device)
-                    processed["input_types"] = torch.zeros(1, 1, dtype=torch.int64, device=device)
-                    processed["patches"] = torch.zeros(1, 1, 4, 16, 16, dtype=torch.uint8, device=device)
-                    processed["patch_positions"] = torch.zeros(1, 1, 2, 2, dtype=torch.float32, device=device)
-                    processed["local_positions"] = -torch.ones(1, 1, dtype=torch.int64, device=device)
+                    if i == 0:  # only needs to be done once
+                        processed["loss_mask"] = torch.ones(1, 1, dtype=torch.int64, device=device)
+                        processed["input_types"] = torch.zeros(1, 1, dtype=torch.int64, device=device)
+                        processed["patches"] = torch.zeros(1, 1, 4, 16, 16, dtype=torch.uint8, device=device)
+                        processed["patch_positions"] = torch.zeros(1, 1, 2, 2, dtype=torch.float32, device=device)
+                        processed["local_positions"] = -torch.ones(1, 1, dtype=torch.int64, device=device)
 
                 # to ensure the KV cache includes the last action token
                 output = model(**processed, use_cache=True, past_key_values=past_key_values)
