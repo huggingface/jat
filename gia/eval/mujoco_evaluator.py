@@ -46,8 +46,8 @@ class MujocoEvaluator(Evaluator):
         prompts = generate_prompts(
             dataset,
             self.args.n_episodes,
-            min_prompt_len=self.args.seq_len,
-            max_prompt_len=self.args.seq_len,
+            min_prompt_len=int_per_seq,
+            max_prompt_len=int_per_seq,
         )
         processor = GiaProcessor(self.args)
         token_shift = processor.tokenizer.token_shift
