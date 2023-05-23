@@ -25,13 +25,13 @@ def create_evaluators(args: Arguments) -> List[Evaluator]:
 
 def eval():
     args = parse_args()  # only need to specify the run directory
-    args = Arguments.load(args.save_dir)  # loads all the args from the run directory
+    # args = Arguments.load(args.save_dir)  # TODO: reimplement if still required
     evaluators = create_evaluators(args)
 
     model = GiaModel(GiaConfig())
     model = model.to("cuda")
 
-    checkpoints_path = os.path.join(args.save_dir, "checkpoints")
+    checkpoints_path = os.path.join(args.output_dir)
     evaluated_checkpoints = set()
 
     results = {}
