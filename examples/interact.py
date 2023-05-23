@@ -39,7 +39,35 @@ def run():
         for key in processed.keys():
             processed[key] = processed[key].to(device)
         # FIXME: GPTNeo doesn't support generate with input_embeds
-        action_tokens = model.generate(**processed, num_tokens=action_dim)
+        action_tokens = []
+        for _ in range(action_dim):  # Forward pass for each action dimension
+            output = model(**processed)
+            logits = output["logits"]
+            # Get the max logits
+            last_logits = logits[:, -1, :]
+            action_token = last_logits.argmax(dim=-1)
+            action_tokens.append(action_token)
+            # Update the input_ids
+            processed["input_ids"] = torch.cat([processed["input_ids"], action_token[:, None]], dim=1)
+            # Add a 1 (1, N) to (1, N+1)
+            processed["loss_mask"] = torch.cat(
+                [processed["loss_mask"], torch.ones(1, 1, dtype=torch.int64, device=device)], dim=1
+            )
+            processed["input_types"] = torch.cat(
+                [processed["input_types"], torch.zeros(1, 1, dtype=torch.int64, device=device)], dim=1
+            )
+            processed["patches"] = torch.cat(
+                [processed["patches"], torch.zeros(1, 1, 4, 16, 16, dtype=torch.uint8, device=device)], dim=1
+            )
+            processed["patch_positions"] = torch.cat(
+                [processed["patch_positions"], torch.zeros(1, 1, 2, 2, dtype=torch.float32, device=device)], dim=1
+            )
+            processed["local_positions"] = torch.cat(
+                [processed["local_positions"], -torch.ones(1, 1, dtype=torch.int64, device=device)], dim=1
+            )
+        action_tokens = torch.stack(action_tokens, dim=-1)
+
+        # Decode the action tokens
         action = processor.tokenizer.decode_continuous(action_tokens.cpu().numpy())
 
         # Step the environment
