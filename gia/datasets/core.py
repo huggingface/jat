@@ -49,7 +49,9 @@ def get_task_name_list(task_names: Union[str, List[str]]) -> List[str]:
     return task_names
 
 
-def generate_prompts(dataset: Dataset, num_prompts: int, p_end: float = 0.1, max_prompt_len: int = 10) -> Dataset:
+def generate_prompts(
+    dataset: Dataset, num_prompts: int, p_end: float = 0.1, min_prompt_len: int = 1, max_prompt_len: int = 10
+) -> Dataset:
     """
     Generate prompts from the dataset.
 
@@ -57,12 +59,16 @@ def generate_prompts(dataset: Dataset, num_prompts: int, p_end: float = 0.1, max
         dataset (Dataset): Dataset to generate prompts from.
         num_prompts (int): Number of prompts to generate.
         p_end (float, optional): Probability of generating a prompt from the end of the episode. Defaults to 0.1.
+        min_prompt_len (int, optional): Sets the minimum prompt length, defaulting to 1. Beware, if the sampled
+            prompt is too short, the output prompt might also fall short of min_prompt_len.
         max_prompt_len (int, optional): Maximum length of the prompt. Defaults to 10.
     """
     ep_lens = [len(ep[next(iter(ep))]) for ep in dataset]
     prompt_ep_idxs = random.choices(range(len(dataset)), k=num_prompts)
     from_ends = random.choices([True, False], k=num_prompts, weights=[p_end, 1 - p_end])
-    prompt_lengths = random.choices(range(1, max_prompt_len + 1), k=num_prompts)  # will be clipped later if necessary
+    prompt_lengths = random.choices(
+        range(min_prompt_len, max_prompt_len + 1), k=num_prompts
+    )  # will be clipped later if necessary
     starts = []
     for ep_idx, from_end, prompt_length in zip(prompt_ep_idxs, from_ends, prompt_lengths):
         max_start = max(0, ep_lens[ep_idx] - prompt_length)

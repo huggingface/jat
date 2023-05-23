@@ -36,6 +36,25 @@ def test_num_prompts(example_dataset):
     assert len(prompts) == num_prompts, "Number of generated prompts should match num_prompts"
 
 
+def test_prompts_meet_min_length_requirement(example_dataset):
+    # Since the only episode is 19 steps long, the generated prompts should be at least 14 steps.
+    num_prompts = 50
+    min_prompt_len = 14
+    prompts = generate_prompts(example_dataset, num_prompts, min_prompt_len=min_prompt_len, max_prompt_len=50)
+    for prompt in prompts:
+        assert len(prompt["text"]) >= min_prompt_len, "Generated prompts should not be shorter than min_prompt_len"
+
+
+def test_prompts_restricted_to_episode_length(example_dataset):
+    # Since the only episode is 19 steps long, the generated prompts should be 19 steps long when min_prompt_len is
+    # set to a higher value than 19
+    num_prompts = 50
+    min_prompt_len = 26
+    prompts = generate_prompts(example_dataset, num_prompts, min_prompt_len=min_prompt_len, max_prompt_len=50)
+    for prompt in prompts:
+        assert len(prompt["text"]) == 19, "Generated prompts should be 19 steps long"
+
+
 def test_max_prompt_len(example_dataset):
     num_prompts = 5
     max_prompt_len = 3
