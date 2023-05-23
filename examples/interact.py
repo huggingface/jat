@@ -4,7 +4,7 @@ import torch
 from datasets import load_dataset
 
 from gia.config import Arguments
-from gia.datasets import generate_prompts
+from gia.datasets import generate_prompts, collate_fn
 from gia.model.gia_model import GiaModel
 from gia.processing import GiaProcessor
 
@@ -32,11 +32,12 @@ def run():
 
         # Compute the output of the model
         processed = processor(
-            continuous_observations=observations, continuous_actions=actions, padding=False, truncate="max_length"
+            continuous_observations=observations, continuous_actions=actions, padding=False, truncation="max_length"
         )
         # To torch tensors
+        processed = collate_fn([{key: processed[key][0] for key in processed.keys()}])
         for key in processed.keys():
-            processed[key] = torch.as_tensor(processed[key], device=device)
+            processed[key] = processed[key].to(device)
         # FIXME: GPTNeo doesn't support generate with input_embeds
         action_tokens = model.generate(**processed, num_tokens=action_dim)
         action = processor.tokenizer.decode_continuous(action_tokens.cpu().numpy())
