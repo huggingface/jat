@@ -1,0 +1,2 @@
+from oscar_evaluator import OscarEvaluator
+from ok_vqa_evaluator import OKVQAEvaluator
