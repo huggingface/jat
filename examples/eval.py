@@ -42,11 +42,10 @@ def eval():
         if len(all_checkpoints - evaluated_checkpoints) == 0:
             print("all checkpoints evaluated")
             break
-        for filename in all_checkpoints - evaluated_checkpoints:
-            checkpoint_path = os.path.join(checkpoints_dir, filename)
+        for checkpoint_path in all_checkpoints - evaluated_checkpoints:
             # Log to wandb directly?
             results[checkpoint_path] = eval_checkpoint(checkpoint_path, evaluators, model)
-            evaluated_checkpoints.add(filename)
+            evaluated_checkpoints.add(checkpoint_path)
 
     print(results)
     output_filepath = f"{args.output_dir}/eval_results.json"
