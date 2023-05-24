@@ -1,7 +1,7 @@
 import os
 import time
 from typing import List
-
+import json
 import torch
 
 from gia.config import Arguments, GiaConfig
@@ -31,21 +31,28 @@ def eval():
     model = GiaModel(GiaConfig())
     model = model.to("cuda")
 
-    checkpoints_path = os.path.join(args.output_dir)
+    checkpoints_dir = os.path.join(args.output_dir)
     evaluated_checkpoints = set()
 
     results = {}
 
     while True:
         time.sleep(1)
-        all_checkpoints = set(os.listdir(checkpoints_path))
+        all_checkpoints = set([f.path for f in os.scandir(checkpoints_dir) if f.is_dir()])
         if len(all_checkpoints - evaluated_checkpoints) == 0:
             print("all checkpoints evaluated")
+            break
         for filename in all_checkpoints - evaluated_checkpoints:
-            checkpoint_path = os.path.join(checkpoints_path, filename)
+            checkpoint_path = os.path.join(checkpoints_dir, filename)
             # Log to wandb directly?
             results[checkpoint_path] = eval_checkpoint(checkpoint_path, evaluators, model)
             evaluated_checkpoints.add(filename)
+
+    print(results)
+    output_filepath = f"{args.output_dir}/eval_results.json"
+
+    with open(output_filepath, "w") as fp:
+        json.dump(results, fp)
 
 
 def eval_checkpoint(checkpoint_path: str, evaluators: List[Evaluator], model: torch.nn.Module):

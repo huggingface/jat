@@ -28,6 +28,7 @@ class MujocoEvaluator(Evaluator):
         stats = {}
         for env_name, dataset_name in zip(self.env_names, self.data_filepaths):
             stats[env_name] = self._evaluate_env(env_name, dataset_name, model)
+        return stats
 
     @torch.no_grad()
     def _evaluate_env(self, env_name: str, dataset_name: str, model: GiaModel):
@@ -121,7 +122,7 @@ class MujocoEvaluator(Evaluator):
                 obs, reward, terminated, truncated, info = env.step(action)
 
                 done = terminated or truncated
-                accum_rewards.append(reward)
+                accum_rewards.append(reward[0])
 
             returns.append(sum(accum_rewards))
         env.close()
