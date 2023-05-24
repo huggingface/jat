@@ -45,12 +45,18 @@ def create_babyai_dataset(name_env, saving_path, max_num_frames=100000, test_set
         policy = Bot(env.env)
         return obs, policy
 
+    print("Starting trajectories generation")
     obs, policy = reset_env_and_policy(env)
     dataset.reset_episode()
     for i in range(max_num_frames):
-        action = policy.replan()
-        obs, r, done, _, infos = env.step(action)
-        dataset.add_step(obs, int(action), r)
+        try:
+            action = policy.replan()
+            obs, r, done, _, infos = env.step(action)
+            dataset.add_step(obs, int(action), r)
+        except Exception:
+            dataset.reset_episode(append_new=i < max_num_frames - 1)
+            done = True
+
         if done:
             obs, policy = reset_env_and_policy(env)
 
@@ -58,7 +64,9 @@ def create_babyai_dataset(name_env, saving_path, max_num_frames=100000, test_set
             dataset.reset_episode(append_new=i < max_num_frames - 1)
 
     env.close()
+    print("Finished generation")
 
+    print("Saving...")
     dataset_size = len(dataset)
     test_set_indices = random.sample(range(dataset_size), round(dataset_size * test_set_percentage / 100))
     train_set_indices = [idx for idx in range(dataset_size) if idx not in test_set_indices]
@@ -69,6 +77,7 @@ def create_babyai_dataset(name_env, saving_path, max_num_frames=100000, test_set
     os.makedirs(saving_path, exist_ok=True)
     np.savez_compressed(f"{saving_path}/train.npz", **train_dataset)
     np.savez_compressed(f"{saving_path}/test.npz", **test_dataset)
+    print("Finished!")
 
 
 if __name__ == "__main__":
@@ -79,4 +88,7 @@ if __name__ == "__main__":
     parser.add_argument("--test_set_percentage", default=5, type=int)
     args = parser.parse_args()
 
-    create_babyai_dataset(**vars(args))
+    if os.path.exists(f"{args.saving_path}/train.npz") and os.path.exists(f"{args.saving_path}/test.npz"):
+        print(f"Generated trajectories seem to already exist in {args.saving_path}, skipping generation")
+    else:
+        create_babyai_dataset(**vars(args))
