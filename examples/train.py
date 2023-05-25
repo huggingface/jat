@@ -1,13 +1,13 @@
 from datasets import Dataset
 from transformers import Trainer
 
-from gia.config import Arguments
+from gia.config import parse_args
 from gia.datasets import collate_fn, load_gia_dataset
 from gia.model import GiaModel
 from gia.processing import GiaProcessor
 
 # Initialize the processor and model
-args = Arguments(task_names=["mujoco-ant"], output_dir="./")
+args = parse_args()
 processor = GiaProcessor(args)
 model = GiaModel(args)
 
