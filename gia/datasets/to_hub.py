@@ -1,6 +1,6 @@
 import numpy as np
 from typing import List
-from huggingface_hub import HfApi, repocard, upload_folder
+from huggingface_hub import HfApi, upload_folder
 import tempfile
 
 
@@ -19,7 +19,7 @@ def add_dataset_to_hub(
     rewards: List[np.array] = None,
 ):
     """
-    This function takes different types of observations, actions, and rewards, and prepares them for upload to Hugging Face's data hub.
+    This function takes different types of observations, actions, and rewards, and prepares them for upload to the hub.
     It then optionally pushes them to a specified dataset repository on the data hub.
 
     Args:
@@ -28,14 +28,13 @@ def add_dataset_to_hub(
         revision (str, optional): The revision name. Default is "main".
         test_split (float, optional): Fraction of the dataset to be used as test data. Default is 0.1.
         push_to_hub (bool, optional): If True, the dataset will be pushed to the data hub. Default is False.
-        text_observations (List[np.array], optional): List of numpy arrays with text observations. Each array represents an episode.
-        image_observations (List[np.array], optional): List of numpy arrays with image observations. Each array represents an episode.
-        discrete_observations (List[np.array], optional): List of numpy arrays with discrete observations. Each array represents an episode.
-        continuous_observations (List[np.array], optional): List of numpy arrays with continuous observations. Each array represents an episode.
-        discrete_actions (List[np.array], optional): List of numpy arrays with discrete actions. Each array represents an episode.
-        continuous_actions (List[np.array], optional): List of numpy arrays with continuous actions. Each array represents an episode.
-        rewards (List[np.array], optional): List of numpy arrays with rewards. Each array represents an episode.
-
+        text_observations (List[np.array], optional): List of numpy arrays with text observations.
+        image_observations (List[np.array], optional): List of numpy arrays with image observations.
+        discrete_observations (List[np.array], optional): List of numpy arrays with discrete observations.
+        continuous_observations (List[np.array], optional): List of numpy arrays with continuous observations.
+        discrete_actions (List[np.array], optional): List of numpy arrays with discrete actions.
+        continuous_actions (List[np.array], optional): List of numpy arrays with continuous actions.
+        rewards (List[np.array], optional): List of numpy arrays with rewards.
     """
     n_obs = 0
     n_act = 0
