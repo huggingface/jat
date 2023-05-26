@@ -1,6 +1,6 @@
 import numpy as np
 from typing import List
-from huggingface_hub import HfApi, upload_folder
+from huggingface_hub import HfApi, repocard, upload_folder
 import tempfile
 
 
@@ -19,7 +19,7 @@ def add_dataset_to_hub(
     rewards: List[np.array] = None,
 ):
     """
-    This function takes different types of observations, actions, and rewards, and prepares them for upload to the hub.
+    This function takes different types of observations, actions, and rewards, and prepares them for upload to Hugging Face's data hub.
     It then optionally pushes them to a specified dataset repository on the data hub.
 
     Args:
@@ -28,13 +28,14 @@ def add_dataset_to_hub(
         revision (str, optional): The revision name. Default is "main".
         test_split (float, optional): Fraction of the dataset to be used as test data. Default is 0.1.
         push_to_hub (bool, optional): If True, the dataset will be pushed to the data hub. Default is False.
-        text_observations (List[np.array], optional): List of numpy arrays with text observations.
-        image_observations (List[np.array], optional): List of numpy arrays with image observations.
-        discrete_observations (List[np.array], optional): List of numpy arrays with discrete observations.
-        continuous_observations (List[np.array], optional): List of numpy arrays with continuous observations.
-        discrete_actions (List[np.array], optional): List of numpy arrays with discrete actions.
-        continuous_actions (List[np.array], optional): List of numpy arrays with continuous actions.
-        rewards (List[np.array], optional): List of numpy arrays with rewards.
+        text_observations (List[np.array], optional): List of numpy arrays with text observations. Each array represents an episode.
+        image_observations (List[np.array], optional): List of numpy arrays with image observations. Each array represents an episode.
+        discrete_observations (List[np.array], optional): List of numpy arrays with discrete observations. Each array represents an episode.
+        continuous_observations (List[np.array], optional): List of numpy arrays with continuous observations. Each array represents an episode.
+        discrete_actions (List[np.array], optional): List of numpy arrays with discrete actions. Each array represents an episode.
+        continuous_actions (List[np.array], optional): List of numpy arrays with continuous actions. Each array represents an episode.
+        rewards (List[np.array], optional): List of numpy arrays with rewards. Each array represents an episode.
+
     """
     n_obs = 0
     n_act = 0
@@ -46,10 +47,6 @@ def add_dataset_to_hub(
     train_index_end = int(n_episodes * (1.0 - test_split))  # Assume no need to shuffle the data
     dataset_train = {}
     dataset_test = {}
-
-    dataset_train["rewards"] = np.array(rewards[:train_index_end], dtype=object)
-    if test_split > 0.0:
-        dataset_test["rewards"] = np.array(rewards[train_index_end:], dtype=object)
     # check the types of the arrays
     if text_observations is not None:
         assert text_observations[0].dtype == str, f"rewards are the of type np.float32 {rewards[0].dtype}"
