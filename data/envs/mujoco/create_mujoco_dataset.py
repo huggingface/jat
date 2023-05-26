@@ -5,6 +5,8 @@ from collections import deque
 import numpy as np
 import torch
 from huggingface_hub import HfApi, repocard, upload_folder
+from gia.datasets.to_hub import add_dataset_to_hub
+
 from sample_factory.algo.learning.learner import Learner
 from sample_factory.algo.sampling.batched_sampling import preprocess_actions
 from sample_factory.algo.utils.action_distributions import argmax_actions
@@ -123,22 +125,29 @@ def create_mujoco_dataset(cfg: Config):
     video_frames = []
     num_episodes = 0
 
-    class AtariEnvDataset:
-        def __init__(self, num_frames):
-            self.observations = np.zeros((num_frames, *obs["obs"].shape), dtype=np.float32)
-            self.actions = np.zeros((num_frames, env.action_space.shape[0]))
-            self.dones = np.zeros((num_frames, 1))  # bool
-            self.rewards = np.zeros((num_frames, 1))  # float32
+    # class AtariEnvDataset:
+    #     def __init__(self, num_frames):
+    #         self.observations = np.zeros((num_frames, *obs["obs"].shape), dtype=np.float32)
+    #         self.actions = np.zeros((num_frames, env.action_space.shape[0]))
+    #         self.dones = np.zeros((num_frames, 1))  # bool
+    #         self.rewards = np.zeros((num_frames, 1))  # float32
 
-        def to_dict(self):
-            return {
-                "observations": self.observations,
-                "actions": self.actions,
-                "dones": self.dones,
-                "rewards": self.rewards,
-            }
+    #     def to_dict(self):
+    #         return {
+    #             "observations": self.observations,
+    #             "actions": self.actions,
+    #             "dones": self.dones,
+    #             "rewards": self.rewards,
+    #         }
 
-    dataset = AtariEnvDataset(cfg.max_num_frames)
+    # dataset = AtariEnvDataset(cfg.max_num_frames)
+
+    dataset_continuous_observations = []
+    dataset_rewards = []
+    dataset_continuous_actions = []
+    ep_continuous_observations = []
+    ep_rewards = []
+    ep_continuous_actions = []
 
     with torch.no_grad():
         while not max_frames_reached(num_frames):
@@ -167,7 +176,8 @@ def create_mujoco_dataset(cfg: Config):
 
                 # store s in buffer
                 if num_frames < cfg.max_num_frames:
-                    dataset.observations[num_frames] = obs["obs"].cpu().numpy()
+                    ep_continuous_observations.append(obs["obs"].cpu().numpy())
+                    # dataset.observations[num_frames] = obs["obs"].cpu().numpy()
 
                 obs, rew, terminated, truncated, infos = env.step(actions)
 
@@ -175,9 +185,8 @@ def create_mujoco_dataset(cfg: Config):
 
                 # store a,r, d in buffer
                 if num_frames < cfg.max_num_frames:
-                    dataset.actions[num_frames] = actions
-                    dataset.dones[num_frames] = dones
-                    dataset.rewards[num_frames] = rew
+                    ep_rewards.append(rew[0])
+                    ep_continuous_actions.append(actions)
 
                 infos = [{} for _ in range(env_info.num_agents)] if infos is None else infos
 
@@ -226,7 +235,14 @@ def create_mujoco_dataset(cfg: Config):
                     render_frame(cfg, env, video_frames, num_episodes, last_render_start)
                     time.sleep(0.05)
 
-                if all(finished_episode):
+                if all(finished_episode):  # only 1 env
+                    dataset_continuous_observations.append(np.array(ep_continuous_observations).astype(np.float32))
+                    dataset_continuous_actions.append(np.array(ep_continuous_actions).astype(np.float32))
+                    dataset_rewards.append(np.array(ep_rewards).astype(np.float32))
+                    ep_continuous_observations = []
+                    ep_continuous_actions = []
+                    ep_rewards = []
+
                     finished_episode = [False] * env.num_agents
                     avg_episode_rewards_str, avg_true_objective_str = "", ""
                     for agent_i in range(env.num_agents):
@@ -256,22 +272,15 @@ def create_mujoco_dataset(cfg: Config):
 
     env.close()
 
-    # if cfg.save_video:
-    #     if cfg.fps > 0:
-    #         fps = cfg.fps
-    #     else:
-    #         fps = 30
-    #     generate_replay_video(experiment_dir(cfg=cfg), video_frames, fps)
-
-    if cfg.push_to_hub:
-        repo_path = f"{cfg.train_dir}/datasets/{cfg.experiment}"
-        os.makedirs(repo_path, exist_ok=True)
-
-        with open(f"{repo_path}/dataset.npy", "wb") as f:
-            np.save(f, dataset.to_dict())
-
-        generate_dataset_card(repo_path, cfg.env, cfg.experiment, cfg.hf_repository)
-        push_to_hf(repo_path, cfg.hf_repository)
+    task = cfg.env.split("_")[1]
+    add_dataset_to_hub(
+        "mujoco",
+        task,
+        continuous_observations=dataset_continuous_observations,
+        continuous_actions=dataset_continuous_actions,
+        rewards=dataset_rewards,
+        push_to_hub=cfg.push_to_hub,
+    )
 
 
 def main():
