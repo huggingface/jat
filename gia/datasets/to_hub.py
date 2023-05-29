@@ -46,6 +46,10 @@ def add_dataset_to_hub(
     train_index_end = int(n_episodes * (1.0 - test_split))  # Assume no need to shuffle the data
     dataset_train = {}
     dataset_test = {}
+
+    dataset_train["rewards"] = np.array(rewards[:train_index_end], dtype=object)
+    if test_split > 0.0:
+        dataset_test["rewards"] = np.array(rewards[train_index_end:], dtype=object)
     # check the types of the arrays
     if text_observations is not None:
         assert text_observations[0].dtype == str, f"rewards are the of type np.float32 {rewards[0].dtype}"
