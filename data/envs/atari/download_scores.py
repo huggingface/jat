@@ -6,7 +6,7 @@ from tqdm import tqdm
 from uncertainties import ufloat
 from uncertainties.core import Variable
 
-scores = { # data from Agent 57 paper https://arxiv.org/abs/2003.13350
+scores = {  # data from Agent 57 paper https://arxiv.org/abs/2003.13350
     "alien": {
         "human": 7127.7,
         "random": 227.8,
@@ -420,7 +420,7 @@ for env_id in tqdm(scores):
     # patch env_id
     if env_id in env_id_patch:
         url_env_id = env_id_patch[env_id]
-    elif env_id == "surround": # FIXME: trained agent not available
+    elif env_id == "surround":  # FIXME: trained agent not available
         scores[env_id]["expert"] = ufloat(10.0, 0.0)
         continue
     else:
