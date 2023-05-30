@@ -102,8 +102,8 @@ def main():
     with mp.Pool(mp.cpu_count()) as pool:
         scores_successes = pool.map(get_random_score, ENV_IDS)
 
-    scores = {env_id: score[0] for env_id, score in zip(ENV_IDS, scores_successes)}
-    sucesses = {env_id: score[1] for env_id, score in zip(ENV_IDS, scores_successes)}
+    scores = {env_id: {"random": score[0]} for env_id, score in zip(ENV_IDS, scores_successes)}
+    sucesses = {env_id: {"random": score[1]} for env_id, score in zip(ENV_IDS, scores_successes)}
 
     # Saving
     with open("data/envs/metaworld/scores.json", "w") as f:
@@ -114,10 +114,10 @@ def main():
 
     # Loading
     with open("data/envs/metaworld/scores.json", "r") as f:
-        scores = json.load(f, object_hook=custom_decoder)
+        json.load(f, object_hook=custom_decoder)
 
     with open("data/envs/metaworld/successes.json", "r") as f:
-        successes = json.load(f, object_hook=custom_decoder)
+        json.load(f, object_hook=custom_decoder)
 
 
 if __name__ == "__main__":
