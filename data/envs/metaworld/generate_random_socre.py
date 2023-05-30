@@ -1,11 +1,12 @@
+import json
 import multiprocessing as mp
 
 import gym
 import metaworld  # noqa: F401
 import numpy as np
 from uncertainties import ufloat
-from uncertainties.core import Variable
-import json
+
+from gia.utils import ufloat_decoder, ufloat_encoder
 
 N_EPISODES = 1000
 
@@ -86,18 +87,6 @@ def get_random_score(env_id):
     return ufloat(np.mean(tot_rewards), np.std(tot_rewards)), ufloat(np.mean(successes), np.std(successes))
 
 
-def custom_encoder(obj):
-    if isinstance(obj, Variable):
-        return {"__ufloat__": True, "n": obj.n, "s": obj.s}
-    return obj
-
-
-def custom_decoder(dct):
-    if "__ufloat__" in dct:
-        return ufloat(dct["n"], dct["s"])
-    return dct
-
-
 def main():
     with mp.Pool(mp.cpu_count()) as pool:
         scores_successes = pool.map(get_random_score, ENV_IDS)
@@ -107,17 +96,17 @@ def main():
 
     # Saving
     with open("data/envs/metaworld/scores.json", "w") as f:
-        json.dump(scores, f, default=custom_encoder, indent=4)
+        json.dump(scores, f, default=ufloat_encoder, indent=4)
 
     with open("data/envs/metaworld/successes.json", "w") as f:
-        json.dump(sucesses, f, default=custom_encoder, indent=4)
+        json.dump(sucesses, f, default=ufloat_encoder, indent=4)
 
     # Loading
     with open("data/envs/metaworld/scores.json", "r") as f:
-        json.load(f, object_hook=custom_decoder)
+        json.load(f, object_hook=ufloat_decoder)
 
     with open("data/envs/metaworld/successes.json", "r") as f:
-        json.load(f, object_hook=custom_decoder)
+        json.load(f, object_hook=ufloat_decoder)
 
 
 if __name__ == "__main__":

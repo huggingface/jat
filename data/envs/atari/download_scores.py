@@ -4,7 +4,8 @@ import requests
 import yaml
 from tqdm import tqdm
 from uncertainties import ufloat
-from uncertainties.core import Variable
+
+from gia.utils import ufloat_decoder, ufloat_encoder
 
 scores = {  # data from Agent 57 paper https://arxiv.org/abs/2003.13350
     "alien": {
@@ -433,23 +434,11 @@ for env_id in tqdm(scores):
     scores[env_id]["expert"] = ufloat(mean, uncertainty)
 
 
-def custom_encoder(obj):
-    if isinstance(obj, Variable):
-        return {"__ufloat__": True, "n": obj.n, "s": obj.s}
-    return obj
-
-
-def custom_decoder(dct):
-    if "__ufloat__" in dct:
-        return ufloat(dct["n"], dct["s"])
-    return dct
-
-
 # Saving
 with open("data/envs/atari/scores.json", "w") as f:
-    json.dump(scores, f, default=custom_encoder, indent=4)
+    json.dump(scores, f, default=ufloat_encoder, indent=4)
 
 
 # Loading
 with open("data/envs/atari/scores.json", "r") as f:
-    scores = json.load(f, object_hook=custom_decoder)
+    scores = json.load(f, object_hook=ufloat_decoder)

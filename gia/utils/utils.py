@@ -6,6 +6,8 @@ from typing import Callable
 
 import torch
 from transformers.utils import logging
+from uncertainties import ufloat
+from uncertainties.core import Variable
 
 logger = logging.get_logger(__name__)
 logger.setLevel("INFO")
@@ -76,3 +78,15 @@ def cache_decorator(func: Callable) -> Callable:
         return result
 
     return wrapper
+
+
+def ufloat_encoder(obj):
+    if isinstance(obj, Variable):
+        return {"__ufloat__": True, "n": obj.n, "s": obj.s}
+    return obj
+
+
+def ufloat_decoder(dct):
+    if "__ufloat__" in dct:
+        return ufloat(dct["n"], dct["s"])
+    return dct

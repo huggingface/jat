@@ -4,23 +4,11 @@ import requests
 import yaml
 from tqdm import tqdm
 from uncertainties import ufloat
-from uncertainties.core import Variable
-
-
-def custom_encoder(obj):
-    if isinstance(obj, Variable):
-        return {"__ufloat__": True, "n": obj.n, "s": obj.s}
-    return obj
-
-
-def custom_decoder(dct):
-    if "__ufloat__" in dct:
-        return ufloat(dct["n"], dct["s"])
-    return dct
+from gia.utils import ufloat_decoder, ufloat_encoder
 
 
 with open("data/envs/metaworld/scores.json", "r") as f:
-    scores = json.load(f, object_hook=custom_decoder)
+    scores = json.load(f, object_hook=ufloat_decoder)
 # patch
 scores = {env_id: {"random": score} for env_id, score in scores.items()}
 
@@ -36,9 +24,9 @@ for env_id in tqdm(scores):
 
 # Saving
 with open("data/envs/metaworld/scores.json", "w") as f:
-    json.dump(scores, f, default=custom_encoder, indent=4)
+    json.dump(scores, f, default=ufloat_encoder, indent=4)
 
 
 # Loading
 with open("data/envs/metaworld/scores.json", "r") as f:
-    json.load(f, object_hook=custom_decoder)
+    json.load(f, object_hook=ufloat_decoder)
