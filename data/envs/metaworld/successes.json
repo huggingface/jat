@@ -1,0 +1,252 @@
+{
+    "assembly": {
+        "__ufloat__": true,
+        "n": 0.0,
+        "s": 0.0
+    },
+    "basketball": {
+        "__ufloat__": true,
+        "n": 0.0,
+        "s": 0.0
+    },
+    "bin-picking": {
+        "__ufloat__": true,
+        "n": 0.0,
+        "s": 0.0
+    },
+    "box-close": {
+        "__ufloat__": true,
+        "n": 0.0,
+        "s": 0.0
+    },
+    "button-press-topdown": {
+        "__ufloat__": true,
+        "n": 0.0,
+        "s": 0.0
+    },
+    "button-press-topdown-wall": {
+        "__ufloat__": true,
+        "n": 0.0,
+        "s": 0.0
+    },
+    "button-press": {
+        "__ufloat__": true,
+        "n": 0.0,
+        "s": 0.0
+    },
+    "button-press-wall": {
+        "__ufloat__": true,
+        "n": 0.0,
+        "s": 0.0
+    },
+    "coffee-button": {
+        "__ufloat__": true,
+        "n": 0.081,
+        "s": 0.27283511504203417
+    },
+    "coffee-pull": {
+        "__ufloat__": true,
+        "n": 0.0,
+        "s": 0.0
+    },
+    "coffee-push": {
+        "__ufloat__": true,
+        "n": 0.0,
+        "s": 0.0
+    },
+    "dial-turn": {
+        "__ufloat__": true,
+        "n": 0.01,
+        "s": 0.09949874371066199
+    },
+    "disassemble": {
+        "__ufloat__": true,
+        "n": 0.0,
+        "s": 0.0
+    },
+    "door-close": {
+        "__ufloat__": true,
+        "n": 0.0,
+        "s": 0.0
+    },
+    "door-lock": {
+        "__ufloat__": true,
+        "n": 0.028,
+        "s": 0.16497272501841023
+    },
+    "door-open": {
+        "__ufloat__": true,
+        "n": 0.0,
+        "s": 0.0
+    },
+    "door-unlock": {
+        "__ufloat__": true,
+        "n": 0.017,
+        "s": 0.12927103310486845
+    },
+    "drawer-close": {
+        "__ufloat__": true,
+        "n": 0.274,
+        "s": 0.44600896851969246
+    },
+    "drawer-open": {
+        "__ufloat__": true,
+        "n": 0.001,
+        "s": 0.03160696125855822
+    },
+    "faucet-close": {
+        "__ufloat__": true,
+        "n": 0.002,
+        "s": 0.044676615807377355
+    },
+    "faucet-open": {
+        "__ufloat__": true,
+        "n": 0.0,
+        "s": 0.0
+    },
+    "hammer": {
+        "__ufloat__": true,
+        "n": 0.0,
+        "s": 0.0
+    },
+    "hand-insert": {
+        "__ufloat__": true,
+        "n": 0.0,
+        "s": 0.0
+    },
+    "handle-press-side": {
+        "__ufloat__": true,
+        "n": 0.06,
+        "s": 0.23748684174075835
+    },
+    "handle-press": {
+        "__ufloat__": true,
+        "n": 0.208,
+        "s": 0.4058768286069063
+    },
+    "handle-pull-side": {
+        "__ufloat__": true,
+        "n": 0.006,
+        "s": 0.07722693830523131
+    },
+    "handle-pull": {
+        "__ufloat__": true,
+        "n": 0.007,
+        "s": 0.08337265738837882
+    },
+    "lever-pull": {
+        "__ufloat__": true,
+        "n": 0.0,
+        "s": 0.0
+    },
+    "peg-insert-side": {
+        "__ufloat__": true,
+        "n": 0.0,
+        "s": 0.0
+    },
+    "peg-unplug-side": {
+        "__ufloat__": true,
+        "n": 0.0,
+        "s": 0.0
+    },
+    "pick-out-of-hole": {
+        "__ufloat__": true,
+        "n": 0.0,
+        "s": 0.0
+    },
+    "pick-place": {
+        "__ufloat__": true,
+        "n": 0.0,
+        "s": 0.0
+    },
+    "pick-place-wall": {
+        "__ufloat__": true,
+        "n": 0.0,
+        "s": 0.0
+    },
+    "plate-slide-back-side": {
+        "__ufloat__": true,
+        "n": 0.001,
+        "s": 0.03160696125855822
+    },
+    "plate-slide-back": {
+        "__ufloat__": true,
+        "n": 0.0,
+        "s": 0.0
+    },
+    "plate-slide-side": {
+        "__ufloat__": true,
+        "n": 0.0,
+        "s": 0.0
+    },
+    "plate-slide": {
+        "__ufloat__": true,
+        "n": 0.0,
+        "s": 0.0
+    },
+    "push-back": {
+        "__ufloat__": true,
+        "n": 0.0,
+        "s": 0.0
+    },
+    "push": {
+        "__ufloat__": true,
+        "n": 0.0,
+        "s": 0.0
+    },
+    "push-wall": {
+        "__ufloat__": true,
+        "n": 0.0,
+        "s": 0.0
+    },
+    "reach": {
+        "__ufloat__": true,
+        "n": 0.003,
+        "s": 0.054690035655501276
+    },
+    "reach-wall": {
+        "__ufloat__": true,
+        "n": 0.0,
+        "s": 0.0
+    },
+    "shelf-place": {
+        "__ufloat__": true,
+        "n": 0.0,
+        "s": 0.0
+    },
+    "soccer": {
+        "__ufloat__": true,
+        "n": 0.013,
+        "s": 0.11327400407860577
+    },
+    "stick-pull": {
+        "__ufloat__": true,
+        "n": 0.0,
+        "s": 0.0
+    },
+    "stick-push": {
+        "__ufloat__": true,
+        "n": 0.0,
+        "s": 0.0
+    },
+    "sweep-into": {
+        "__ufloat__": true,
+        "n": 0.0,
+        "s": 0.0
+    },
+    "sweep": {
+        "__ufloat__": true,
+        "n": 0.0,
+        "s": 0.0
+    },
+    "window-close": {
+        "__ufloat__": true,
+        "n": 0.0,
+        "s": 0.0
+    },
+    "window-open": {
+        "__ufloat__": true,
+        "n": 0.0,
+        "s": 0.0
+    }
+}
