@@ -26,14 +26,3 @@ def collapse_none(x):
         if all(xx is None for xx in x):
             return None
     return x
-
-if __name__ == "__main__":
-    print(collapse_none(1))
-    print(collapse_none([1, 2]))
-    print(collapse_none([1, 2, None]))
-    print(collapse_none([1, 2, [None]]))
-    print(collapse_none([1, 2, [None, None]]))
-    print(collapse_none([1, 2, [None, 3]]))
-    print(collapse_none([1, 2, [None, [None]]]))
-    print(collapse_none([None, None]))
-
