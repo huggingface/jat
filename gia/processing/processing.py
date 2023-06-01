@@ -8,7 +8,6 @@ from PIL import Image
 from transformers import AutoTokenizer
 
 from gia.config import DatasetArguments
-
 from .interleaver import Interleaver
 
 T = TypeVar("T")
@@ -309,44 +308,15 @@ class GiaProcessor:
                 sequence = batch_data[key][seq_idx]
                 if sequence is None:
                     padded[key].append(None)
-                else: # it's a list
+                else:  # it's a list
                     if max_len < len(sequence):
                         raise RuntimeError(f"Sequence length {len(sequence)} is greater than max_len {max_len}.")
                     seq_len, pad_len = len(sequence), max_len - len(sequence)
                     sequence = sequence + [padding_value[key]] * pad_len
-                    mask = [1] * seq_len + [0] * pad_len # computed for every keys, but it's the same for all keys
+                    mask = [1] * seq_len + [0] * pad_len  # computed for every keys, but it's the same for all keys
                     padded[key].append(sequence)
             padded["attention_mask"].append(mask)
         return padded
-
-    def collapse_none(self, x):
-        """
-        Recursively collapse list of None into None.
-
-        Args:
-            lst (Any): Any object. If it's a list, it will be recursively collapsed.
-
-        Example:
-            >>> collapse_none([1, 2])
-            [1, 2]
-            >>> collapse_none([1, 2, None])
-            [1, 2, None]
-            >>> collapse_none([1, 2, [None]])
-            [1, 2, None]
-            >>> collapse_none([1, 2, [None, None]])
-            [1, 2, None]
-            >>> collapse_none([1, 2, [None, 3]])
-            [1, 2, [None, 3]]
-            >>> collapse_none([1, 2, [None, [None]]])
-            [1, 2, None]
-            >>> collapse_none([None, None])
-            None
-        """
-        if isinstance(x, list):
-            x = [self.collapse_none(xx) for xx in x]
-            if all(xx is None for xx in x):
-                return None
-        return x
 
     def __call__(
         self,
@@ -404,17 +374,6 @@ class GiaProcessor:
         Returns:
             Dict[str, List[Any]]: A dictionary of tensors containing the tokenized inputs.
         """
-        # Collapse None values
-        text = self.collapse_none(text)
-        images = self.collapse_none(images)
-        text_observations = self.collapse_none(text_observations)
-        image_observations = self.collapse_none(image_observations)
-        discrete_observations = self.collapse_none(discrete_observations)
-        continuous_observations = self.collapse_none(continuous_observations)
-        discrete_actions = self.collapse_none(discrete_actions)
-        continuous_actions = self.collapse_none(continuous_actions)
-        rewards = self.collapse_none(rewards)
-
         tokens_and_patches = self.tokenizer(
             text,
             images,
