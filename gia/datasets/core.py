@@ -49,7 +49,7 @@ def get_task_name_list(task_names: Union[str, List[str]]) -> List[str]:
 
 
 def generate_prompts(
-    dataset: Dataset, num_prompts: int, p_end: float = 0.1, min_prompt_len: int = 1, max_prompt_len: int = 10
+    dataset: Dataset, num_prompts: int, p_end: float = 0.1, min_prompt_len: int = 1, max_prompt_len: int = 1024
 ) -> Dataset:
     """
     Generate prompts from the dataset.
@@ -108,17 +108,17 @@ def needs_prompt(task_name: str) -> bool:
 
 
 def prompt_dataset(
-    dataset: Dataset, p_prompt: float, p_end: float, min_prompt_len: int, max_prompt_len: int
+    dataset: Dataset, p_prompt: float = 0.25, p_end: float = 0.1, min_prompt_len: int = 1, max_prompt_len: int = 1024
 ) -> Dataset:
     """
     Prompt the dataset.
 
     Args:
         dataset (Dataset): Dataset to prompt.
-        p_prompt (float): Probability of prompting an episode.
-        p_end (float): Probability of prompting from the end of the episode.
-        min_prompt_len (int): Minimum length of the prompt.
-        max_prompt_len (int): Maximum length of the prompt.
+        p_prompt (float, optional): Probability of prompting an episode. Defaults to 0.25.
+        p_end (float, optional): Probability of prompting from the end of the episode. Defaults to 0.1.
+        min_prompt_len (int, optional): Minimum length of the prompt. Defaults to 1.
+        max_prompt_len (int, optional): Maximum length of the prompt. Defaults to 1024.
 
     Returns:
         Dataset: Prompted dataset.
@@ -138,7 +138,9 @@ def prompt_dataset(
     return dataset.map(cat_prompt_left, with_indices=True)  # concatenate the prompt left of the episode
 
 
-def maybe_prompt_dataset(dataset: Dataset, p_prompt: float, p_end: float, min_prompt_len: int, max_prompt_len: int):
+def maybe_prompt_dataset(
+    dataset: Dataset, p_prompt: float = 0.25, p_end: float = 0.1, min_prompt_len: int = 1, max_prompt_len: int = 1024
+) -> Dataset:
     """
     First, check if dataset needs to be prompted, then, prompt it if needed.
 
