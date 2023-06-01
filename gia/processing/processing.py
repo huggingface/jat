@@ -232,8 +232,8 @@ class GiaProcessor:
         separator_token = args.text_vocab_size + args.nb_bins if args.use_separator else -1
         token_pad_value = 0
         local_position_pad_value = -1
-        patch_pad_value = np.zeros((1, 1, 1), dtype=np.uint8)
-        patch_position_pad_value = [[0.0, 0.0], [0.0, 0.0]]
+        patch_pad_value = None
+        patch_position_pad_value = None
         self.padding_value = {
             "input_ids": token_pad_value,
             "local_positions": local_position_pad_value,
@@ -248,35 +248,48 @@ class GiaProcessor:
         self.seq_len = args.seq_len
 
     @staticmethod
-    def truncate_residual(sequences: List[List[T]], max_len: int) -> List[List[T]]:
+    def truncate_residual(
+        batch_data: Dict[str, List[Optional[List[T]]]], max_len: int
+    ) -> Dict[str, List[Optional[List[T]]]]:
         """
         Truncate input sequences into sub-sequences of length up to max_len. Any residual elements
         that don't reach max_len in length are used to form a new sub-sequence.
 
         Args:
-            sequences (List[List[T]]): A list of sequences, where each sequence is a list of items.
-            max_len (int): Maximum length for the output sub-sequences.
+            sequences (Dict[str, List[Optional[List[T]]]]): Sequences to truncate
+            max_len (int): Maximum length of each sub-sequence
 
         Returns:
-            List[List[T]]: A list of truncated subsequences. Each subsequence has a length of up to max_len.
-                           If the original sequence doesn't evenly divide by max_len, the last subsequence
-                           will contain the remaining elements.
+            Dict[str, List[Optional[List[T]]]]: Truncated sequences
 
         Example:
-            >>> sequences = [[1, 2, 3, 4, 5], [6, 7, 8, 9]]
-            >>> truncate_residual(sequences, max_len=3)
-            [[1, 2, 3], [4, 5], [6, 7, 8], [9]]
+            >>> batch_data = {"a": [[0, 1, 2],  [3, 4, 5, 6]],
+            ...              "b": [[7, 8, 9],  None]}
+            >>> truncate_residual(batch_data, max_len=2)
+            {"a": [[0, 1], [2], [3, 4], [5, 6]],
+             "b": [[7, 8], [9], None, None]
         """
-        truncated = []
-        for sequence in sequences:
-            for i in range(0, len(sequence), max_len):
-                # Take a subsequence of max_len elements
-                subsequence = sequence[i : i + max_len]
-                truncated.append(subsequence)
+        truncated = {key: [] for key in batch_data}
+        # Get the batch size
+        batch_size = len(next(iter(batch_data.values())))
+        for ep_idx in range(batch_size):
+            # Get the length of the sequence (all sequences should have the same length)
+            for key in batch_data:
+                if batch_data[key][ep_idx] is not None:  # can be None
+                    seq_len = len(batch_data[key][ep_idx])
+                    break
+            for start in range(0, seq_len, max_len):
+                for key in batch_data:
+                    sequence = batch_data[key][ep_idx]
+                    if sequence is None:
+                        truncated[key].append(None)
+                    else:
+                        subsequence = sequence[start : start + max_len]  # take a subsequence of max_len elements
+                        truncated[key].append(subsequence)
         return truncated
 
     @staticmethod
-    def pad_sequences(sequences: List[T], max_len: int, padding_value: T) -> Tuple[List[T], List[int]]:
+    def pad_sequences(batch_data: Dict[str, List[T]], max_len: int, padding_value: T) -> Tuple[List[T], List[int]]:
         """
         Pad sequences with a padding value to a maximum length.
 
@@ -288,17 +301,52 @@ class GiaProcessor:
         Returns:
             Tuple[List[T], List[int]]: A tuple of padded sequences and masks.
         """
-        padded = []
-        masks = []
-        for sequence in sequences:
-            if max_len < len(sequence):
-                raise RuntimeError(f"Sequence length {len(sequence)} is greater than max_len {max_len}.")
-            seq_len, pad_len = len(sequence), max_len - len(sequence)
-            sequence = sequence + [padding_value] * pad_len
-            mask = [1] * seq_len + [0] * pad_len
-            padded.append(sequence)
-            masks.append(mask)
-        return padded, masks
+        padded = {key: [] for key in batch_data}
+        batch_size = len(next(iter(batch_data.values())))
+        padded["attention_mask"] = []
+        for seq_idx in range(batch_size):
+            for key in batch_data:
+                sequence = batch_data[key][seq_idx]
+                if sequence is None:
+                    padded[key].append(None)
+                else: # it's a list
+                    if max_len < len(sequence):
+                        raise RuntimeError(f"Sequence length {len(sequence)} is greater than max_len {max_len}.")
+                    seq_len, pad_len = len(sequence), max_len - len(sequence)
+                    sequence = sequence + [padding_value[key]] * pad_len
+                    mask = [1] * seq_len + [0] * pad_len # computed for every keys, but it's the same for all keys
+                    padded[key].append(sequence)
+            padded["attention_mask"].append(mask)
+        return padded
+
+    def collapse_none(self, x):
+        """
+        Recursively collapse list of None into None.
+
+        Args:
+            lst (Any): Any object. If it's a list, it will be recursively collapsed.
+
+        Example:
+            >>> collapse_none([1, 2])
+            [1, 2]
+            >>> collapse_none([1, 2, None])
+            [1, 2, None]
+            >>> collapse_none([1, 2, [None]])
+            [1, 2, None]
+            >>> collapse_none([1, 2, [None, None]])
+            [1, 2, None]
+            >>> collapse_none([1, 2, [None, 3]])
+            [1, 2, [None, 3]]
+            >>> collapse_none([1, 2, [None, [None]]])
+            [1, 2, None]
+            >>> collapse_none([None, None])
+            None
+        """
+        if isinstance(x, list):
+            x = [self.collapse_none(xx) for xx in x]
+            if all(xx is None for xx in x):
+                return None
+        return x
 
     def __call__(
         self,
@@ -356,6 +404,17 @@ class GiaProcessor:
         Returns:
             Dict[str, List[Any]]: A dictionary of tensors containing the tokenized inputs.
         """
+        # Collapse None values
+        text = self.collapse_none(text)
+        images = self.collapse_none(images)
+        text_observations = self.collapse_none(text_observations)
+        image_observations = self.collapse_none(image_observations)
+        discrete_observations = self.collapse_none(discrete_observations)
+        continuous_observations = self.collapse_none(continuous_observations)
+        discrete_actions = self.collapse_none(discrete_actions)
+        continuous_actions = self.collapse_none(continuous_actions)
+        rewards = self.collapse_none(rewards)
+
         tokens_and_patches = self.tokenizer(
             text,
             images,
@@ -379,11 +438,10 @@ class GiaProcessor:
         # Truncate sequences
         if truncation in [True, "max_length", "residual"]:
             max_length = max_length or self.seq_len
-            for key, value in batch_data.items():
-                if truncation == "residual":
-                    batch_data[key] = self.truncate_residual(value, max_len=max_length)
-                else:
-                    batch_data[key] = [sequence[:max_length] for sequence in value]
+            if truncation == "residual":
+                batch_data = self.truncate_residual(batch_data, max_len=max_length)
+            else:
+                batch_data = [sequence[:max_length] for sequence in value]  # FIXME
         elif truncation in [False, "do_not_truncate"]:
             pass
         else:
@@ -395,11 +453,7 @@ class GiaProcessor:
                 max_length = max(len(sequence) for sequence in batch_data["input_ids"])
             else:
                 max_length = max_length or self.seq_len
-
-            for key, value in batch_data.items():
-                padding_value = self.padding_value[key]
-                batch_data[key], mask = self.pad_sequences(value, max_length, padding_value)
-            batch_data["attention_mask"] = mask
+            batch_data = self.pad_sequences(batch_data, max_length, self.padding_value)
         elif padding in [False, "do_not_pad"]:
             pass
         else:

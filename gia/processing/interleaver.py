@@ -62,17 +62,20 @@ class Interleaver:
         patch_position_pad_value: Optional[List[List[int]]] = None,
     ) -> None:
         self.token_pad_value = token_pad_value
-        self.patch_pad_value = np.zeros((1, 1, 1), dtype=np.int64) if patch_pad_value is None else patch_pad_value
+        self.patch_pad_value = patch_pad_value
         self.local_position_pad_value = local_position_pad_value
-        self.patch_position_pad_value = (
-            [[0.0, 0.0], [0.0, 0.0]] if patch_position_pad_value is None else patch_position_pad_value
-        )
+        self.patch_position_pad_value = patch_position_pad_value
+        self.pad_values = {
+            "input_ids": token_pad_value,
+            "local_positions": local_position_pad_value,
+            "patches": patch_pad_value,
+            "patch_positions": patch_position_pad_value,
+        }
         if separator_token is not None:
             self.separator = {
                 "input_ids": [separator_token],
-                "patches": [self.patch_pad_value],
-                "patch_positions": [self.patch_position_pad_value],
                 "input_types": [self.TOKEN_TYPE_ID],
+                "loss_mask": [1],
             }
         else:
             self.separator = None
@@ -145,66 +148,21 @@ class Interleaver:
                     output.setdefault(outer_key, {})[inner_key] = element
         return output
 
-    def _dict_append(
-        self,
-        batch_data: Dict[str, Dict[str, Any]],
-        processed_data: Dict[str, List[Any]],
-        local_positions: List[int],
-        loss_mask_value: int,
-    ) -> None:
-        """
-        Appends the data from a single episode to the processed data dictionary.
 
-        Args:
-            batch_data (Dict[str, Dict[str, Any]]): A dictionary containing the data from a single episode.
-            processed_data (Dict[str, List[Any]]): A dictionary containing the processed data from all episodes.
-            loss_mask_value (int): The value to use for the loss mask.
-
-        Raises:
-            ValueError: If the batch data does not contain either "input_ids" or "patches" and "patch_positions".
-
-        Example:
-            >>> batch_data = {"input_ids": [43]}
-            >>> processed_data = {"input_ids": [42], "patches": [PATCH_PAD], "patch_positions": [POS_PAD],
-            ...                   "input_types": [0], "loss_mask": [1]}
-            >>> _dict_append(batch_data, processed_data, loss_mak_value=0)
-            >>> processed_data
-            {"input_ids": [42, 43], "patches": [PATCH_PAD, PATCH_PAD], "patch_positions": [POS_PAD, POS_PAD],
-                "input_types": [0, 0], "loss_mask": [1, 0]}
-            >>> batch_data = {"patches": [np.ones((4, 16, 16))], "patch_positions": [[[0.0, 0.0], [0.2, 0.5]]]}
-            >>> _dict_append(batch_data, processed_data, loss_mak_value=0)
-            >>> processed_data
-            {"input_ids": [42, 43, 0], "patches": [PATCH_PAD, PATCH_PAD, np.ones((4, 16, 16))],
-                "patch_positions": [POS_PAD, POS_PAD, [[0.0, 0.0], [0.2, 0.5]]], "input_types": [0, 0, 1],
-                "loss_mask": [1, 0, 1]}
-        """
-        # If the batch data is not a list, convert it to a list of size 1
+    def _dict_extend(self, batch_data: Dict[str, Dict[str, Any]], processed_data: Dict[str, List[Any]], pad_values) -> None:
         for key in batch_data:
             if not isinstance(batch_data[key], list):
                 batch_data[key] = [batch_data[key]]
 
         # Get the number of elements in the batch data
-        num_elements = len(next(iter(batch_data.values())))
+        num_elements = len(next(iter(batch_data.values()))) if batch_data else 0
+        num_processed_elements = len(next(iter(processed_data.values()))) if processed_data else 0
 
-        # Get the input ids, patches, positions, input type and loss mask
-        input_ids = batch_data.get("input_ids", [self.token_pad_value] * num_elements)
-        patches = batch_data.get("patches", [self.patch_pad_value] * num_elements)
-        patch_positions = batch_data.get("patch_positions", [self.patch_position_pad_value] * num_elements)
-        if "input_ids" in batch_data:
-            input_types = [self.TOKEN_TYPE_ID] * num_elements
-        elif "patches" in batch_data and "patch_positions" in batch_data:
-            input_types = [self.PATCH_TYPE_ID] * num_elements
-        else:
-            raise ValueError("Batch data must contain either input_ids or patches and patch_positions.")
-        loss_maskes = [loss_mask_value] * num_elements
-
-        # Append the data to the processed data dictionary
-        processed_data["input_ids"].extend(input_ids)
-        processed_data["local_positions"].extend(local_positions)
-        processed_data["patches"].extend(patches)
-        processed_data["patch_positions"].extend(patch_positions)
-        processed_data["input_types"].extend(input_types)
-        processed_data["loss_mask"].extend(loss_maskes)
+        for key in set(batch_data.keys()).union(set(processed_data.keys())):
+            values = batch_data[key] if key in batch_data else [pad_values[key]] * num_elements
+            if key not in processed_data:
+                processed_data[key] = [pad_values[key]] * num_processed_elements if num_processed_elements > 0 else []
+            processed_data[key].extend(values)
 
     def _interleave_episode(self, episode_data: Dict[str, Dict[str, Any]]) -> Dict[str, List[Any]]:
         """
@@ -237,14 +195,7 @@ class Interleaver:
             The function assumes that all data sequences in the provided episode have the same length.
             It will raise an assertion error if this is not the case.
         """
-        output = {
-            "input_ids": [],
-            "local_positions": [],
-            "patches": [],
-            "patch_positions": [],
-            "input_types": [],
-            "loss_mask": [],
-        }
+        output = {}
 
         observation_keys = [
             "text_observations",
@@ -295,26 +246,29 @@ class Interleaver:
                     # Get the number of elements in the data (should be the same for all func keys)
                     num_elements = len(data_t[mod_key][func_key])
 
+                to_append = data_t[mod_key].copy()
+                # Compute the input type
+                if mod_key == "image_observations":
+                    to_append["input_types"] = [1] * num_elements
+                else: # mod_key in ["text_observations", "discrete_observations", "continuous_observations"]
+                    to_append["input_types"] = [0] * num_elements
+
                 # Compute the local positions of the data
-                if mod_key in observation_keys:
-                    local_positions = list(range(local_position, local_position + num_elements))
-                    local_position += num_elements
-                else:  # mod_key in action_keys
-                    local_positions = [self.local_position_pad_value] * num_elements
+                to_append["local_positions"] = list(range(local_position, local_position + num_elements))
+                local_position += num_elements
 
                 # Compute the loss mask value
-                if mod_key in action_keys + ["text_observations"]:
-                    loss_mask_value = 1
+                if mod_key == "text_observations":
+                    to_append["loss_mask"] = [1] * num_elements
                 else:  # mod_key in ["image_observations", "discrete_observations", "continuous_observations"]
-                    loss_mask_value = 0
+                    to_append["loss_mask"] = [0] * num_elements
 
-                self._dict_append(data_t[mod_key], output, local_positions, loss_mask_value)
+                self._dict_extend(to_append, output, self.pad_values)
 
             if self.separator is not None:
-                self._dict_append(
-                    self.separator, output, local_positions=[self.local_position_pad_value], loss_mask_value=1
-                )
+                self._dict_extend(self.separator, output, self.pad_values)
 
+            # Same, for action
             for mod_key in ordered_action_keys:
                 for func_key in data_t[mod_key]:
                     # If the data is not a list, convert it to a list of size 1
@@ -323,20 +277,11 @@ class Interleaver:
                     # Get the number of elements in the data (should be the same for all func keys)
                     num_elements = len(data_t[mod_key][func_key])
 
-                # Compute the local positions of the data
-                if mod_key in observation_keys:
-                    local_positions = list(range(local_position, local_position + num_elements))
-                    local_position += num_elements
-                else:  # mod_key in action_keys
-                    local_positions = [self.local_position_pad_value] * num_elements
+                to_append = data_t[mod_key].copy()
+                to_append["input_types"] = [0] * num_elements  # Actions are always tokens
+                to_append["loss_mask"] = [1] * num_elements  # Compute actions loss mask value (always 1 for actions)
 
-                # Compute the loss mask value
-                if mod_key in action_keys + ["text_observations"]:
-                    loss_mask_value = 1
-                else:  # mod_key in ["image_observations", "discrete_observations", "continuous_observations"]
-                    loss_mask_value = 0
-
-                self._dict_append(data_t[mod_key], output, local_positions, loss_mask_value)
+                self._dict_extend(to_append, output, self.pad_values)
         return output
 
     def _interleave_standalone(self, standalone_data: Dict[str, Dict[str, Any]]) -> Dict[str, List[Any]]:
@@ -361,32 +306,20 @@ class Interleaver:
              'input_types': [0, 0, 1, 1],
              'loss_mask': [0, 0, 1, 1]}
         """
-        output = {
-            "input_ids": [],
-            "local_positions": [],
-            "patches": [],
-            "patch_positions": [],
-            "input_types": [],
-            "loss_mask": [],
-        }
+        output = {}
 
         if "images" in standalone_data:
+            to_append = standalone_data["images"].copy()
             local_positions = [self.local_position_pad_value] * len(standalone_data["images"]["patches"])
             self._dict_append(standalone_data["images"], output, local_positions, loss_mask_value=0)
         if "text" in standalone_data:
+            to_append = standalone_data["images"]
             local_positions = [self.local_position_pad_value] * len(standalone_data["text"]["input_ids"])
             self._dict_append(standalone_data["text"], output, local_positions, loss_mask_value=1)
         return output
 
     def __call__(self, batch_data: Dict[str, Dict[str, Any]]) -> Dict[str, List[Any]]:
-        output = {
-            "input_ids": [],
-            "local_positions": [],
-            "patches": [],
-            "patch_positions": [],
-            "input_types": [],
-            "loss_mask": [],
-        }
+        output = {}
 
         # Get the batch size
         first_mod = next(iter(batch_data.values()))
@@ -400,7 +333,7 @@ class Interleaver:
             else:
                 x = self._interleave_standalone(data)
 
-            for key in x:
-                output[key].append(x[key])
+            x = {key: [val] for key, val in x.items()} # Convert all values to lists of size 1
+            self._dict_extend(x, output, {key: None for key in set(output.keys()).union(set(x.keys()))})
 
         return output
