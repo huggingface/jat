@@ -3,10 +3,9 @@ from typing import Dict, List, Union
 
 import numpy as np
 import torch
-from datasets import Dataset, concatenate_datasets, get_dataset_config_names, load_dataset
+from datasets import Dataset, get_dataset_config_names
 from torch import Tensor
-
-
+import warnings
 
 
 def get_task_name_list(task_names: Union[str, List[str]]) -> List[str]:
@@ -89,71 +88,74 @@ def generate_prompts(
 
 def needs_prompt(task_name: str) -> bool:
     """
-    Check if the task needs prompt.
+    Check if the task needs prompt. Usually, tasks that need prompt are RL ones.
+
+    Args:
+        task_name (str): Name of the task.
+
+    Returns:
+        bool: True if the task needs prompt, False otherwise.
     """
     is_mujoco = task_name.startswith("mujoco")
     is_metaworld = task_name.startswith("metaworld")
-    return is_mujoco or is_metaworld
+    is_conceptual_captions = task_name == "conceptual_captions"
+    if is_mujoco or is_metaworld:
+        return True
+    elif is_conceptual_captions:
+        return False
+    else:
+        warnings.warn(f"Wether {task_name} needs prompt is unknown.")
 
 
-
-def load_gia_dataset(
-    task_names: Union[str, List[str]],
-    split: str = "all",
-    p_prompt: float = 0.25,
-    p_end: float = 0.5,
-    max_prompt_len: int = 10,
-    load_from_cache: bool = True,
+def prompt_dataset(
+    dataset: Dataset, p_prompt: float, p_end: float, min_prompt_len: int, max_prompt_len: int
 ) -> Dataset:
     """
-    Load the GIA dataset.
+    Prompt the dataset.
 
     Args:
-        task_names (str): Name or or list of names or prefix of the task(s) to load. See the available tasks in
-            https://huggingface.co/datasets/gia-project/gia-dataset.
-        split (str): Split of the dataset to load. One of "all", "train" or "test".
-        p_prompt (float, optional): Probability of generating a prompt. Defaults to 0.25.
-        p_end (float, optional): Probability that the prompt is generated from the end of the episode. Defaults to 0.5.
-        max_prompt_len (int, optional): Maximum length of the prompt. Defaults to 10.
-        load_from_cache (bool, optional): Whether to load the dataset from the local cache or to download it again.
-            Defaults to True.
+        dataset (Dataset): Dataset to prompt.
+        p_prompt (float): Probability of prompting an episode.
+        p_end (float): Probability of prompting from the end of the episode.
+        min_prompt_len (int): Minimum length of the prompt.
+        max_prompt_len (int): Maximum length of the prompt.
 
     Returns:
-        DatasetDict: A dictionary containing the dataset. The keys are
-            the type of the data (e.g. "continuous_observations", "discrete_actions", etc.)
-            and the values are the data.
-
-    Example:
-        >>> dataset = load_gia_dataset("mujoco-ant", "train")
-
+        Dataset: Prompted dataset.
     """
-    task_names = get_task_name_list(task_names)
-    download_mode = "force_redownload" if not load_from_cache else None
-    datasets = [
-        load_dataset("gia-project/gia-dataset", task_name, split=split, download_mode=download_mode)
-        for task_name in task_names
-    ]
-    # Print the first component of the first observation of every episode
-    for dataset_idx in range(len(datasets)):
-        dataset = datasets[dataset_idx]
-        if needs_prompt(task_names[dataset_idx]):
-            is_prompted = random.choices([True, False], weights=[p_prompt, 1 - p_prompt], k=len(dataset))
-            prompts = generate_prompts(dataset, sum(is_prompted), p_end, max_prompt_len)  # [p0, p1, p2, ...]
-            prompts_iter = iter(prompts)
-            prompts = [next(prompts_iter) if p else None for p in is_prompted]  # [p0, None, None, p1, None, p2, ...]
 
-            def cat_prompt_left(sample, idx):
-                if prompts[idx] is not None:
-                    for key in sample:
-                        sample[key] = prompts[idx][key] + sample[key]
-                return sample
+    is_prompted = random.choices([True, False], weights=[p_prompt, 1 - p_prompt], k=len(dataset))
+    prompts = generate_prompts(dataset, sum(is_prompted), p_end, min_prompt_len, max_prompt_len)  # [p0, p1, p2, ...]
+    prompts_iter = iter(prompts)
+    prompts = [next(prompts_iter) if p else None for p in is_prompted]  # [p0, None, None, p1, None, p2, ...]
 
-            # Concatenate the prompt left of the episode
-            datasets[dataset_idx] = dataset.map(cat_prompt_left, with_indices=True)
+    def cat_prompt_left(sample, idx):
+        if prompts[idx] is not None:
+            for key in sample:
+                sample[key] = prompts[idx][key] + sample[key]
+        return sample
 
-    # Concatenate the datasets
-    dataset = concatenate_datasets(datasets)
-    return dataset
+    return dataset.map(cat_prompt_left, with_indices=True)  # concatenate the prompt left of the episode
+
+
+def maybe_prompt_dataset(dataset: Dataset, p_prompt: float, p_end: float, min_prompt_len: int, max_prompt_len: int):
+    """
+    First, check if dataset needs to be prompted, then, prompt it if needed.
+
+    Args:
+        dataset (Dataset): Dataset to prompt.
+        p_prompt (float): Probability of prompting an episode.
+        p_end (float): Probability of prompting from the end of the episode.
+        min_prompt_len (int): Minimum length of the prompt.
+        max_prompt_len (int): Maximum length of the prompt.
+
+    Returns:
+        Dataset: Prompted dataset if needed, the original dataset otherwise.
+    """
+    if needs_prompt(dataset.config_name):
+        return prompt_dataset(dataset, p_prompt, p_end, min_prompt_len, max_prompt_len)
+    else:
+        return dataset
 
 
 def collate_fn(batch: List[Dict[str, List]]) -> Dict[str, Tensor]:
