@@ -148,8 +148,9 @@ class Interleaver:
                     output.setdefault(outer_key, {})[inner_key] = element
         return output
 
-
-    def _dict_extend(self, batch_data: Dict[str, Dict[str, Any]], processed_data: Dict[str, List[Any]], pad_values) -> None:
+    def _dict_extend(
+        self, batch_data: Dict[str, Dict[str, Any]], processed_data: Dict[str, List[Any]], pad_values
+    ) -> None:
         for key in batch_data:
             if not isinstance(batch_data[key], list):
                 batch_data[key] = [batch_data[key]]
@@ -250,7 +251,7 @@ class Interleaver:
                 # Compute the input type
                 if mod_key == "image_observations":
                     to_append["input_types"] = [1] * num_elements
-                else: # mod_key in ["text_observations", "discrete_observations", "continuous_observations"]
+                else:  # mod_key in ["text_observations", "discrete_observations", "continuous_observations"]
                     to_append["input_types"] = [0] * num_elements
 
                 # Compute the local positions of the data
@@ -309,11 +310,11 @@ class Interleaver:
         output = {}
 
         if "images" in standalone_data:
-            to_append = standalone_data["images"].copy()
+            standalone_data["images"].copy()
             local_positions = [self.local_position_pad_value] * len(standalone_data["images"]["patches"])
             self._dict_append(standalone_data["images"], output, local_positions, loss_mask_value=0)
         if "text" in standalone_data:
-            to_append = standalone_data["images"]
+            standalone_data["images"]
             local_positions = [self.local_position_pad_value] * len(standalone_data["text"]["input_ids"])
             self._dict_append(standalone_data["text"], output, local_positions, loss_mask_value=1)
         return output
@@ -333,7 +334,7 @@ class Interleaver:
             else:
                 x = self._interleave_standalone(data)
 
-            x = {key: [val] for key, val in x.items()} # Convert all values to lists of size 1
+            x = {key: [val] for key, val in x.items()}  # Convert all values to lists of size 1
             self._dict_extend(x, output, {key: None for key in set(output.keys()).union(set(x.keys()))})
 
         return output
