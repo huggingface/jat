@@ -96,10 +96,11 @@ def needs_prompt(task_name: str) -> bool:
     Returns:
         bool: True if the task needs prompt, False otherwise.
     """
-    is_mujoco = task_name.startswith("mujoco")
-    is_metaworld = task_name.startswith("metaworld")
+    is_atari = task_name.startswith("atari")
     is_conceptual_captions = task_name == "conceptual_captions"
-    if is_mujoco or is_metaworld:
+    is_metaworld = task_name.startswith("metaworld")
+    is_mujoco = task_name.startswith("mujoco")
+    if is_atari or is_metaworld or is_mujoco:
         return True
     elif is_conceptual_captions:
         return False
