@@ -222,7 +222,7 @@ def test_embedding_attention_mask(test_mode, input_mode):
         assert not torch.allclose(output_1[different_mask], output_2[different_mask])
 
 
-def test_loal_positions():
+def test_embedding_local_positions():
     module = Embeddings(embed_dim=128, token_vocab_size=256)
     input_ids = torch.randint(0, 256, (2, 32))
     local_positions = torch.randint(0, 256, (2, 32))
