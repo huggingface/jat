@@ -198,19 +198,16 @@ class Embeddings(nn.Module):
     def forward(
         self,
         input_ids: Optional[Tensor] = None,
-        local_positions: Optional[Tensor] = None,
         patches: Optional[Tensor] = None,
         patch_positions: Optional[Tensor] = None,
         input_types: Optional[Tensor] = None,
+        local_positions: Optional[Tensor] = None,
         attention_mask: Optional[Tensor] = None,
     ) -> Tensor:
         """
         Args:
             input_ids (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):
                 Indices of input sequence tokens in the vocabulary.
-
-            local_positions (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):
-                Indices of local positions of each token in the sequence.
 
             patches (`torch.Tensor` of shape `(batch_size, sequence_length, patch_size, patch_size)`, *optional*):
                 Tensor containing the image patch data for each image patch in the sequence.
@@ -220,6 +217,9 @@ class Embeddings(nn.Module):
 
             input_types (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):
                 Tensor indicating the type of each input in the sequence (0 for tokens and 1 for image patches).
+
+            local_positions (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):
+                Indices of local positions of each token in the sequence.
 
             attention_mask (`torch.BoolTensor` of shape `(batch_size, sequence_length)`, *optional*):
                 Mask to avoid performing attention on padding token indices. Mask values selected in `[True, False]`:
