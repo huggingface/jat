@@ -222,6 +222,15 @@ def test_embedding_attention_mask(test_mode, input_mode):
         assert not torch.allclose(output_1[different_mask], output_2[different_mask])
 
 
+def test_loal_positions():
+    module = Embeddings(embed_dim=128, token_vocab_size=256)
+    input_ids = torch.randint(0, 256, (2, 32))
+    local_positions = torch.randint(0, 256, (2, 32))
+    output_wo_local_positions = module(input_ids=input_ids)
+    output_w_local_positions = module(input_ids=input_ids, local_positions=local_positions)
+    assert not torch.allclose(output_wo_local_positions, output_w_local_positions)
+
+
 @pytest.mark.parametrize("embed_dim", [32, 64])
 @pytest.mark.parametrize("input_mode", ["input_ids", "patches", "both"])
 def test_embeddings_output_shape(embed_dim, input_mode):
