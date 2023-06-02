@@ -208,19 +208,14 @@ class Embeddings(nn.Module):
         Args:
             input_ids (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):
                 Indices of input sequence tokens in the vocabulary.
-
             patches (`torch.Tensor` of shape `(batch_size, sequence_length, patch_size, patch_size)`, *optional*):
                 Tensor containing the image patch data for each image patch in the sequence.
-
             patch_positions (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):
                 Tensor containing the position of each image patch in the sequence.
-
             input_types (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):
                 Tensor indicating the type of each input in the sequence (0 for tokens and 1 for image patches).
-
             local_positions (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):
                 Indices of local positions of each token in the sequence.
-
             attention_mask (`torch.BoolTensor` of shape `(batch_size, sequence_length)`, *optional*):
                 Mask to avoid performing attention on padding token indices. Mask values selected in `[True, False]`:
 
