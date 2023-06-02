@@ -1,3 +1,5 @@
+from typing import Optional
+
 import torch
 import torch.nn.functional as F
 from torch import Tensor, nn
@@ -46,7 +48,7 @@ class ImagePositionEncoding(nn.Module):
         self.row_embedding = nn.Embedding(vocab_size, embed_dim)
         self.column_embedding = nn.Embedding(vocab_size, embed_dim)
 
-    def forward(self, patch_positions: Tensor, eval: bool = False) -> Tensor:
+    def forward(self, patch_positions: Tensor) -> Tensor:
         # The row and column normalized intervals are then quantized into a vocabulary
         # size (we use 128) and are used to index a row and column table of learnable position encodings.
         quant_row_intervals = (patch_positions[..., 0] * self.vocab_size).floor().long()
@@ -62,14 +64,14 @@ class ImagePositionEncoding(nn.Module):
         # (rounded) mean of the interval
         sampled_row_idx = torch.zeros(patch_positions.shape[0], dtype=torch.long, device=patch_positions.device)
         sampled_col_idx = torch.zeros(patch_positions.shape[0], dtype=torch.long, device=patch_positions.device)
-        if eval:
-            sampled_row_idx = (quant_row_intervals[..., 0] + quant_row_intervals[..., 1]) // 2
-            sampled_col_idx = (quant_col_intervals[..., 0] + quant_col_intervals[..., 1]) // 2
-        else:
+        if self.training:
             for idx, (low, high) in enumerate(quant_row_intervals):
                 sampled_row_idx[idx] = torch.randint(low, high + 1, (1,))
             for idx, (low, high) in enumerate(quant_col_intervals):
                 sampled_col_idx[idx] = torch.randint(low, high + 1, (1,))
+        else:
+            sampled_row_idx = (quant_row_intervals[..., 0] + quant_row_intervals[..., 1]) // 2
+            sampled_col_idx = (quant_col_intervals[..., 0] + quant_col_intervals[..., 1]) // 2
 
         # The row and column indices are then used to look up the position encodings in the row and column tables.
         row_pos_encodings = self.row_embedding(sampled_row_idx)
@@ -165,36 +167,7 @@ class ImageEncoder(nn.Module):
 
 class Embeddings(nn.Module):
     """
-    Embeddings layer.
-
-    Attributes:
-        embed_dim: The dimension of the output embedding.
-        token_vocab_size: The size of the vocabulary for token embeddings.
-        num_local_positions: The number of local position encodings for the sequence.
-        patch_size: The size of image patches.
-        image_vocab_size: The number of unique image patches that can be encoded.
-        num_res_channels: The number of residual channels in the image encoder.
-        num_groups: The number of groups to use in the grouped convolution in the image encoder.
-
-    Examples:
-        >>> PATCH_PAD = torch.zeros((4, 16, 16), dtype=torch.float32).tolist() # tolist inefficient but easier to read
-        >>> PATCH = torch.rand(4, 16, 16, dtype=torch.float32).tolist()
-        >>> POS_PAD = [[0.0, 0.0], [0.0, 0.0]]
-        >>> POS = [[0.2, 0.2], [0.5, 0.6]]
-        >>> embed = Embeddings(embed_dim=4, token_vocab_size=10)
-        >>> input_ids = torch.tensor([[1, 0, 2], [4, 0, 0]])
-        >>> patches = torch.tensor([[PATCH_PAD, PATCH, PATCH_PAD], [PATCH_PAD, PATCH_PAD, PATCH_PAD]])
-        >>> patch_positions = torch.tensor([[POS_PAD, POS, POS_PAD], [POS_PAD, POS_PAD, POS_PAD]])
-        >>> input_types = torch.tensor([[0, 1, 0], [0, 0, 0]])
-        >>> attention_mask = torch.tensor([[1, 1, 1], [1, 0, 0]])
-        >>> print(embed(input_ids, patches, patch_positions, input_types, attention_mask))
-        tensor([[[ 0.6603, -1.4121,  1.8346,  0.4562],
-                 [ 0.1788,  0.8613,  0.6966,  0.1318],
-                 [ 0.2750,  0.1993,  0.1091, -0.8430]],
-
-                [[ 0.6289,  1.0134, -0.7994, -0.1257],
-                 [ 0.0000,  0.0000,  0.0000,  0.0000],
-                 [ 0.0000,  0.0000,  0.0000,  0.0000]]], grad_fn=<IndexPutBackward0>)
+    The embedding module for the GIA model.
     """
 
     def __init__(
@@ -223,27 +196,106 @@ class Embeddings(nn.Module):
         self.local_pos_embeddings = nn.Embedding(num_local_positions, embed_dim)
 
     def forward(
-        self, input_ids, local_positions, patches, patch_positions, input_types, attention_mask=None
+        self,
+        input_ids: Optional[Tensor] = None,
+        local_positions: Optional[Tensor] = None,
+        patches: Optional[Tensor] = None,
+        patch_positions: Optional[Tensor] = None,
+        input_types: Optional[Tensor] = None,
+        attention_mask: Optional[Tensor] = None,
     ) -> Tensor:
+        """
+        Args:
+            input_ids (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):
+                Indices of input sequence tokens in the vocabulary.
+
+            local_positions (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):
+                Indices of local positions of each token in the sequence.
+
+            patches (`torch.Tensor` of shape `(batch_size, sequence_length, patch_size, patch_size)`, *optional*):
+                Tensor containing the image patch data for each image patch in the sequence.
+
+            patch_positions (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):
+                Tensor containing the position of each image patch in the sequence.
+
+            input_types (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):
+                Tensor indicating the type of each input in the sequence (0 for tokens and 1 for image patches).
+
+            attention_mask (`torch.BoolTensor` of shape `(batch_size, sequence_length)`, *optional*):
+                Mask to avoid performing attention on padding token indices. Mask values selected in `[True, False]`:
+
+                - True for tokens that are **not masked**,
+                - False for tokens that are **masked**.
+
+        Returns:
+            torch.Tensor: The embedding tensor for the input sequence.
+
+        Raises:
+            ValueError: If one of the following conditions is met:
+                - both input_ids and patches are None
+                - input_ids and patches are provided but input_types is None
+                - the input_types tensor contains values other than 0 or 1
+                - patches is provided but patch_positions is None (and vice-versa)
+        """
+
+        # Either input_ids or patches must be provided
+        if input_ids is None and patches is None:
+            raise ValueError("Either input_ids or patches must be provided.")
+
+        # Get the batch_size and seq_len
+        batch_size, seq_len = input_ids.shape if input_ids is not None else patches.shape[:2]
+
+        # Check input_types
+        if input_types is None:
+            # Is this case, we need to infer it
+            if input_ids is not None and patches is None:
+                input_types = torch.zeros((batch_size, seq_len), dtype=torch.long)
+            elif input_ids is None and patches is not None:
+                input_types = torch.ones((batch_size, seq_len), dtype=torch.long)
+            else:
+                raise ValueError("When both input_ids and patches are provided, input_types must be provided too.")
+        else:
+            # Check the provided input_ids
+            # Check that all values are etiher 0 or 1
+            if not torch.all((input_types == 0) | (input_types == 1)):
+                raise ValueError("input_types must be either 0 or 1.")
+            # Check that if some values are 0, then input_ids is not None
+            if torch.any(input_types == 0) and input_ids is None:
+                raise ValueError("input_types is 0 but input_ids is None.")
+            # Check that if some values are 1, then patches is not None
+            if torch.any(input_types == 1) and patches is None:
+                raise ValueError("input_types is 1 but patches is None.")
+
+        # Check that patches and patch_positions are provided together
+        if (patches is None) != (patch_positions is None):
+            raise ValueError("patches and patch_positions must be provided together.")
+
+        # Get the device
         device = self.embeddings.weight.device
-        batch_size, seq_len = input_ids.shape
+
+        # Get the attention mask, if not provided, create one
         if attention_mask is None:
-            attention_mask = torch.ones_like(input_ids)
+            attention_mask = torch.ones((batch_size, seq_len), dtype=torch.bool, device=device)
+        else:
+            attention_mask = attention_mask.bool()
 
         # Initialize the embeddings with zeros
         embed = torch.zeros(batch_size, seq_len, self.embed_dim, dtype=torch.float32, device=device)
 
         # Set the embeddings for the tokens
-        mask = torch.logical_and(input_types == 0, attention_mask.bool())
-        embed[mask] = self.embeddings(input_ids[mask])
+        if input_ids is not None:
+            mask = torch.logical_and(input_types == 0, attention_mask)
+            embed[mask] = self.embeddings(input_ids[mask])
 
         # Set the embeddings for the image patches
-        mask = torch.logical_and(input_types == 1, attention_mask.bool())
-        normalized_images = patches[mask].float() * 2.0 / 255.0 - 1.0
-        embed[mask] = self.image_encoder(normalized_images) + self.image_pos_enc(patch_positions[mask])
+        if patches is not None:
+            mask = torch.logical_and(input_types == 1, attention_mask)
+            normalized_images = patches[mask].float() * 2.0 / 255.0 - 1.0
+            embed[mask] = self.image_encoder(normalized_images) + self.image_pos_enc(patch_positions[mask])
 
         # Add the local position embeddings
-        mask = torch.logical_and(attention_mask.bool(), local_positions != -1)
-        embed[mask] = embed[mask] + self.local_pos_embeddings(local_positions[mask])
+        if local_positions is not None:
+            mask = torch.logical_and(local_positions != -1, attention_mask)
+            embed[mask] = embed[mask] + self.local_pos_embeddings(local_positions[mask])
 
         return embed
