@@ -17,15 +17,13 @@ class LocalPositionsAdder:
 
     Example:
         >>> from gia.processing import LocalPositionsAdder
-        >>> adder = LocalPositionsAdder([["a", "b"], ["c"]])
-        >>> data = [
-        ...     [[0, 1], [2, 3]],
-        ...     [[4, 5], [6, 7], [8, 9]],
-        ... ]
-        >>> input_dict = {"a": {"aa": data}}
+        >>> adder = LocalPositionsAdder([["a"]])
+        >>> ep_1 = [[0], [1, 2, 3]]
+        >>> ep_2 = [[4, 5], [6], [7, 8, 9]]
+        >>> input_dict = {"a": {"aa": [ep_1, ep_2]}}
         >>> output_dict = adder(input_dict)
         >>> output_dict["a"]["local_positions"]
-        [[[0, 1], [0, 1]], [[0, 1], [0, 1], [0, 1]]]
+        [[[0], [0, 1, 2]], [[0, 1], [0], [0, 1, 2]]]
     """
 
     def __init__(self, key_groups: List[List[str]]) -> None:
