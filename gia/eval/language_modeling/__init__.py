@@ -1,2 +1,2 @@
-from oscar_evaluator import OscarEvaluator
-from ok_vqa_evaluator import OKVQAEvaluator
+from gia.eval.language_modeling.oscar_evaluator import OscarEvaluator
+from gia.eval.language_modeling.ok_vqa_evaluator import OKVQAEvaluator
