@@ -1,21 +1,19 @@
-from gia.datasets import collate_fn, load_mixed_dataset
-from gia.config import parse_args
-
-from gia.model import GiaModel
+from datasets import Dataset
 from transformers import Trainer
 
-args = parse_args()
-args.task_names = "mujoco"
-args.remove_unused_columns = False
-dataset = load_mixed_dataset(args)
+from gia.config import parse_args
+from gia.datasets import collate_fn, load_gia_dataset
+from gia.model import GiaModel
+from gia.processing import GiaProcessor
 
+# Initialize the processor and model
+args = parse_args()
+processor = GiaProcessor(args)
 model = GiaModel(args)
 
-trainer = Trainer(
-    model,
-    args,
-    data_collator=collate_fn,
-    train_dataset=dataset,
-)
-
+# Load the dataset
+train_dataset = load_gia_dataset(task_names=args.task_names, split="train")
+train_dataset = processor(**train_dataset)
+train_dataset = Dataset.from_dict(train_dataset)  # <- This line
+trainer = Trainer(model, args, data_collator=collate_fn, train_dataset=train_dataset)
 trainer.train()
