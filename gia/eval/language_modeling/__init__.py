@@ -1,2 +1,3 @@
 from gia.eval.language_modeling.oscar_evaluator import OscarEvaluator
 from gia.eval.language_modeling.ok_vqa_evaluator import OKVQAEvaluator
+from gia.eval.language_modeling.conceptual_captions_evaluator import ConceptualCaptionsEvaluator
