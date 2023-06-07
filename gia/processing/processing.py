@@ -4,7 +4,6 @@ import datasets
 import numpy as np
 from PIL import Image
 
-from gia.config import DatasetArguments
 
 from .interleaver import Interleaver
 from .local_positions_adder import LocalPositionsAdder
@@ -12,12 +11,52 @@ from .tokenizer import GiaTokenizer
 from .utils import nested_like
 
 T = TypeVar("T")
-U = TypeVar("U")
-V = TypeVar("V")
 NestedList = Union[None, T, List["NestedList[T]"]]
 
 
 class GiaProcessor:
+    """
+    Processor for GIA
+
+    This processor takes as input a batch of observations and actions and returns a batch of tokens, patches,
+    patch_positions, and loss masks and attention masks.
+
+    ```python
+    >>> processor = GiaProcessor(seq_len=15)
+    >>> batch_data = processor(
+    ...     continuous_observations=[[[0.0, 0.1], [0.2, 0.3], [0.4, 0.5]]],
+    ...     discrete_actions=[[0, 1, 2]],
+    ... )
+    >>> batch_data["input_ids"]
+    [[30512, 30632, 31024, 30000, 30665, 30685, 31024, 30001, 30699, 30710, 31024, 30002, None, None, None]]
+    >>> batch_data["input_types"]
+    [[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, None, None, None]]
+    >>> batch_data["local_positions"]
+    [[0, 1, None, None, 0, 1, None, None, 0, 1, None, None, None, None, None]]
+    >>> batch_data["loss_mask"]
+    [[False, False, True, None, False, False, True, None, False, False, True, None, None, None, None]]
+    >>> batch_data["attention_mask"]
+    [[True, True, True, True, True, True, True, True, True, True, True, True, False, False, False]]
+    ```
+
+    Args:
+        mu (`float`, *optional*, defaults to `100`):
+            The μ parameter for the μ-law companding of continuous observations and actions.
+        M (`float`, *optional*, defaults to `256`):
+            The M parameter for the μ-law companding of continuous observations and actions.
+        nb_bins (`int`, *optional*, defaults to `1024`):
+            The number of bins for the discretization of continuous observations and actions.
+        patch_size (`int`, *optional*, defaults to `16`):
+            The size of the patches to extract from images.
+        mask_loss_modalities (`Union[List[str], str]`, *optional*, defaults to `"default"`):
+            The modalities to mask for the loss computation. Defaults to all modalities except text and actions.
+        seq_len (`int`, *optional*, defaults to `1024`):
+            The length (number of tokens) of a sequence.
+        local_positions_groups (`Union[List[List[str]], str]`, *optional*, defaults to `"default"`):
+            The groups of modalities for which to add local positions. Defaults to a single group containing all
+            observations modalities (text, images, discrete and continuous observations).
+    """
+
     features = datasets.Features(
         {
             "input_ids": datasets.Sequence(datasets.Value(dtype="int64")),
@@ -30,38 +69,54 @@ class GiaProcessor:
         }
     )
 
-    def __init__(self, args: DatasetArguments) -> None:
+    def __init__(
+        self,
+        mu: float = 100,
+        M: float = 256,
+        nb_bins: int = 1024,
+        patch_size: int = 16,
+        mask_loss_modalities: Union[List[str], str] = "default",
+        seq_len: int = 1024,
+        local_positions_groups: Union[List[List[str]], str] = "default",
+    ) -> None:
         super().__init__()
-        self.tokenizer = GiaTokenizer(args)
-        args.text_vocab_size + args.nb_bins if args.use_separator else -1
-        token_pad_value = 0
-        local_position_pad_value = -1
-        patch_pad_value = None
-        patch_position_pad_value = None
-        self.padding_value = {
-            "input_ids": token_pad_value,
-            "local_positions": local_position_pad_value,
-            "patches": patch_pad_value,
-            "patch_positions": patch_position_pad_value,
-            "input_types": 0,
-            "loss_mask": 0,
+        self.tokenizer = GiaTokenizer(mu, M, nb_bins, patch_size)
+        if mask_loss_modalities == "default":
+            self.mask_loss_modalities = [
+                # "text",
+                "images",
+                # "text_observations",
+                "image_observations",
+                "discrete_observations",
+                "continuous_observations",
+                # "discrete_actions",
+                # "continuous_actions",
+                "rewards",
+            ]
+        else:
+            self.mask_loss_modalities = mask_loss_modalities
+        if local_positions_groups == "default":
+            local_positions_groups = [
+                [
+                    # "text",
+                    # "images",
+                    "text_observations",
+                    "image_observations",
+                    "discrete_observations",
+                    "continuous_observations",
+                    # "discrete_actions",
+                    # "continuous_actions",
+                    "rewards",
+                ]
+            ]
+        self.local_positions_adder = LocalPositionsAdder(local_positions_groups)
+        separator = {
+            "input_ids": [self.tokenizer.vocab_size],
+            "input_types": [0],
+            "loss_mask": [True],
         }
-        self.interleaver = Interleaver()
-        self.seq_len = args.seq_len
-        self.modality_to_mask = [
-            # "text",
-            "images",
-            # "text_observations",
-            "image_observations",
-            "discrete_observations",
-            "continuous_observations",
-            # "discrete_actions",
-            # "continuous_actions",
-            "rewards",
-        ]
-        self.local_positions_adder = LocalPositionsAdder(
-            [["text_observations", "image_observations", "discrete_observations", "continuous_observations"]]
-        )
+        self.interleaver = Interleaver(separator)
+        self.seq_len = seq_len
 
     @staticmethod
     def truncate_residual(
@@ -105,14 +160,13 @@ class GiaProcessor:
         return truncated
 
     @staticmethod
-    def pad_sequences(batch_data: Dict[str, List[T]], max_len: int, padding_value: T) -> Tuple[List[T], List[int]]:
+    def pad_sequences(batch_data: Dict[str, List[T]], max_len: int) -> Tuple[List[T], List[int]]:
         """
-        Pad sequences with a padding value to a maximum length.
+        Pad sequences to a maximum length.
 
         Args:
             sequences (List[T]): A list of sequences.
             max_len (int): Maximum length for the output sequences.
-            padding_value (T): Padding value.
 
         Returns:
             Tuple[List[T], List[int]]: A tuple of padded sequences and masks.
@@ -129,8 +183,8 @@ class GiaProcessor:
                     if max_len < len(sequence):
                         raise RuntimeError(f"Sequence length {len(sequence)} is greater than max_len {max_len}.")
                     seq_len, pad_len = len(sequence), max_len - len(sequence)
-                    sequence = sequence + [padding_value[key]] * pad_len
-                    mask = [1] * seq_len + [0] * pad_len  # computed for every keys, but it's the same for all keys
+                    sequence = sequence + [None] * pad_len
+                    mask = [True] * seq_len + [False] * pad_len  # computed for every keys, but it's the same
                     padded[key].append(sequence)
             padded["attention_mask"].append(mask)
         return padded
@@ -205,8 +259,8 @@ class GiaProcessor:
 
         # Add the loss mask
         for modality in features:
-            if modality in self.modality_to_mask:
-                features[modality]["loss_mask"] = nested_like(features[modality]["input_types"], 0)
+            if modality in self.mask_loss_modalities:
+                features[modality]["loss_mask"] = nested_like(features[modality]["input_types"], False)
 
         # Add the local positions
         self.local_positions_adder(features)
@@ -237,7 +291,7 @@ class GiaProcessor:
                 max_length = max(len(sequence) for sequence in batch_data["input_ids"])
             else:
                 max_length = max_length or self.seq_len
-            batch_data = self.pad_sequences(batch_data, max_length, self.padding_value)
+            batch_data = self.pad_sequences(batch_data, max_length)
         elif padding in [False, "do_not_pad"]:
             pass
         else:
