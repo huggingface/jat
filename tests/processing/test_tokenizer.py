@@ -144,3 +144,21 @@ def test_tokenize_image(modality, data_type, shape):
     assert input_types.shape[:-1] == shape  # input_types.shape[-1] is the number of patches per image
     assert input_types.dtype == np.int64
     assert np.all(input_types == 1)
+
+
+def test_extract_patches():
+    tokenizer = GiaTokenizer(Arguments(".", patch_size=3))
+
+    arr = np.arange(9 * 6 * 3, dtype=np.uint8).reshape(9, 6, 3)  # H, W, C
+    image = Image.fromarray(arr)
+    patches = tokenizer.extract_patches(image)[0]
+
+    np.testing.assert_equal(patches[0][:, :, :3], arr[0:3, 0:3, :])
+    np.testing.assert_equal(patches[0][:, :, :3], arr[0:3, 0:3, :])
+    np.testing.assert_equal(patches[1][:, :, :3], arr[0:3, 3:6, :])
+    np.testing.assert_equal(patches[2][:, :, :3], arr[3:6, 0:3, :])
+    np.testing.assert_equal(patches[3][:, :, :3], arr[3:6, 3:6, :])
+    np.testing.assert_equal(patches[4][:, :, :3], arr[6:9, 0:3, :])
+    np.testing.assert_equal(patches[5][:, :, :3], arr[6:9, 3:6, :])
+    for patch in patches:  # pad to have 4 channels
+        np.testing.assert_equal(patch[:, :, 3], np.zeros((3, 3), dtype=np.uint8))
