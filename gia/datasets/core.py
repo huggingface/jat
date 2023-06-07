@@ -1,10 +1,7 @@
 import random
 from typing import Dict, List, Union
 
-import numpy as np
-import torch
 from datasets import Dataset, get_dataset_config_names
-from torch import Tensor
 import warnings
 
 
