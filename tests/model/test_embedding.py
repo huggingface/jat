@@ -215,11 +215,14 @@ def test_embedding_attention_mask(test_mode, input_mode):
         if input_mode in ["patches", "both"]:
             assert not torch.allclose(output_1, output_2)
         else:  # 'input_ids'
-            assert torch.allclose(output_1[common_mask], output_2[common_mask])
-            assert not torch.allclose(output_1[different_mask], output_2[different_mask])
+            assert torch.allclose(output_1[common_mask], output_2[common_mask], atol=1e-5)
+            assert not torch.allclose(output_1[different_mask], output_2[different_mask], atol=1e-5)
     else:  # 'eval'
-        assert torch.allclose(output_1[common_mask], output_2[common_mask])
-        assert not torch.allclose(output_1[different_mask], output_2[different_mask])
+        assert torch.allclose(output_1[common_mask], output_2[common_mask], atol=1e-5)
+        assert not torch.allclose(output_1[different_mask], output_2[different_mask], atol=1e-5)
+    # Note that we increase the absolute tolerance to 1e-5 because when having a different attention can change
+    # slightly the results, because the batch size changes. See:
+    # https://discuss.pytorch.org/t/batch-size-changes-linear-layer-output-values/143706
 
 
 def test_embedding_local_positions():
