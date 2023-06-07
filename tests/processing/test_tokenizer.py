@@ -1,14 +1,13 @@
 import numpy as np
 import pytest
 from PIL import Image
-from gia.config import Arguments
+
 from gia.processing.tokenizer import GiaTokenizer
 
 
 def test_decode_continuous():
     # Instantiate GiaProcessor
-    args = Arguments(nb_bins=1024, output_dir="./")
-    tokenizer = GiaTokenizer(args)
+    tokenizer = GiaTokenizer(nb_bins=1024)
 
     # Create sample tokens
     x = np.linspace(-5.0, 5.0, 50).reshape(1, 25, -1).tolist()  # Convert to batch of size 1, 25 timesteps, 2 features
@@ -25,9 +24,9 @@ def test_decode_continuous():
 
 @pytest.mark.parametrize("input_type", ["actions", "observations"])
 @pytest.mark.parametrize("shape", [(2,), (2, 3), (2, 3, 4)])
-def test_tokenize_continuous_observations(input_type, shape):
-    args = Arguments(output_dir="./")
-    tokenizer = GiaTokenizer(args)
+@pytest.mark.parametrize("nb_bins", [8, 1024])
+def test_tokenize_continuous_observations(input_type, shape, nb_bins):
+    tokenizer = GiaTokenizer(nb_bins=nb_bins)
     key = f"continuous_{input_type}"
     x = {key: np.random.random(shape).tolist()}
     features = tokenizer(**x)
@@ -38,7 +37,7 @@ def test_tokenize_continuous_observations(input_type, shape):
     assert tokens.dtype == np.int64
     # Check that the tokens are shifted (caution, tokens shouldn't be the separator tokens)
     assert np.all(tokens >= tokenizer.token_shift)  # Tokens are shifted
-    assert np.all(tokens <= args.nb_bins + tokenizer.token_shift)
+    assert np.all(tokens < nb_bins + tokenizer.token_shift)
 
     # Check the input_types
     input_types = np.array(features[key]["input_types"])
@@ -50,10 +49,9 @@ def test_tokenize_continuous_observations(input_type, shape):
 @pytest.mark.parametrize("input_type", ["actions", "observations"])
 @pytest.mark.parametrize("shape", [(2,), (2, 3), (2, 3, 4)])
 def test_tokenize_discrete_observations(input_type, shape):
-    args = Arguments(output_dir="./")
-    tokenizer = GiaTokenizer(args)
+    tokenizer = GiaTokenizer()
     key = f"discrete_{input_type}"
-    x = {key: np.random.randint(0, args.nb_bins, shape).tolist()}
+    x = {key: np.random.randint(0, tokenizer.nb_bins, shape).tolist()}
     features = tokenizer(**x)
     tokens = np.array(features[key]["input_ids"])
     # Check the shape
@@ -62,7 +60,7 @@ def test_tokenize_discrete_observations(input_type, shape):
     assert tokens.dtype == np.int64
     # Check that the tokens are shifted (caution, tokens shouldn't be the separator tokens)
     assert np.all(tokens >= tokenizer.token_shift)  # Tokens are shifted
-    assert np.all(tokens <= args.nb_bins + tokenizer.token_shift)
+    assert np.all(tokens <= tokenizer.nb_bins + tokenizer.token_shift)
 
     # Check the input_types
     input_types = np.array(features[key]["input_types"])
@@ -74,8 +72,7 @@ def test_tokenize_discrete_observations(input_type, shape):
 @pytest.mark.parametrize("modality", ["text_observations", "text"])  # actually work the same way
 @pytest.mark.parametrize("shape", [(), (2,), (2, 3)])
 def test_tokenize_text(modality, shape):
-    args = Arguments(output_dir="./")
-    tokenizer = GiaTokenizer(args)
+    tokenizer = GiaTokenizer()
     # Generate random text
     dictionary = ["lorem", "ipsum", "dolor", "sit", "amet", "consectetur", "adipiscing", "elit"]
     data = {modality: np.random.choice(dictionary, shape).tolist()}
@@ -119,8 +116,7 @@ def test_tokenize_text(modality, shape):
 @pytest.mark.parametrize("data_type", ["array", "pillow"])
 @pytest.mark.parametrize("shape", [(2,), (2, 3), (2, 3, 4)])
 def test_tokenize_image(modality, data_type, shape):
-    args = Arguments(output_dir="./")
-    tokenizer = GiaTokenizer(args)
+    tokenizer = GiaTokenizer()
 
     def generate_val(shape):
         # Base case: if there's no more dimensions to generate, create the numpy array
@@ -147,7 +143,7 @@ def test_tokenize_image(modality, data_type, shape):
 
 
 def test_extract_patches():
-    tokenizer = GiaTokenizer(Arguments(".", patch_size=3))
+    tokenizer = GiaTokenizer(patch_size=3)
 
     arr = np.arange(9 * 6 * 3, dtype=np.uint8).reshape(9, 6, 3)  # H, W, C
     image = Image.fromarray(arr)

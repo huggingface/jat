@@ -8,8 +8,6 @@ from numpy.lib.stride_tricks import as_strided
 from PIL import Image
 from transformers import AutoTokenizer
 
-from gia.config import DatasetArguments
-
 from .utils import nested_like
 
 T = TypeVar("T")
@@ -55,10 +53,7 @@ class GiaTokenizer:
         args (:obj:`DatasetArguments`): Dataset arguments.
 
     Example:
-        >>> from gia.config import DatasetArguments
-        >>> from gia.processing import Tokenizer
-        >>> args = DatasetArguments()
-        >>> tokenizer = Tokenizer(args)
+        >>> tokenizer = Tokenizer()
         >>> inputs = {
         ...     "text_observations": ["Go right", "Go left"],
         ...     "continuous_observations": [[0.1, 0.2], [0.3, 0.4]],
@@ -70,18 +65,16 @@ class GiaTokenizer:
          'discrete_actions': [30001, 30002]}
     """
 
-    def __init__(self, args: DatasetArguments) -> None:
+    def __init__(self, mu: float = 100.0, M: float = 256.0, nb_bins: int = 1024, patch_size: int = 16):
         super().__init__()
-        self.mu = args.mu
-        self.M = args.M
-        self.nb_bins = args.nb_bins
-        self.patch_size = args.patch_size
-        self.seq_len = args.seq_len
+        self.mu = mu
+        self.M = M
+        self.nb_bins = nb_bins
+        self.patch_size = patch_size
 
         self.mu_law_compand = True
         self.text_tokenizer = AutoTokenizer.from_pretrained("albert-base-v2")
         self.token_shift = self.text_tokenizer.vocab_size
-        self.vocab_size = self.token_shift + self.nb_bins
 
     @nested_decorator
     def tokenize_text(self, text: str) -> int:
