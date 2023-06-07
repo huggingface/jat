@@ -40,16 +40,19 @@ def indexing_from_nested(nested_dict: Dict, index: int) -> Dict:
 
 def extend_dol(dol: Dict[str, List[Any]], other_dol: Dict[str, List[Any]]) -> None:
     """
-    Extends the lists in a dictionary (dict of list, abbreviated dol) with corresponding lists from another dictionary (other_dol).
+    Extends the lists in a dictionary (dict of list, abbreviated dol) with corresponding lists from another dictionary
+    (other_dol).
 
     Args:
-        dol (Dict[str, List[Any]]): A dictionary where the values are lists. All lists within the dol should have the same length.
-        other_dol (Dict[str, List[Any]]): Another dictionary with the same structure, where the values are lists to extend
-             the corresponding lists in dol.
+        dol (Dict[str, List[Any]]): A dictionary where the values are lists. All lists within the dol should have the
+            same length.
+        other_dol (Dict[str, List[Any]]): Another dictionary with the same structure, where the values are lists to
+            extend the corresponding lists in dol.
 
     Returns:
-        None: This function modifies the input 'dol' in-place by extending its lists with the corresponding lists from 'other_dol'.
-              If a key is missing in 'other_dol', the corresponding list in 'dol' is extended with None values.
+        None: This function modifies the input 'dol' in-place by extending its lists with the corresponding lists from
+            'other_dol'. If a key is missing in 'other_dol', the corresponding list in 'dol' is extended with None
+            values.
 
     Example:
         >>> dol = {"key1": [1, 2],
