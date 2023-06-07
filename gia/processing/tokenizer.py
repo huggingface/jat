@@ -76,6 +76,10 @@ class GiaTokenizer:
         self.text_tokenizer = AutoTokenizer.from_pretrained("albert-base-v2")
         self.token_shift = self.text_tokenizer.vocab_size
 
+    @property
+    def vocab_size(self) -> int:
+        return self.text_tokenizer.vocab_size + self.nb_bins
+
     @nested_decorator
     def tokenize_text(self, text: str) -> int:
         output = self.text_tokenizer(text)
