@@ -1,15 +1,15 @@
 from typing import Dict, List, Optional, Tuple, TypeVar, Union
 
-
+import datasets
 import numpy as np
 from PIL import Image
 
-
 from gia.config import DatasetArguments
+
 from .interleaver import Interleaver
+from .local_positions_adder import LocalPositionsAdder
 from .tokenizer import GiaTokenizer
 from .utils import nested_like
-from .local_positions_adder import LocalPositionsAdder
 
 T = TypeVar("T")
 U = TypeVar("U")
@@ -18,6 +18,18 @@ NestedList = Union[None, T, List["NestedList[T]"]]
 
 
 class GiaProcessor:
+    features = datasets.Features(
+        {
+            "input_ids": datasets.Sequence(datasets.Value(dtype="int64")),
+            "patches": datasets.Sequence(datasets.Image()),
+            "patch_positions": datasets.Sequence(datasets.Array2D((2, 2), dtype="float32")),
+            "input_types": datasets.Sequence(datasets.Value(dtype="int64")),
+            "local_positions": datasets.Sequence(datasets.Value(dtype="int64")),
+            "loss_mask": datasets.Sequence(datasets.Value(dtype="bool")),
+            "attention_mask": datasets.Sequence(datasets.Value(dtype="bool")),
+        }
+    )
+
     def __init__(self, args: DatasetArguments) -> None:
         super().__init__()
         self.tokenizer = GiaTokenizer(args)
