@@ -125,9 +125,9 @@ def test_tokenize_image(modality, data_type, shape):
     def generate_val(shape):
         # Base case: if there's no more dimensions to generate, create the numpy array
         if not shape:
-            val = np.random.randint(0, 255, (3, 32, 32), dtype=np.uint8)
+            val = np.random.randint(0, 255, (32, 32, 2), dtype=np.uint8)
             if data_type == "pillow":
-                val = Image.fromarray(val.transpose(1, 2, 0))
+                val = Image.fromarray(val)
             return val
         # Recursive case: generate a list with the number of elements specified by the first dimension of the shape
         return [generate_val(shape[1:]) for _ in range(shape[0])]
@@ -137,7 +137,7 @@ def test_tokenize_image(modality, data_type, shape):
     patches = np.array(features[modality]["patches"])
     input_types = np.array(features[modality]["input_types"])
 
-    assert patches.shape[-3:] == (4, 16, 16)
+    assert patches.shape[-3:] == (16, 16, 4)
     # patches.shape[-4] is the the number of patches per image, which can vary depending on the image size
     assert patches.shape[:-4] == shape
     assert patches.dtype == np.uint8
