@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List
 
 import numpy as np
 import torch
@@ -55,7 +55,7 @@ class GIADataCollator:
         "attention_mask": torch.bool,
     }
 
-    def _to_tensor(self, features: List[List[Union[int, np.ndarray]]], dtype: torch.dtype) -> torch.Tensor:
+    def _to_tensor(self, features: List[List[Any]], dtype: torch.dtype) -> torch.Tensor:
         # Creating a tensor from a list of numpy.ndarrays is extremely slow.
         # When the input is a list of list of numpy.ndarrays, first convert it to a single numpy.ndarray, then
         # convert it to a tensor.
@@ -63,7 +63,7 @@ class GIADataCollator:
             features = np.array(features)
         return torch.tensor(features, dtype=dtype)
 
-    def __call__(self, features: List[Dict[str, Any]]) -> Any:
+    def __call__(self, features: List[Dict[str, List[Any]]]) -> Dict[str, torch.Tensor]:
         keys = features[0].keys()  # they should all have the same keys
         if any(key not in self.pad_values for key in keys):
             raise KeyError(f"Found unexpected keys: {set(keys) - set(self.pad_values.keys())}")
