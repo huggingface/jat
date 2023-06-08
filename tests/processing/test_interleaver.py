@@ -12,8 +12,9 @@ def test_indexing_from_nested_basic():
 
 def test_indexing_from_nested_out_of_range():
     nested_dict = {"outer_key1": {"inner_key": [1, 2, 3]}, "outer_key2": {"inner_key": [4, 5, 6]}}
-    with pytest.raises(IndexError):
-        indexing_from_nested(nested_dict, 10)
+    result = indexing_from_nested(nested_dict, 10)
+    expected_result = None
+    assert result == expected_result
 
 
 def test_indexing_from_nested_none_support():
