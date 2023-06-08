@@ -106,7 +106,7 @@ class GiaProcessor:
                     "continuous_observations",
                     # "discrete_actions",
                     # "continuous_actions",
-                    "rewards",
+                    # "rewards",
                 ]
             ]
         self.local_positions_adder = LocalPositionsAdder(local_positions_groups)
@@ -278,8 +278,8 @@ class GiaProcessor:
             max_length = max_length or self.seq_len
             if truncation == "residual":
                 batch_data = self.truncate_residual(batch_data, max_len=max_length)
-            else:
-                batch_data = [sequence[:max_length] for sequence in value]  # FIXME
+            else:  # True or "max_length"
+                batch_data = {key: [sequence[:max_length] for sequence in batch_data[key]] for key in batch_data}
         elif truncation in [False, "do_not_truncate"]:
             pass
         else:
