@@ -202,6 +202,7 @@ class GiaProcessor:
         rewards: NestedList[float] = None,
         interleave: bool = True,
         truncation: Union[bool, str] = "residual",
+        truncation_side: str = "right",
         padding: Union[bool, str] = "max_length",
         max_length: Optional[int] = None,
     ):
@@ -228,6 +229,8 @@ class GiaProcessor:
                     acceptable input length for the model if `max_length` is not provided.
                 - False or 'do_not_truncate': No truncation (i.e., can output a batch with sequences of different
                     lengths).
+            truncation_side (str): Specifies the side to truncate when `truncation` is True or 'max_length'. Can be
+                'left' or 'right' (default). With truncation='residual', this parameter can only be 'right'.
             padding (Union[bool, str]): Specifies the padding strategy.
                 - True or 'longest': Pad to the length of the longest sequence in the batch (or no padding if only a
                     single sequence if provided).
@@ -277,9 +280,14 @@ class GiaProcessor:
         if truncation in [True, "max_length", "residual"]:
             max_length = max_length or self.seq_len
             if truncation == "residual":
+                if truncation_side != "right":
+                    raise ValueError("With truncation='residual', truncation_side can only be 'right'.")
                 batch_data = self.truncate_residual(batch_data, max_len=max_length)
             else:  # True or "max_length"
-                batch_data = {key: [sequence[:max_length] for sequence in batch_data[key]] for key in batch_data}
+                if truncation_side == "left":
+                    batch_data = {key: [sequence[-max_length:] for sequence in batch_data[key]] for key in batch_data}
+                elif truncation_side == "right":
+                    batch_data = {key: [sequence[:max_length] for sequence in batch_data[key]] for key in batch_data}
         elif truncation in [False, "do_not_truncate"]:
             pass
         else:
