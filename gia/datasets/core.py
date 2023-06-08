@@ -94,15 +94,17 @@ def needs_prompt(task_name: str) -> bool:
         bool: True if the task needs prompt, False otherwise.
     """
     is_atari = task_name.startswith("atari")
+    is_babyai = task_name.startswith("babyai")
     is_conceptual_captions = task_name == "conceptual_captions"
     is_metaworld = task_name.startswith("metaworld")
     is_mujoco = task_name.startswith("mujoco")
-    if is_atari or is_metaworld or is_mujoco:
+    if is_atari or is_babyai or is_metaworld or is_mujoco:
         return True
     elif is_conceptual_captions:
         return False
     else:
-        warnings.warn(f"Wether {task_name} needs prompt is unknown.")
+        warnings.warn(f"Wether {task_name} needs prompt is unknown. Assuming it does not need prompt.")
+        return False
 
 
 def prompt_dataset(
