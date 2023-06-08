@@ -240,6 +240,15 @@ class Embeddings(nn.Module):
         # Get the batch_size and seq_len
         batch_size, seq_len = input_ids.shape if input_ids is not None else patches.shape[:2]
 
+        # Get the device
+        device = self.embeddings.weight.device
+
+        # Get the attention mask, if not provided, create one
+        if attention_mask is None:
+            attention_mask = torch.ones((batch_size, seq_len), dtype=torch.bool, device=device)
+        else:
+            attention_mask = attention_mask.bool()
+
         # Check input_types
         if input_types is None:
             # Is this case, we need to infer it
@@ -252,7 +261,7 @@ class Embeddings(nn.Module):
         else:
             # Check the provided input_ids
             # Check that all values are etiher 0 or 1
-            if not torch.all((input_types == 0) | (input_types == 1)):
+            if not torch.all((input_types[attention_mask] == 0) | (input_types[attention_mask] == 1)):
                 raise ValueError("input_types must be either 0 or 1.")
             # Check that if some values are 0, then input_ids is not None
             if torch.any(input_types == 0) and input_ids is None:
@@ -265,14 +274,6 @@ class Embeddings(nn.Module):
         if (patches is None) != (patch_positions is None):
             raise ValueError("patches and patch_positions must be provided together.")
 
-        # Get the device
-        device = self.embeddings.weight.device
-
-        # Get the attention mask, if not provided, create one
-        if attention_mask is None:
-            attention_mask = torch.ones((batch_size, seq_len), dtype=torch.bool, device=device)
-        else:
-            attention_mask = attention_mask.bool()
 
         # Initialize the embeddings with zeros
         embed = torch.zeros(batch_size, seq_len, self.embed_dim, dtype=torch.float32, device=device)
