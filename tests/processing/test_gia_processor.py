@@ -108,7 +108,7 @@ def test_gia_processor_padding_true(features):
 @pytest.mark.parametrize("features", EP_DATA_CONFIGS + STANDALONE_DATA_CONFIGS)
 def test_gia_processor_padding_false(features):
     processor = GiaProcessor()
-    data = generate_data(2, features)
+    data = generate_data(5, features)
     out = processor(**data, padding=False)  # equivalent to padding="do_not_pad"
 
     # Check that length is consistent across keys but not across batch_idx
@@ -118,6 +118,7 @@ def test_gia_processor_padding_false(features):
             if len(seq_len) <= batch_idx:
                 seq_len.append(len(sequences[batch_idx]))
             assert len(sequences[batch_idx]) == seq_len[batch_idx]
+    # very low chance that all the 5 sequences have the same length
     assert not all(seq_len[0] == seq_len[batch_idx] for batch_idx in range(len(seq_len)))
 
 
