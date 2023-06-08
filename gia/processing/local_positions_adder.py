@@ -84,7 +84,8 @@ class LocalPositionsAdder:
         current_position = 0
         for key in features:
             features_mod = features[key]
-            length = len(next(iter(features_mod.values())))
+            first_feature = next(iter(features_mod.values()))
+            length = len(first_feature) if isinstance(first_feature, list) else 1
             local_positions[key].extend(list(range(current_position, current_position + length)))
             current_position += length
         return local_positions
