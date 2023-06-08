@@ -274,7 +274,6 @@ class Embeddings(nn.Module):
         if (patches is None) != (patch_positions is None):
             raise ValueError("patches and patch_positions must be provided together.")
 
-
         # Initialize the embeddings with zeros
         embed = torch.zeros(batch_size, seq_len, self.embed_dim, dtype=torch.float32, device=device)
 
