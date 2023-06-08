@@ -116,7 +116,7 @@ def test_gia_model_trainer_compat():
             "loss_mask": torch.randint(0, 2, (10, 32), dtype=torch.bool).tolist(),
         }
     )
-    args = Arguments(output_dir="./")
+    args = Arguments(output_dir="./", report_to="none")
     model = GiaModel(args)
     trainer = Trainer(model=model, args=args, train_dataset=dataset, data_collator=default_data_collator)
     trainer.train()
