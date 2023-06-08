@@ -8,10 +8,7 @@ from gia.processing import GiaProcessor
 
 task_names = ["atari-alien", "mujoco-ant"]
 split = "train[:10]"
-
-args = Arguments(task_names=task_names, embed_dim=12, output_dir="./")
-args = Arguments(task_names=["mujoco-ant"], output_dir="./")
-
+args = Arguments(task_names=task_names, output_dir="./")
 processor = GiaProcessor(args)
 
 load_from_cache = True  # should be set to false the first time
