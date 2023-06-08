@@ -15,7 +15,7 @@ args = Arguments(
     per_device_train_batch_size=4,
     logging_first_step=True,
     logging_steps=10,
-    do_eval=True
+    do_eval=True,
 )
 processor = GiaProcessor()
 
