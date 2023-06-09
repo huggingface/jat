@@ -13,9 +13,9 @@ from gia.model.gia_model import GiaModel
 
 EVAL_MAPPING = {
     "mujoco": MujocoEvaluator,
-    "oscar": OscarEvaluator,
-    "ok-vqa": OKVQAEvaluator,
-    "conceptual-captions": ConceptualCaptionsEvaluator
+    # "oscar": OscarEvaluator,
+    # "ok-vqa": OKVQAEvaluator,
+    # "conceptual-captions": ConceptualCaptionsEvaluator,
 }
 
 
