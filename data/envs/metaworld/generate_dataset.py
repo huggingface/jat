@@ -1,11 +1,10 @@
 import os
-from typing import Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import gym
 import metaworld  # noqa: F401
 import numpy as np
 import torch
-from huggingface_hub import HfApi, repocard, upload_folder
 from sample_factory.algo.learning.learner import Learner
 from sample_factory.algo.sampling.batched_sampling import preprocess_actions
 from sample_factory.algo.utils.action_distributions import argmax_actions
@@ -87,66 +86,15 @@ def make_custom_env(
     return gym.make(full_env_name, render_mode=render_mode)
 
 
-def generate_dataset_card(dir_path: str, env: str, experiment_name: str):
-    readme_path = os.path.join(dir_path, "README.md")
-    hf_repo_name = f"prj_gia_dataset_metaworld_{env}_1111".replace("-", "_")
-    readme = f"""
-An imitation learning environment for the {env} environment, sample for the policy {experiment_name} \n
-This environment was created as part of the Generally Intelligent Agents
-project gia: https://github.com/huggingface/gia \n
-\n
-
-## Load dataset
-
-First, clone it with
-
-```sh
-git clone https://huggingface.co/datasets/qgallouedec/{hf_repo_name}
-```
-
-Then, load it with
-
-```python
-import numpy as np
-dataset = np.load("{hf_repo_name}/dataset.npy", allow_pickle=True).item()
-print(dataset.keys())  # dict_keys(['observations', 'actions', 'dones', 'rewards'])
-```
-
-    """
-
-    with open(readme_path, "w", encoding="utf-8") as f:
-        f.write(readme)
-
-    metadata = {}
-    metadata["library_name"] = "gia"
-    metadata["tags"] = [
-        "deep-reinforcement-learning",
-        "reinforcement-learning",
-        "gia",
-        "multi-task",
-        "multi-modal",
-        "imitation-learning",
-        "offline-reinforcement-learning",
-    ]
-    repocard.metadata_save(readme_path, metadata)
-
-
-def push_to_hf(dir_path: str, repo_name: str) -> None:
-    HfApi().create_repo(repo_id=repo_name, private=False, exist_ok=True, repo_type="dataset")
-    upload_folder(
-        repo_id=repo_name, folder_path=dir_path, path_in_repo=".", ignore_patterns=[".git/*"], repo_type="dataset"
-    )
-
-
 # most of this function is redundant as it is copied from sample.enjoy.enjoy
-def create_dataset(cfg: Config):
+def create_dataset(cfg: Config, dataset_size: int = 100_000, split: str = "train") -> None:
     cfg = load_from_checkpoint(cfg)
     eval_env_frameskip: int = cfg.env_frameskip if cfg.eval_env_frameskip is None else cfg.eval_env_frameskip
     assert (
         cfg.env_frameskip % eval_env_frameskip == 0
     ), f"{cfg.env_frameskip=} must be divisible by {eval_env_frameskip=}"
     cfg.env_frameskip = cfg.eval_env_frameskip = eval_env_frameskip
-    cfg.num_envs = 1
+    cfg.num_envs = 1  # only support 1 env
 
     # Create environment
     env = make_env_func_batched(cfg, env_config=AttrDict(worker_index=0, vector_index=0, env_id=0))
@@ -164,25 +112,25 @@ def create_dataset(cfg: Config):
     checkpoint_dict = Learner.load_checkpoint(checkpoints, device)
     actor_critic.load_state_dict(checkpoint_dict["model"])
 
+    # Create dataset
+    dataset: Dict[str, List[List[Any]]] = {
+        "continuous_observations": [],  # [[s0, s1, s2, ..., sT-1], [s0, s1, ...]], # terminal observation not stored
+        "continuous_actions": [],  # [[a0, a1, a2, ..., aT-1], [a0, a1, ...]],
+        "rewards": [],  # [[r1, r2, r3, ...,   rT], [r1, r2, ...]],
+    }
+
     # Reset environment
     observations, _ = env.reset()
     rnn_states = torch.zeros([env.num_agents, get_rnn_size(cfg)], dtype=torch.float32, device=device)
 
-    # Create dataset
-    dataset_size = 100_000
-    dataset = {
-        "observations": np.zeros(
-            (dataset_size, *env.observation_space["obs"].shape), dtype=env.observation_space["obs"].dtype
-        ),
-        "actions": np.zeros((dataset_size, *env.action_space.shape), env.action_space.dtype),
-        "dones": np.zeros((dataset_size,), bool),
-        "rewards": np.zeros((dataset_size,), np.float32),
-    }
+    for value in dataset:
+        value.append([])
 
     # Run the environment
+    dones = [False]
     with torch.no_grad():
         num_timesteps = 0
-        while num_timesteps < dataset_size:
+        while num_timesteps < dataset_size or not dones[0]:
             normalized_obs = prepare_and_normalize_obs(actor_critic, observations)
             policy_outputs = actor_critic(normalized_obs, rnn_states)
 
@@ -194,14 +142,13 @@ def create_dataset(cfg: Config):
             actions = preprocess_actions(env_info, actions)
 
             rnn_states = policy_outputs["new_rnn_states"]
-            dataset["observations"][num_timesteps] = observations["obs"].cpu().numpy()
-            dataset["actions"][num_timesteps] = actions
+            dataset["continuous_observations"][-1].append(observations["obs"].cpu().numpy()[0])
+            dataset["continuous_actions"][-1].append(actions[0])
 
             observations, rewards, terminated, truncated, _ = env.step(actions)
             dones = make_dones(terminated, truncated)
 
-            dataset["dones"][num_timesteps] = dones
-            dataset["rewards"][num_timesteps] = rewards
+            dataset["rewards"][-1].append(rewards.cpu().numpy())
 
             num_timesteps += 1
 
@@ -209,19 +156,23 @@ def create_dataset(cfg: Config):
             for agent_idx, done in enumerate(dones):
                 if done:
                     rnn_states[agent_idx] = torch.zeros([get_rnn_size(cfg)], dtype=torch.float32, device=device)
+                    for value in dataset:
+                        value.append([])
 
     env.close()
 
-    # Save dataset
-    repo_path = f"{cfg.train_dir}/datasets/{cfg.experiment}"
-    os.makedirs(repo_path, exist_ok=True)
-    with open(f"{repo_path}/dataset.npy", "wb") as f:
-        np.save(f, dataset)
+    dataset["continuous_observations"] = np.array(
+        [np.array(x, dtype=np.float32) for x in dataset["continuous_observations"]], dtype=object
+    )
+    dataset["continuous_actions"] = np.array(
+        [np.array(x, dtype=np.float32) for x in dataset["continuous_actions"]], dtype=object
+    )
+    dataset["rewards"] = np.array([np.array(x, dtype=np.float32) for x in dataset["rewards"]], dtype=object)
 
-    # Create dataset card and push to HF
-    generate_dataset_card(repo_path, cfg.env, cfg.experiment)
-    hf_repo_name = f"qgallouedec/prj_gia_dataset_metaworld_{cfg.env}_1111".replace("-", "_")
-    push_to_hf(repo_path, hf_repo_name)
+    repo_path = f"datasets/{cfg.experiment[:-3]}"
+    os.makedirs(repo_path, exist_ok=True)
+    file = f"{repo_path}/{split}"
+    np.savez_compressed(f"{file}.npz", **dataset)
 
 
 def main() -> int:
@@ -229,7 +180,8 @@ def main() -> int:
         register_env(env_name, make_custom_env)
     parser, _ = parse_sf_args(argv=None, evaluation=True)
     cfg = parse_full_cfg(parser)
-    status = create_dataset(cfg)
+    status = create_dataset(cfg, dataset_size=90_000, split="train")
+    status = create_dataset(cfg, dataset_size=10_000, split="test")
     return status
 
 
