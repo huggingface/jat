@@ -4,7 +4,7 @@ import numpy as np
 import torch
 
 
-class GIADataCollator:
+class GiaDataCollator:
     """
     A callable data collator used for GIA model.
 
@@ -18,7 +18,7 @@ class GIADataCollator:
         dtypes (dict): A mapping from feature keys to their associated PyTorch dtype.
 
     Example:
-        >>> collator = GIADataCollator()
+        >>> collator = GiaDataCollator()
         >>> features = [
         ...     {
         ...         "input_ids": [1, 2, None],

@@ -1,7 +1,7 @@
 from datasets import concatenate_datasets, load_dataset
 from torch.utils.data import DataLoader
 
-from gia.datasets import GIADataCollator, maybe_prompt_dataset
+from gia.datasets import GiaDataCollator, maybe_prompt_dataset
 from gia.processing import GiaProcessor
 
 
@@ -22,7 +22,7 @@ datasets = {
 dataset = concatenate_datasets(list(datasets.values()))
 
 # Create a dataloader
-dataloader = DataLoader(dataset, batch_size=3, collate_fn=GIADataCollator())
+dataloader = DataLoader(dataset, batch_size=3, collate_fn=GiaDataCollator())
 
 # Print the first batch
 batch = next(iter(dataloader))

@@ -4,7 +4,7 @@ import torch
 from datasets import load_dataset
 
 from gia.config import Arguments
-from gia.datasets import GIADataCollator
+from gia.datasets import GiaDataCollator
 from gia.datasets.core import generate_prompts
 from gia.model.gia_model import GiaModel
 from gia.processing import GiaProcessor
@@ -15,7 +15,7 @@ def run():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     args = Arguments(output_dir="./", task_names=["mujoco-ant"])
     processor = GiaProcessor()
-    collator = GIADataCollator()
+    collator = GiaDataCollator()
     model = GiaModel(args).to(device)
     env = gym.vector.make("Ant-v4", num_envs, render_mode="human")
     action_dim = env.action_space.shape[1]
