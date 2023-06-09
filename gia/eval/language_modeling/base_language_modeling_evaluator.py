@@ -22,6 +22,8 @@ class BaseLanguageModelingEvaluator(Evaluator):
         dataloader = DataLoader(dataset, batch_size=self.args.batch_size, collate_fn=GIADataCollator(), shuffle=True)
         for step, batch in enumerate(dataloader):
             with torch.no_grad():
+                for key, value in batch.items():
+                    batch[key] = value.to(self.args.device)
                 outputs = model(**batch)
             losses.append(outputs.loss)
             if 0 < step == self.args.max_eval_steps:
