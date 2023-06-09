@@ -2,7 +2,7 @@ from datasets import Dataset, concatenate_datasets, load_dataset
 from transformers import Trainer
 
 from gia.config import Arguments
-from gia.datasets import GIADataCollator, maybe_prompt_dataset
+from gia.datasets import GiaDataCollator, maybe_prompt_dataset
 from gia.model import GiaModel
 from gia.processing import GiaProcessor
 
@@ -52,6 +52,6 @@ model = GiaModel(args)
 
 # Load the dataset
 trainer = Trainer(
-    model, args, data_collator=GIADataCollator(), train_dataset=train_dataset, eval_dataset=test_datasets
+    model, args, data_collator=GiaDataCollator(), train_dataset=train_dataset, eval_dataset=test_datasets
 )
 trainer.train()

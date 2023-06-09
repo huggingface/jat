@@ -2,11 +2,11 @@ import numpy as np
 import pytest
 import torch
 
-from gia.datasets.collator import GIADataCollator
+from gia.datasets.collator import GiaDataCollator
 
 
 def test_collate_input_ids():
-    collator = GIADataCollator()
+    collator = GiaDataCollator()
     features = [
         {"input_ids": [1, 2, 3]},
         {"input_ids": [4, 5, 6]},
@@ -19,7 +19,7 @@ def test_collate_input_ids():
 
 
 def test_collate_patches():
-    collator = GIADataCollator()
+    collator = GiaDataCollator()
     patches = [
         [np.random.randint(0, 255, (4, 16, 16), dtype=np.uint8) for _ in range(3)],
         [np.random.randint(0, 255, (4, 16, 16), dtype=np.uint8) for _ in range(3)],
@@ -37,7 +37,7 @@ def test_collate_patches():
 
 
 def test_collate_patch_positions():
-    collator = GIADataCollator()
+    collator = GiaDataCollator()
     patch_positions = [
         [np.random.uniform(0, 1, (2, 2)).astype(np.float32) for _ in range(3)],
         [np.random.uniform(0, 1, (2, 2)).astype(np.float32) for _ in range(3)],
@@ -55,7 +55,7 @@ def test_collate_patch_positions():
 
 
 def test_collate_input_types():
-    collator = GIADataCollator()
+    collator = GiaDataCollator()
     features = [
         {"input_types": [1, 0, 1]},
         {"input_types": [0, 1, 0]},
@@ -68,7 +68,7 @@ def test_collate_input_types():
 
 
 def test_collate_local_positions():
-    collator = GIADataCollator()
+    collator = GiaDataCollator()
     features = [
         {"local_positions": [1, 2, 3]},
         {"local_positions": [4, 5, 6]},
@@ -81,7 +81,7 @@ def test_collate_local_positions():
 
 
 def test_collate_loss_mask():
-    collator = GIADataCollator()
+    collator = GiaDataCollator()
     features = [
         {"loss_mask": [True, False, True]},
         {"loss_mask": [False, True, False]},
@@ -94,7 +94,7 @@ def test_collate_loss_mask():
 
 
 def test_collate_attention_mask():
-    collator = GIADataCollator()
+    collator = GiaDataCollator()
     features = [
         {"attention_mask": [True, False, True]},
         {"attention_mask": [False, True, False]},
@@ -107,7 +107,7 @@ def test_collate_attention_mask():
 
 
 def test_collate_multiple_features():
-    collator = GIADataCollator()
+    collator = GiaDataCollator()
     features = [
         {
             "input_ids": [1, 2, 3],
@@ -128,7 +128,7 @@ def test_collate_multiple_features():
 
 
 def test_exclude_empty_key():
-    collator = GIADataCollator()
+    collator = GiaDataCollator()
     features = [
         {
             "input_ids": [1, 2, 3],
@@ -147,7 +147,7 @@ def test_exclude_empty_key():
 
 
 def test_pad_none_features_sequence_input_ids():
-    collator = GIADataCollator()
+    collator = GiaDataCollator()
     features = [
         {"input_ids": [1, 2, 3]},
         {"input_ids": None},
@@ -160,7 +160,7 @@ def test_pad_none_features_sequence_input_ids():
 
 
 def test_pad_none_features_sequence_patches():
-    collator = GIADataCollator()
+    collator = GiaDataCollator()
     patches = [np.random.randint(0, 255, (4, 16, 16), dtype=np.uint8) for _ in range(3)]
     features = [
         {"patches": patches},
@@ -176,7 +176,7 @@ def test_pad_none_features_sequence_patches():
 
 
 def test_pad_none_features_sequence_patch_positions():
-    collator = GIADataCollator()
+    collator = GiaDataCollator()
     patch_positions = [np.random.uniform(0, 1, (2, 2)).astype(np.float32) for _ in range(3)]
     features = [
         {"patch_positions": patch_positions},
@@ -192,7 +192,7 @@ def test_pad_none_features_sequence_patch_positions():
 
 
 def test_pad_none_features_sequence_input_types():
-    collator = GIADataCollator()
+    collator = GiaDataCollator()
     features = [
         {"input_types": [1, 0, 1]},
         {"input_types": None},
@@ -205,7 +205,7 @@ def test_pad_none_features_sequence_input_types():
 
 
 def test_pad_none_features_sequence_local_positions():
-    collator = GIADataCollator()
+    collator = GiaDataCollator()
     features = [
         {"local_positions": [1, 2, 3]},
         {"local_positions": None},
@@ -218,7 +218,7 @@ def test_pad_none_features_sequence_local_positions():
 
 
 def test_pad_none_features_sequence_loss_mask():
-    collator = GIADataCollator()
+    collator = GiaDataCollator()
     features = [
         {"loss_mask": [True, False, True]},
         {"loss_mask": None},
@@ -231,7 +231,7 @@ def test_pad_none_features_sequence_loss_mask():
 
 
 def test_pad_none_features_sequence_attention_mask():
-    collator = GIADataCollator()
+    collator = GiaDataCollator()
     features = [
         {"attention_mask": [True, False, True]},
         {"attention_mask": None},
@@ -244,7 +244,7 @@ def test_pad_none_features_sequence_attention_mask():
 
 
 def test_pad_none_feature_input_ids():
-    collator = GIADataCollator()
+    collator = GiaDataCollator()
     features = [
         {"input_ids": [1, None, 3]},
         {"input_ids": [4, 5, None]},
@@ -257,7 +257,7 @@ def test_pad_none_feature_input_ids():
 
 
 def test_pad_none_feature_patches():
-    collator = GIADataCollator()
+    collator = GiaDataCollator()
     patches = [
         [np.random.randint(0, 255, (4, 16, 16), dtype=np.uint8) for _ in range(2)],
         [np.random.randint(0, 255, (4, 16, 16), dtype=np.uint8) for _ in range(2)],
@@ -279,7 +279,7 @@ def test_pad_none_feature_patches():
 
 
 def test_pad_none_feature_patch_positions():
-    collator = GIADataCollator()
+    collator = GiaDataCollator()
     patch_positions = [
         [np.random.uniform(0, 1, (2, 2)).astype(np.float32) for _ in range(2)],
         [np.random.uniform(0, 1, (2, 2)).astype(np.float32) for _ in range(2)],
@@ -302,7 +302,7 @@ def test_pad_none_feature_patch_positions():
 
 def test_pad_none_feature_input_types():
     # CAUTION: Shouldn't happen in practice, as input_types should never be None
-    collator = GIADataCollator()
+    collator = GiaDataCollator()
     features = [
         {"input_types": [1, None, 0]},
         {"input_types": [0, 1, None]},
@@ -315,7 +315,7 @@ def test_pad_none_feature_input_types():
 
 
 def test_pad_none_feature_local_positions():
-    collator = GIADataCollator()
+    collator = GiaDataCollator()
     features = [
         {"local_positions": [1, None, 3]},
         {"local_positions": [4, 5, None]},
@@ -328,7 +328,7 @@ def test_pad_none_feature_local_positions():
 
 
 def test_pad_none_feature_loss_mask():
-    collator = GIADataCollator()
+    collator = GiaDataCollator()
     features = [
         {"loss_mask": [True, None, False]},
         {"loss_mask": [False, True, None]},
@@ -341,7 +341,7 @@ def test_pad_none_feature_loss_mask():
 
 
 def test_pad_none_feature_attention_mask():
-    collator = GIADataCollator()
+    collator = GiaDataCollator()
     features = [
         {"attention_mask": [True, None, False]},
         {"attention_mask": [False, True, None]},
@@ -354,7 +354,7 @@ def test_pad_none_feature_attention_mask():
 
 
 def test_catch_invalid_key():
-    collator = GIADataCollator()
+    collator = GiaDataCollator()
     features = [
         {
             "input_ids": [1, 2, 3],
@@ -366,7 +366,7 @@ def test_catch_invalid_key():
 
 
 def test_catch_different_lengths_for_same_key():
-    collator = GIADataCollator()
+    collator = GiaDataCollator()
     features = [
         {
             "input_ids": [1, 2, 3],
@@ -380,7 +380,7 @@ def test_catch_different_lengths_for_same_key():
 
 
 def test_catch_different_lengths_for_different_keys():
-    collator = GIADataCollator()
+    collator = GiaDataCollator()
     features = [
         {
             "input_ids": [1, 2, 3],
