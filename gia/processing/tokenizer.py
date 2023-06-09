@@ -4,10 +4,10 @@ from typing import Callable, Dict, List, Optional, Tuple, TypeVar, Union
 
 import cv2
 import numpy as np
+from numpy.lib.stride_tricks import as_strided
 from PIL import Image
 from transformers import AutoTokenizer
 
-from gia.config import DatasetArguments
 from .utils import nested_like
 
 T = TypeVar("T")
@@ -53,10 +53,7 @@ class GiaTokenizer:
         args (:obj:`DatasetArguments`): Dataset arguments.
 
     Example:
-        >>> from gia.config import DatasetArguments
-        >>> from gia.processing import Tokenizer
-        >>> args = DatasetArguments()
-        >>> tokenizer = Tokenizer(args)
+        >>> tokenizer = Tokenizer()
         >>> inputs = {
         ...     "text_observations": ["Go right", "Go left"],
         ...     "continuous_observations": [[0.1, 0.2], [0.3, 0.4]],
@@ -68,18 +65,20 @@ class GiaTokenizer:
          'discrete_actions': [30001, 30002]}
     """
 
-    def __init__(self, args: DatasetArguments) -> None:
+    def __init__(self, mu: float = 100.0, M: float = 256.0, nb_bins: int = 1024, patch_size: int = 16):
         super().__init__()
-        self.mu = args.mu
-        self.M = args.M
-        self.nb_bins = args.nb_bins
-        self.patch_size = args.patch_size
-        self.seq_len = args.seq_len
+        self.mu = mu
+        self.M = M
+        self.nb_bins = nb_bins
+        self.patch_size = patch_size
 
         self.mu_law_compand = True
         self.text_tokenizer = AutoTokenizer.from_pretrained("albert-base-v2")
         self.token_shift = self.text_tokenizer.vocab_size
-        self.vocab_size = self.token_shift + self.nb_bins
+
+    @property
+    def vocab_size(self) -> int:
+        return self.text_tokenizer.vocab_size + self.nb_bins
 
     @nested_decorator
     def tokenize_text(self, text: str) -> int:
@@ -102,33 +101,32 @@ class GiaTokenizer:
                     (N, 2, 2), where the last two dimensions are the start and end positions of the patch.
         """
         if isinstance(image, Image.Image):
-            image = np.transpose(np.array(image), (2, 0, 1))
+            image = np.array(image)
         P = self.patch_size
-        C, H, W = image.shape
+        H, W, C = image.shape
         # Reshape to the closest above multiple of the patch size
-        # cv2 works with channels last, so we need to transpose the image.
-        image = image.transpose(1, 2, 0)
         H = H - H % P + P if H % P != 0 else H
         W = W - W % P + P if W % P != 0 else W
-        resized_image = cv2.resize(image, (W, H), interpolation=cv2.INTER_AREA)
-        image = resized_image.transpose(2, 0, 1)  # Back to channels first
+        image = cv2.resize(
+            image, (W, H), interpolation=cv2.INTER_AREA
+        )  # cv2.resize expects (W, H), but actually outputs (H, W)
         # Extract patches
-        patches = image.reshape(C, H // P, P, W // P, P).transpose(1, 3, 0, 2, 4)
-        patches = patches.reshape(-1, C, P, P)
+        shape = (H // P, W // P, P, P, C)
+        strides = (P * image.strides[0], P * image.strides[1]) + image.strides
+        patches = as_strided(image, shape=shape, strides=strides)
+        patches = patches.reshape(-1, P, P, C)
         # Pad the image with 0 to have 4 channels
-        pad_width = ((0, 4 - C), (0, 0), (0, 0))
+        pad_width = ((0, 0), (0, 0), (0, 4 - C))
         patches = [np.pad(patch, pad_width, mode="constant", constant_values=0) for patch in patches]
+        # patches = [Image.fromarray(patche) for patche in patches]
         # Compute the relative position intervals of the patches within the image
         # They are described as [[x_min, y_min], [x_max, y_max]]
         # Output shape is (N, 2, 2)
-        patch_positions = np.array(
-            [
-                [[i / (H // P), j / (W // P)], [(i + 1) / (H // P), (j + 1) / (W // P)]]
-                for i in range(H // P)
-                for j in range(W // P)
-            ],
-            dtype=np.float32,
-        ).tolist()
+        patch_positions = [
+            np.array([[i / (H // P), j / (W // P)], [(i + 1) / (H // P), (j + 1) / (W // P)]], dtype=np.float32)
+            for i in range(H // P)
+            for j in range(W // P)
+        ]
 
         return patches, patch_positions
 

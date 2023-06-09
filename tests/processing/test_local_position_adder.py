@@ -152,6 +152,17 @@ def test_valid_local_positions_adder_single():
     assert local_positions == expected_local_positions
 
 
+def test_valid_local_positions_adder_single_no_list():
+    # occurs with single discrete value
+    adder = LocalPositionsAdder([["a"]])
+    sequence = [0, 1, 2]
+    input_dict = {"a": {"aa": [sequence]}}
+    adder(input_dict)
+    local_positions = input_dict["a"]["local_positions"]
+    expected_local_positions = [[[0], [0], [0]]]
+    assert local_positions == expected_local_positions
+
+
 def test_valid_local_positions_adder_multiple_keys():
     adder = LocalPositionsAdder([["a", "b"]])
     sequence_a = [[0], [1, 2], [3, 4, 5], [6, 7]]

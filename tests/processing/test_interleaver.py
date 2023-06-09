@@ -1,6 +1,6 @@
 import pytest
 
-from gia.processing.interleaver import Interleaver, indexing_from_nested, extend_ddl, extend_dol
+from gia.processing.interleaver import Interleaver, indexing_from_nested, extend_dol
 
 
 def test_indexing_from_nested_basic():
@@ -12,8 +12,9 @@ def test_indexing_from_nested_basic():
 
 def test_indexing_from_nested_out_of_range():
     nested_dict = {"outer_key1": {"inner_key": [1, 2, 3]}, "outer_key2": {"inner_key": [4, 5, 6]}}
-    with pytest.raises(IndexError):
-        indexing_from_nested(nested_dict, 10)
+    result = indexing_from_nested(nested_dict, 10)
+    expected_result = None
+    assert result == expected_result
 
 
 def test_indexing_from_nested_none_support():
@@ -37,50 +38,6 @@ def test_indexing_from_nested_type_error():
     with pytest.raises(TypeError):
         nested_dict = {"outer_key1": {"inner_key": [1, 2]}, "outer_key2": {"inner_key": 2}}
         indexing_from_nested(nested_dict, 1)
-
-
-def test_extend_ddl_no_overlap():
-    ddl = {"outer_key1": {"inner_key": [1, 2]}, "outer_key2": {"inner_key": [3, 4]}}
-    other_ddl = {"outer_key3": {"inner_key2": [5, 6]}, "outer_key4": {"inner_key2": [7, 8]}}
-    extend_ddl(ddl, other_ddl)
-    assert ddl == {
-        "outer_key1": {"inner_key": [1, 2, None, None]},
-        "outer_key2": {"inner_key": [3, 4, None, None]},
-        "outer_key3": {"inner_key2": [None, None, 5, 6]},
-        "outer_key4": {"inner_key2": [None, None, 7, 8]},
-    }
-
-
-def test_extend_ddl_partial_overlap():
-    ddl = {"outer_key1": {"inner_key": [1, 2]}, "outer_key2": {"inner_key": [3, 4]}}
-    other_ddl = {"outer_key1": {"inner_key2": [5, 6]}, "outer_key3": {"inner_key2": [7, 8]}}
-    extend_ddl(ddl, other_ddl)
-    assert ddl == {
-        "outer_key1": {"inner_key": [1, 2, None, None], "inner_key2": [None, None, 5, 6]},
-        "outer_key2": {"inner_key": [3, 4, None, None]},
-        "outer_key3": {"inner_key2": [None, None, 7, 8]},
-    }
-
-
-def test_extend_ddl_total_overlap():
-    ddl = {"outer_key1": {"inner_key": [1, 2]}, "outer_key2": {"inner_key": [3, 4]}}
-    other_ddl = {"outer_key1": {"inner_key": [5, 6]}, "outer_key2": {"inner_key": [7, 8]}}
-    extend_ddl(ddl, other_ddl)
-    assert ddl == {"outer_key1": {"inner_key": [1, 2, 5, 6]}, "outer_key2": {"inner_key": [3, 4, 7, 8]}}
-
-
-def test_extend_ddl_with_empty_ddl():
-    ddl = {}
-    other_ddl = {"outer_key1": {"inner_key": [1, 2]}, "outer_key2": {"inner_key": [3, 4]}}
-    extend_ddl(ddl, other_ddl)
-    assert ddl == {"outer_key1": {"inner_key": [1, 2]}, "outer_key2": {"inner_key": [3, 4]}}
-
-
-def test_extend_ddl_with_empty_other_ddl():
-    ddl = {"outer_key1": {"inner_key": [1, 2]}, "outer_key2": {"inner_key": [3, 4]}}
-    other_ddl = {}
-    extend_ddl(ddl, other_ddl)
-    assert ddl == {"outer_key1": {"inner_key": [1, 2]}, "outer_key2": {"inner_key": [3, 4]}}
 
 
 def test_extend_dol_no_overlap():
@@ -156,11 +113,51 @@ def test_interleave_episode_multiple_inner_key():
     assert processed_data == expected_output
 
 
-def test_interleave_standalone():
+def test_interleave_standalone_only_images():
+    # Should just return the inner dict
     interleaver = Interleaver()
     data = {"images": {"a": [[1, 2, 3]]}}
     processed_data = interleaver(data)
-    print(processed_data)
+    assert processed_data == {"a": [[1, 2, 3]]}
 
 
-test_interleave_standalone()
+def test_interleave_standalone_only_text():
+    # Should just return the inner dict
+    interleaver = Interleaver()
+    data = {"text": {"a": [[1, 2, 3]]}}
+    processed_data = interleaver(data)
+    assert processed_data == {"a": [[1, 2, 3]]}
+
+
+def test_interleave_standalone_images_and_text_different_keys():
+    interleaver = Interleaver()
+    data = {
+        "images": {"a": [[1, 2, 3]]},
+        "text": {"b": [[4, 5, 6]]},
+    }
+    processed_data = interleaver(data)
+    assert processed_data == {
+        "a": [[1, 2, 3, None, None, None]],
+        "b": [[None, None, None, 4, 5, 6]],
+    }
+
+
+def test_interleave_standalone_images_and_text_same_keys():
+    interleaver = Interleaver()
+    data = {
+        "images": {"a": [[1, 2, 3]]},
+        "text": {"a": [[4, 5, 6]]},
+    }
+    processed_data = interleaver(data)
+    assert processed_data == {"a": [[1, 2, 3, 4, 5, 6]]}
+
+
+def test_allow_observations_1_timestep_longer_than_actions():
+    # useful for evaluation, where we want to infer the next action
+    interleaver = Interleaver()
+    data = {
+        "image_observations": {"a": [[[1], [3], [5]]]},
+        "discrete_actions": {"a": [[[2], [4]]]},
+    }
+    processed_data = interleaver(data)
+    assert processed_data == {"a": [[1, 2, 3, 4, 5]]}

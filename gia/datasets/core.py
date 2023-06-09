@@ -1,10 +1,7 @@
 import random
 from typing import Dict, List, Union
 
-import numpy as np
-import torch
 from datasets import Dataset, get_dataset_config_names
-from torch import Tensor
 import warnings
 
 
@@ -97,15 +94,17 @@ def needs_prompt(task_name: str) -> bool:
         bool: True if the task needs prompt, False otherwise.
     """
     is_atari = task_name.startswith("atari")
+    is_babyai = task_name.startswith("babyai")
     is_conceptual_captions = task_name == "conceptual_captions"
     is_metaworld = task_name.startswith("metaworld")
     is_mujoco = task_name.startswith("mujoco")
-    if is_atari or is_metaworld or is_mujoco:
+    if is_atari or is_babyai or is_metaworld or is_mujoco:
         return True
     elif is_conceptual_captions:
         return False
     else:
-        warnings.warn(f"Wether {task_name} needs prompt is unknown.")
+        warnings.warn(f"Wether {task_name} needs prompt is unknown. Assuming it does not need prompt.")
+        return False
 
 
 def prompt_dataset(
@@ -159,36 +158,3 @@ def maybe_prompt_dataset(
         return prompt_dataset(dataset, p_prompt, p_end, min_prompt_len, max_prompt_len)
     else:
         return dataset
-
-
-def collate_fn(batch: List[Dict[str, List]]) -> Dict[str, Tensor]:
-    """
-    Collate function for the dataloader.
-
-    Args:
-        batch (List[Dict[str, List]]): List of samples.
-
-    Returns:
-        Dict[str, Tensor]: Collated batch.
-    """
-    # All samples must have the same keys
-    keys = batch[0].keys()
-    d = {}
-
-    for key in keys:
-        val = [sample[key] for sample in batch]
-        if key == "patches":
-            B, L = len(val), len(val[0])
-            collated_data = torch.zeros((B, L, 4, 16, 16), dtype=torch.uint8)  # hard-coded for now
-            for i, ep in enumerate(val):
-                for j, patch in enumerate(ep):
-                    patch = torch.as_tensor(patch)
-                    shape = patch.shape
-                    collated_data[i, j, : shape[0], : shape[1], : shape[2]] = patch
-            val = collated_data
-
-        if isinstance(val[0][0], np.ndarray):
-            val = np.array(val)  # to avoid creating a tensor from a list of arrays
-        d[key] = torch.as_tensor(val)
-
-    return d

@@ -21,7 +21,10 @@ def indexing_from_nested(nested_dict: Dict, index: int) -> Dict:
         {"outer_key1": {"inner_key": 2}, "outer_key2": {"inner_key": 5}}
     """
     if isinstance(nested_dict, list):
-        return nested_dict[index]
+        if index < len(nested_dict):
+            return nested_dict[index]
+        else:
+            return None
     elif nested_dict is None:
         return None
     elif isinstance(nested_dict, dict):
@@ -35,66 +38,21 @@ def indexing_from_nested(nested_dict: Dict, index: int) -> Dict:
         raise TypeError(f"Unsupported type: {type(nested_dict)}")
 
 
-def extend_ddl(ddl: Dict[str, Dict[str, List[Any]]], other_ddl: Dict[str, Dict[str, List[Any]]]) -> None:
-    """
-    Extends the innermost lists in a nested dictionary (dict of dict of list, abbreviated ddl) with corresponding lists from another nested dictionary (other_ddl).
-
-    Args:
-        ddl (Dict[str, Dict[str, List[Any]]]): A nested dictionary where the innermost values are lists.
-            All lists within the ddl should have the same length.
-        other_ddl (Dict[str, Dict[str, List[Any]]]): Another nested dictionary with the same structure, where the innermost values are lists to extend
-             the corresponding lists in ddl.
-
-    Returns:
-        None: This function modifies the input 'ddl' in-place by extending its innermost lists with the corresponding lists from 'other_ddl'.
-              If a key is missing in 'other_ddl', the corresponding list in 'ddl' is extended with None values.
-
-    Example:
-        >>> ddl = {"outer_key1": {"inner_key": [1, 2]},
-        ...        "outer_key2": {"inner_key": [5, 6]}}
-        >>> other_ddl = {"outer_key1": {"inner_key": [3, 4, 5]}}
-        >>> extend_ddl(ddl, other_ddl)
-        >>> print(ddl)
-        {"outer_key1": {"inner_key": [1, 2, 3, 4, 5]},
-         "outer_key2": {"inner_key": [5, 6, None, None, None]}}
-    """
-
-    # all the list within the ddl should have the same length
-    def get_length(ddl):
-        if ddl:
-            if next(iter(ddl.values())):
-                return len(next(iter(next(iter(ddl.values())).values())))
-        return 0
-
-    length = get_length(ddl)
-    other_length = get_length(other_ddl)
-
-    # ddl stands for dict of dict of list
-    for outer_key in set(ddl.keys()).union(set(other_ddl.keys())):
-        if outer_key not in ddl:
-            ddl[outer_key] = {}
-        if outer_key not in other_ddl:
-            other_ddl[outer_key] = {}
-        for inner_key in set(ddl[outer_key].keys()).union(set(other_ddl[outer_key].keys())):
-            if inner_key not in ddl[outer_key]:
-                ddl[outer_key][inner_key] = [None] * length
-            if inner_key not in other_ddl[outer_key]:
-                other_ddl[outer_key][inner_key] = [None] * other_length
-            ddl[outer_key][inner_key].extend(other_ddl[outer_key][inner_key])
-
-
 def extend_dol(dol: Dict[str, List[Any]], other_dol: Dict[str, List[Any]]) -> None:
     """
-    Extends the lists in a dictionary (dict of list, abbreviated dol) with corresponding lists from another dictionary (other_dol).
+    Extends the lists in a dictionary (dict of list, abbreviated dol) with corresponding lists from another dictionary
+    (other_dol).
 
     Args:
-        dol (Dict[str, List[Any]]): A dictionary where the values are lists. All lists within the dol should have the same length.
-        other_dol (Dict[str, List[Any]]): Another dictionary with the same structure, where the values are lists to extend
-             the corresponding lists in dol.
+        dol (Dict[str, List[Any]]): A dictionary where the values are lists. All lists within the dol should have the
+            same length.
+        other_dol (Dict[str, List[Any]]): Another dictionary with the same structure, where the values are lists to
+            extend the corresponding lists in dol.
 
     Returns:
-        None: This function modifies the input 'dol' in-place by extending its lists with the corresponding lists from 'other_dol'.
-              If a key is missing in 'other_dol', the corresponding list in 'dol' is extended with None values.
+        None: This function modifies the input 'dol' in-place by extending its lists with the corresponding lists from
+            'other_dol'. If a key is missing in 'other_dol', the corresponding list in 'dol' is extended with None
+            values.
 
     Example:
         >>> dol = {"key1": [1, 2],
@@ -302,12 +260,9 @@ class Interleaver:
              'loss_mask': [0, 0, 1, 1]}
         """
         output = {}
-        if "images" in standalone_data:
-            to_append = standalone_data["images"].copy()
-            extend_dol(output, to_append)
-        if "text" in standalone_data:
-            to_append = standalone_data["text"].copy()
-            extend_dol(output, to_append)
+        for key in ["images", "text"]:
+            if key in standalone_data:
+                extend_dol(output, standalone_data[key].copy())
         return output
 
     def __call__(self, batch_data: Dict[str, Dict[str, Any]]) -> Dict[str, List[Any]]:
