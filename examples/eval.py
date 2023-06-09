@@ -1,7 +1,8 @@
+import json
 import os
 import time
 from typing import List
-import json
+
 import torch
 
 from gia.config import Arguments, GiaConfig
@@ -38,7 +39,7 @@ def eval():
 
     while True:
         time.sleep(1)
-        all_checkpoints = set([f.path for f in os.scandir(checkpoints_dir) if f.is_dir()])
+        all_checkpoints = {f.path for f in os.scandir(checkpoints_dir) if f.is_dir()}
         if len(all_checkpoints - evaluated_checkpoints) == 0:
             print("all checkpoints evaluated")
             break

@@ -1,16 +1,15 @@
 import gym
 import numpy as np
-from tqdm import tqdm
 import torch
-
 from datasets import load_dataset
+from tqdm import tqdm
+
 from gia.config.arguments import Arguments
 from gia.datasets import collate_fn, generate_prompts
-from gia.model.gia_model import GiaModel
-from gia.processing import GiaProcessor
-
 from gia.eval.evaluator import Evaluator
 from gia.eval.mappings import DATASET_FILE_MAPPING, TASK_TO_ENV_MAPPING
+from gia.model.gia_model import GiaModel
+from gia.processing import GiaProcessor
 
 
 def make_mujoco_env(env_name, render_mode=None):
