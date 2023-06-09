@@ -1,5 +1,5 @@
 import os
-from typing import Dict, Optional, List, Any
+from typing import Any, Dict, List, Optional
 
 import gym
 import metaworld  # noqa: F401
@@ -160,18 +160,19 @@ def create_dataset(cfg: Config, dataset_size: int = 100_000, split: str = "train
                         value.append([])
 
     env.close()
-    dataset = {
-        "observations": np.array(dataset["observations"], dtype=env.observation_space["obs"].dtype),
-        "actions": np.array(dataset["actions"], dtype=env.action_space.dtype),
-        "dones": np.array(dataset["dones"], dtype=bool),
-        "rewards": np.array(dataset["rewards"], dtype=np.float32),
-    }
 
-    # Save dataset
+    dataset["continuous_observations"] = np.array(
+        [np.array(x, dtype=np.float32) for x in dataset["continuous_observations"]], dtype=object
+    )
+    dataset["continuous_actions"] = np.array(
+        [np.array(x, dtype=np.float32) for x in dataset["continuous_actions"]], dtype=object
+    )
+    dataset["rewards"] = np.array([np.array(x, dtype=np.float32) for x in dataset["rewards"]], dtype=object)
+
     repo_path = f"datasets/{cfg.experiment[:-3]}"
     os.makedirs(repo_path, exist_ok=True)
-    with open(f"{repo_path}/{split}.npy", "wb") as f:
-        np.save(f, dataset)
+    file = f"{repo_path}/{split}"
+    np.savez_compressed(f"{file}.npz", **dataset)
 
 
 def main() -> int:
