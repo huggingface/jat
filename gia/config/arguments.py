@@ -91,7 +91,12 @@ class ModelArguments:
 @dataclass
 class EvalArguments:
     n_episodes: int = field(default=10, metadata={"help": "The number of eval episodes to perform"})
-    max_eval_steps: int = field(default=-1, metadata={"help": "The number of test batches to evaluate. If -1 (default), the full test set will be evaluated."})
+    max_eval_steps: int = field(
+        default=-1,
+        metadata={
+            "help": "The number of test batches to evaluate. If -1 (default), the full test set will be evaluated."
+        },
+    )
 
 
 class GiaTrainingArguments(TrainingArguments):

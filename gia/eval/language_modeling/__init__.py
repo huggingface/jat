@@ -1,3 +1,5 @@
-from gia.eval.language_modeling.oscar_evaluator import OscarEvaluator
-from gia.eval.language_modeling.ok_vqa_evaluator import OKVQAEvaluator
-from gia.eval.language_modeling.conceptual_captions_evaluator import ConceptualCaptionsEvaluator
+from .conceptual_captions_evaluator import ConceptualCaptionsEvaluator
+from .ok_vqa_evaluator import OKVQAEvaluator
+from .oscar_evaluator import OscarEvaluator
+
+__all__ = ["ConceptualCaptionsEvaluator", "OKVQAEvaluator", "OscarEvaluator"]

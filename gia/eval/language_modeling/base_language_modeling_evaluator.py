@@ -11,6 +11,7 @@ from torch.utils.data import DataLoader
 
 from gia.eval.evaluator import Evaluator
 
+
 class BaseLanguageModelingEvaluator(Evaluator):
     def __init__(self, args: Arguments):
         self.args = args
