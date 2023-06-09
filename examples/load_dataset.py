@@ -1,11 +1,12 @@
+from datasets import load_dataset
 import numpy as np
 
-from gia.datasets.core import load_gia_dataset
+# Load the dataset
+dataset = load_dataset("gia-project/gia-dataset", "mujoco-ant", split="train")
 
-dataset = load_gia_dataset("mujoco-ant")
 print(
     f"""
-Keys:                        {list(dataset.keys())}
+Column names:                {dataset.column_names}
 Number of episodes:          {len(dataset)}
 Length of the first episode: {len(dataset[0]['continuous_observations'])}
 First observation:           {np.round(dataset[0]['continuous_observations'][0], 1).tolist()}
