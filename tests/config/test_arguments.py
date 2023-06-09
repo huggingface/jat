@@ -7,6 +7,7 @@ import yaml
 import gia.config.arguments
 from gia.config import Arguments, parse_args
 
+
 EXEC_PATH = os.path.abspath(gia.config.arguments.__file__)
 
 

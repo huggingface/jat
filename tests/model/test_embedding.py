@@ -1,7 +1,7 @@
+import pytest
 import torch
 
 from gia.model.embedding import Embeddings, ImageEncoder, ImagePositionEncoding
-import pytest
 
 
 def random_patch_positions(size):

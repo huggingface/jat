@@ -1,8 +1,8 @@
 import random
+import warnings
 from typing import Dict, List, Union
 
 from datasets import Dataset, get_dataset_config_names
-import warnings
 
 
 def get_task_name_list(task_names: Union[str, List[str]]) -> List[str]:

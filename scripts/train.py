@@ -6,6 +6,7 @@ from gia.datasets import GIADataCollator, maybe_prompt_dataset
 from gia.model import GiaModel
 from gia.processing import GiaProcessor
 
+
 task_names = ["babyai-go-to", "mujoco-ant"]
 split = "train"
 args = Arguments(

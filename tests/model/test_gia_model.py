@@ -4,8 +4,9 @@ from accelerate import Accelerator
 from datasets import Dataset
 from torch.utils.data import DataLoader
 from transformers import Trainer
-from transformers.modeling_outputs import CausalLMOutputWithPast
 from transformers.data.data_collator import default_data_collator
+from transformers.modeling_outputs import CausalLMOutputWithPast
+
 from gia.config import Arguments
 from gia.model import GiaModel
 
