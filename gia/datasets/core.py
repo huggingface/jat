@@ -158,3 +158,42 @@ def maybe_prompt_dataset(
         return prompt_dataset(dataset, p_prompt, p_end, min_prompt_len, max_prompt_len)
     else:
         return dataset
+
+
+class Prompter:
+    def __init__(
+        self,
+        dataset: Dataset,
+        p_prompt: float = 0.25,
+        p_end: float = 0.1,
+        min_prompt_len: int = 1,
+        max_prompt_len: int = 1024,
+    ) -> None:
+        self.dataset = dataset
+        self.ep_lens = [len(ep[next(iter(ep))]) for ep in self.dataset]
+        self.p_prompt = p_prompt
+        self.p_end = p_end
+        self.min_prompt_len = min_prompt_len
+        self.max_prompt_len = max_prompt_len
+
+    def generate_prompts(self, num_prompts: int) -> Dict[str, List]:
+        prompt_ep_idxs = random.choices(range(len(self.dataset)), k=num_prompts)
+        from_ends = random.choices([True, False], k=num_prompts, weights=[self.p_end, 1 - self.p_end])
+        ep_lens = [self.ep_lens[idx] for idx in prompt_ep_idxs]
+        prompt_lengths = random.choices(range(self.min_prompt_len, self.max_prompt_len + 1), k=num_prompts)
+        prompts = self.dataset.select(prompt_ep_idxs).to_dict()
+        for idx in range(num_prompts):
+            max_start = max(0, ep_lens[idx] - prompt_lengths[idx])
+            start = max_start if from_ends[idx] else random.randint(0, max_start)
+            for key in prompts:
+                prompts[key][idx] = prompts[key][idx][start : start + prompt_lengths[idx]]
+        return prompts
+
+    def prompt(self, examples: Dict[str, List]) -> Dict[str, List]:
+        num_examples = len(examples[next(iter(examples))])
+        to_prompt_idxs = [idx for idx in range(num_examples) if random.random() < self.p_prompt]
+        prompts = self.generate_prompts(len(to_prompt_idxs))
+        for idx, to_prompt_idx in enumerate(to_prompt_idxs):
+            for key in examples:
+                examples[key][to_prompt_idx] = prompts[key][idx] + examples[key][to_prompt_idx]
+        return examples

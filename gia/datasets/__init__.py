@@ -1,5 +1,5 @@
 from .collator import GiaDataCollator
-from .core import get_task_name_list, maybe_prompt_dataset
+from .core import Prompter, get_task_name_list, maybe_prompt_dataset, needs_prompt
 
 
-__all__ = ["GiaDataCollator", "get_task_name_list", "maybe_prompt_dataset"]
+__all__ = ["GiaDataCollator", "Prompter", "get_task_name_list", "maybe_prompt_dataset", "needs_prompt"]
