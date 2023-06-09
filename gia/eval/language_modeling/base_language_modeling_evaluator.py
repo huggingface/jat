@@ -1,15 +1,12 @@
 import torch
-
 from datasets import load_dataset
+from torch.utils.data import DataLoader
 
 from gia.config import Arguments
 from gia.datasets import GIADataCollator
+from gia.eval.evaluator import Evaluator
 from gia.model import GiaModel
 from gia.processing import GiaProcessor
-
-from torch.utils.data import DataLoader
-
-from gia.eval.evaluator import Evaluator
 
 
 class BaseLanguageModelingEvaluator(Evaluator):

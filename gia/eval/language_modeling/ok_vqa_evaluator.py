@@ -1,5 +1,6 @@
-from .base_language_modeling_evaluator import BaseLanguageModelingEvaluator
 from gia.config.arguments import Arguments
+
+from .base_language_modeling_evaluator import BaseLanguageModelingEvaluator
 
 
 class OKVQAEvaluator(BaseLanguageModelingEvaluator):

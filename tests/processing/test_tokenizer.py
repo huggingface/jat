@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 from PIL import Image
+
 from gia.processing.tokenizer import GiaTokenizer
 
 

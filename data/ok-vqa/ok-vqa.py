@@ -1,13 +1,15 @@
+import argparse
+import io
+import json
+import os
 import tarfile
 from io import BytesIO
-from zipfile import ZipFile
 from tarfile import TarFile
 from urllib.request import urlopen
-import os
-import json
-import argparse
+from zipfile import ZipFile
+
 import PIL.Image
-import io
+
 
 BASE_COCO_URL = "http://images.cocodataset.org/zips/"
 BASE_OK_VQA_URL = "https://okvqa.allenai.org/static/data/"
