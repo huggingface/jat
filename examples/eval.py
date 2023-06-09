@@ -13,11 +13,14 @@ from gia.model.gia_model import GiaModel
 
 EVAL_MAPPING = {
     "mujoco": MujocoEvaluator,
+    "oscar": OscarEvaluator,
+    "ok-vqa": OKVQAEvaluator,
+    "conceptual-captions": ConceptualCaptionsEvaluator
 }
 
 
 def create_evaluators(args: Arguments) -> List[Evaluator]:
-    return [EVAL_MAPPING[task](args) for task in args.tasks]
+    return [EVAL_MAPPING[task](args) for task in args.task_names]
 
 
 def eval():

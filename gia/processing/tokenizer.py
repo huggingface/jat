@@ -119,7 +119,8 @@ class GiaTokenizer:
         # Pad the image with 0 to have 4 channels
         pad_width = ((0, 0), (0, 0), (0, 4 - C))
         patches = [np.pad(patch, pad_width, mode="constant", constant_values=0) for patch in patches]
-        # patches = [Image.fromarray(patche) for patche in patches]
+        # To channels first
+        patches = [patch.transpose(2, 0, 1) for patch in patches]
         # Compute the relative position intervals of the patches within the image
         # They are described as [[x_min, y_min], [x_max, y_max]]
         # Output shape is (N, 2, 2)
