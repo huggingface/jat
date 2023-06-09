@@ -10,6 +10,7 @@ from gia.eval.evaluator import Evaluator
 from gia.eval.mujoco_evaluator import MujocoEvaluator
 from gia.model.gia_model import GiaModel
 
+
 EVAL_MAPPING = {
     "mujoco": MujocoEvaluator,
 }

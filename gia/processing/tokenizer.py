@@ -10,6 +10,7 @@ from transformers import AutoTokenizer
 
 from .utils import nested_like
 
+
 T = TypeVar("T")
 U = TypeVar("U")
 V = TypeVar("V")

@@ -1,6 +1,6 @@
 import pytest
 
-from gia.processing.interleaver import Interleaver, indexing_from_nested, extend_dol
+from gia.processing.interleaver import Interleaver, extend_dol, indexing_from_nested
 
 
 def test_indexing_from_nested_basic():

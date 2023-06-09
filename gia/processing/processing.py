@@ -4,11 +4,11 @@ import datasets
 import numpy as np
 from PIL import Image
 
-
 from .interleaver import Interleaver
 from .local_positions_adder import LocalPositionsAdder
 from .tokenizer import GiaTokenizer
 from .utils import nested_like
+
 
 T = TypeVar("T")
 NestedList = Union[None, T, List["NestedList[T]"]]
