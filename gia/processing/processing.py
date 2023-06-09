@@ -55,6 +55,8 @@ class GiaProcessor:
         local_positions_groups (`Union[List[List[str]], str]`, *optional*, defaults to `"default"`):
             The groups of modalities for which to add local positions. Defaults to a single group containing all
             observations modalities (text, images, discrete and continuous observations).
+        use_separator (`bool`, *optional*, defaults to `True`):
+            Whether to include a separator token between observations and actions.
     """
 
     features = datasets.Features(
@@ -78,6 +80,7 @@ class GiaProcessor:
         mask_loss_modalities: Union[List[str], str] = "default",
         seq_len: int = 1024,
         local_positions_groups: Union[List[List[str]], str] = "default",
+        use_separator: bool = True,
     ) -> None:
         super().__init__()
         self.tokenizer = GiaTokenizer(mu, M, nb_bins, patch_size)
@@ -110,11 +113,14 @@ class GiaProcessor:
                 ]
             ]
         self.local_positions_adder = LocalPositionsAdder(local_positions_groups)
-        separator = {
-            "input_ids": [self.tokenizer.vocab_size],
-            "input_types": [0],
-            "loss_mask": [True],
-        }
+        if use_separator:
+            separator = {
+                "input_ids": [self.tokenizer.vocab_size],
+                "input_types": [0],
+                "loss_mask": [True],
+            }
+        else:
+            separator = None
         self.interleaver = Interleaver(separator)
         self.seq_len = seq_len
 
