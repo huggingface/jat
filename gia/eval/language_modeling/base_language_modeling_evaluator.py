@@ -3,7 +3,7 @@ from datasets import load_dataset
 from torch.utils.data import DataLoader
 
 from gia.config import Arguments
-from gia.datasets import GIADataCollator
+from gia.datasets import GiaDataCollator
 from gia.eval.evaluator import Evaluator
 from gia.model import GiaModel
 from gia.processing import GiaProcessor
@@ -19,7 +19,7 @@ class BaseLanguageModelingEvaluator(Evaluator):
         processor = GiaProcessor(self.args)
         dataset = load_dataset("gia-project/gia-dataset", self.task, split="test")
         dataset = dataset.map(lambda batch: processor(**batch), remove_columns=dataset.column_names, batched=True)
-        dataloader = DataLoader(dataset, batch_size=self.args.batch_size, collate_fn=GIADataCollator(), shuffle=True)
+        dataloader = DataLoader(dataset, batch_size=self.args.batch_size, collate_fn=GiaDataCollator(), shuffle=True)
         for step, batch in enumerate(dataloader):
             with torch.no_grad():
                 for key, value in batch.items():
