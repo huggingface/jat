@@ -6,6 +6,7 @@ from datasets import get_dataset_config_names
 from gia.config import DatasetArguments
 from gia.datasets import load_batched_dataset
 
+
 args = DatasetArguments()
 
 task_names = get_dataset_config_names("gia-project/gia-dataset")  # get all task names from gia dataset

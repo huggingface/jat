@@ -1,26 +1,9 @@
 import random
 
 import pytest
-import torch
 from datasets import Dataset
-from torch.utils.data import DataLoader
 
-from gia.datasets.core import collate_fn, generate_prompts, load_gia_dataset, concatenate_datasets
-
-
-@pytest.mark.parametrize("split", ["all", "train", "test"])
-def test_load_gia_dataset(split):
-    dataset = load_gia_dataset("mujoco-ant", split=split)
-    assert set(dataset.keys()) == {"rewards", "continuous_observations", "continuous_actions"}
-
-    dataloader = DataLoader(dataset)
-    for idx, episode in enumerate(dataloader):
-        for t in range(10):
-            assert len(episode["continuous_observations"][t]) == 27
-            assert len(episode["continuous_actions"][t]) == 8
-            assert len(episode["rewards"][t]) == 1
-        if idx == 10:
-            break
+from gia.datasets.core import generate_prompts
 
 
 @pytest.fixture
@@ -34,6 +17,25 @@ def test_num_prompts(example_dataset):
     num_prompts = 5
     prompts = generate_prompts(example_dataset, num_prompts)
     assert len(prompts) == num_prompts, "Number of generated prompts should match num_prompts"
+
+
+def test_prompts_meet_min_length_requirement(example_dataset):
+    # Since the only episode is 19 steps long, the generated prompts should be at least 14 steps.
+    num_prompts = 50
+    min_prompt_len = 14
+    prompts = generate_prompts(example_dataset, num_prompts, min_prompt_len=min_prompt_len, max_prompt_len=50)
+    for prompt in prompts:
+        assert len(prompt["text"]) >= min_prompt_len, "Generated prompts should not be shorter than min_prompt_len"
+
+
+def test_prompts_restricted_to_episode_length(example_dataset):
+    # Since the only episode is 19 steps long, the generated prompts should be 19 steps long when min_prompt_len is
+    # set to a higher value than 19
+    num_prompts = 50
+    min_prompt_len = 26
+    prompts = generate_prompts(example_dataset, num_prompts, min_prompt_len=min_prompt_len, max_prompt_len=50)
+    for prompt in prompts:
+        assert len(prompt["text"]) == 19, "Generated prompts should be 19 steps long"
 
 
 def test_max_prompt_len(example_dataset):
@@ -77,29 +79,3 @@ def test_output_structure(example_dataset):
         example_dataset.column_names
     ), "Output dataset should have the same column names as the input dataset"
     assert all(isinstance(prompt["text"], list) for prompt in prompts), "Each prompt should be a list"
-
-
-def test_concatenate_dataset():
-    dataset1 = Dataset.from_dict({"a": [1, 2, 3], "b": [4, 5, 6]})
-    dataset2 = Dataset.from_dict({"a": [7, 8, 9], "c": [10, 11, 12]})
-    output = concatenate_datasets([dataset1, dataset2])
-    expected_output = {"a": [1, 2, 3, 7, 8, 9], "b": [4, 5, 6, None, None, None], "c": [None, None, None, 10, 11, 12]}
-    assert output == expected_output
-
-
-def test_collate_fn():
-    batch = [
-        {"key1": [1, 2, 0], "key2": [3, 4, 5]},
-        {"key1": [6, 0, 0], "key2": [7, 8, 0]},
-    ]
-
-    output = collate_fn(batch)
-    expected_output = {
-        "key1": torch.tensor([[1, 2, 0], [6, 0, 0]]),
-        "key2": torch.tensor([[3, 4, 5], [7, 8, 0]]),
-    }
-
-    for key in output:
-        assert key in expected_output
-        for i in range(len(output[key])):
-            assert torch.all(output[key][i] == expected_output[key][i])

@@ -3,4 +3,10 @@ line-length = 119
 target-version = ['py38']
 
 [tool.ruff]
+ignore = ["C901"]
+select = ["C", "E", "F", "I", "W"]
 line-length = 119
+
+[tool.ruff.isort]
+lines-after-imports = 2
+known-first-party = ["gia"]

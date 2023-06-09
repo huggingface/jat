@@ -1,4 +1,5 @@
-from .core import collate_fn, generate_prompts, load_gia_dataset
-from .utils import DatasetDict
+from .collator import GIADataCollator
+from .core import get_task_name_list, maybe_prompt_dataset
 
-__all__ = ["collate_fn", "generate_prompts", "load_gia_dataset", "DatasetDict"]
+
+__all__ = ["GIADataCollator", "get_task_name_list", "maybe_prompt_dataset"]

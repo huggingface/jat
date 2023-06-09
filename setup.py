@@ -57,6 +57,7 @@ from distutils.core import setup
 
 from setuptools import find_packages
 
+
 __version__ = "0.0.1.dev0"  # expected format is one of x.y.z.dev0, or x.y.z.rc1 or x.y.z (no to dashes, yes to dots)
 
 REQUIRED_PKGS = [
@@ -68,7 +69,7 @@ REQUIRED_PKGS = [
     "hydra-core",
     "accelerate",
     "wandb",
-    "datasets",
+    "datasets @ git+https://github.com/qgallouedec/datasets.git@fix-IndexError-when-indexing-Sequence-of-Array2D-with-None-values",
     "opencv-python",
     "Pillow",
 ]

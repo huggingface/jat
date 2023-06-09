@@ -1,6 +1,83 @@
 from typing import Any, Dict, List, Optional
 
-import numpy as np
+
+def indexing_from_nested(nested_dict: Dict, index: int) -> Dict:
+    """
+    Extracts the index-th element from each sequence in the nested dictionary.
+
+    Args:
+        nested_dict: A nested dictionary where the innermost
+            values are lists of elements, which can be None or any other type.
+        index (int): The index of the element to be extracted from each list in the nested dictionary.
+
+    Returns:
+        A nested dictionary with the same structure as the input dictionary,
+            containing only the extracted index-th elements, excluding None values.
+
+    Example:
+        >>> nested_dict = {"outer_key1": {"inner_key": [1, 2, 3]},
+        ...                "outer_key2": {"inner_key": [4, 5, 6]}}
+        >>> extract_idx_element(nested_dict, 1)
+        {"outer_key1": {"inner_key": 2}, "outer_key2": {"inner_key": 5}}
+    """
+    if isinstance(nested_dict, list):
+        if index < len(nested_dict):
+            return nested_dict[index]
+        else:
+            return None
+    elif nested_dict is None:
+        return None
+    elif isinstance(nested_dict, dict):
+        result = {}
+        for k, v in nested_dict.items():
+            inner = indexing_from_nested(v, index)
+            if inner is not None:
+                result[k] = inner
+        return result if result else None
+    else:
+        raise TypeError(f"Unsupported type: {type(nested_dict)}")
+
+
+def extend_dol(dol: Dict[str, List[Any]], other_dol: Dict[str, List[Any]]) -> None:
+    """
+    Extends the lists in a dictionary (dict of list, abbreviated dol) with corresponding lists from another dictionary
+    (other_dol).
+
+    Args:
+        dol (Dict[str, List[Any]]): A dictionary where the values are lists. All lists within the dol should have the
+            same length.
+        other_dol (Dict[str, List[Any]]): Another dictionary with the same structure, where the values are lists to
+            extend the corresponding lists in dol.
+
+    Returns:
+        None: This function modifies the input 'dol' in-place by extending its lists with the corresponding lists from
+            'other_dol'. If a key is missing in 'other_dol', the corresponding list in 'dol' is extended with None
+            values.
+
+    Example:
+        >>> dol = {"key1": [1, 2],
+        ...        "key2": [5, 6]}
+        >>> other_dol = {"key1": [3, 4, 5]}
+        >>> extend_dol(dol, other_dol)
+        >>> print(dol)
+        {"key1": [1, 2, 3, 4, 5],
+         "key2": [5, 6, None, None, None]}
+    """
+
+    def get_length(dol) -> int:
+        if dol:
+            return len(next(iter(dol.values())))
+        return 0
+
+    length = get_length(dol)
+    other_length = get_length(other_dol)
+
+    for key in set(dol.keys()).union(set(other_dol.keys())):
+        if key not in dol:
+            dol[key] = [None] * length
+        if key not in other_dol:
+            other_dol[key] = [None] * other_length
+        dol[key].extend(other_dol[key])
 
 
 class Interleaver:
@@ -28,9 +105,6 @@ class Interleaver:
                 [1, 2],
                 [0, 0, 3, 5, 6, 0, 0, 4, 7, 8],
             ],
-            "local_positions": [
-                [0, 0],
-                [0, 1, 2, 0, 0, 0, 1, 2, 0, 0],
             "patches": [
                 [PATCH_PAD, PATCH_PAD],
                 [PATCH_1, PATCH_2, PATCH_PAD, PATCH_PAD, PATCH_PAD, PATCH_3, PATCH_4, PATCH_PAD, PATCH_PAD, PATCH_PAD],
@@ -50,35 +124,25 @@ class Interleaver:
         }
     """
 
-    TOKEN_TYPE_ID = 0
-    PATCH_TYPE_ID = 1
+    OBSERVATION_KEYS = [
+        "text_observations",
+        "image_observations",
+        "discrete_observations",
+        "continuous_observations",
+    ]
+    ACTION_KEYS = [
+        "discrete_actions",
+        "continuous_actions",
+    ]
 
-    def __init__(
-        self,
-        separator_token: Optional[int] = 31024,
-        token_pad_value: int = 0,
-        local_position_pad_value: int = -1,  # The one used for actions
-        patch_pad_value: Optional[np.ndarray] = None,
-        patch_position_pad_value: Optional[List[List[int]]] = None,
-    ) -> None:
-        self.token_pad_value = token_pad_value
-        self.patch_pad_value = np.zeros((1, 1, 1), dtype=np.int64) if patch_pad_value is None else patch_pad_value
-        self.local_position_pad_value = local_position_pad_value
-        self.patch_position_pad_value = (
-            [[0.0, 0.0], [0.0, 0.0]] if patch_position_pad_value is None else patch_position_pad_value
-        )
-        if separator_token is not None:
-            self.separator = {
-                "input_ids": [separator_token],
-                "patches": [self.patch_pad_value],
-                "patch_positions": [self.patch_position_pad_value],
-                "input_types": [self.TOKEN_TYPE_ID],
-            }
-        else:
-            self.separator = None
+    EPISODE_KEYS = set(OBSERVATION_KEYS + ACTION_KEYS)
+    STANDALONE_KEYS = {"images", "text"}
 
-    @staticmethod
-    def _is_episode(sample_data: Dict[str, Dict[str, Any]]) -> bool:
+    def __init__(self, separator: Optional[Dict[str, Any]] = None) -> None:
+        self.separator = separator
+
+    @classmethod
+    def _is_episode(cls, sample_data: Dict[str, Dict[str, Any]]) -> bool:
         """
         Determines if the keys of the sample_data dictionary follow the episode format. Keys can be either in
         ["images", "text"] or in ["image_observations", "text_observations", "discrete_observations",
@@ -94,117 +158,12 @@ class Interleaver:
             ValueError: If the keys are mixed and do not follow the expected format.
         """
         key_set = set(sample_data.keys())
-        epsiode_keys = set(
-            [
-                "image_observations",
-                "text_observations",
-                "discrete_observations",
-                "continuous_observations",
-                "discrete_actions",
-                "continuous_actions",
-            ]
-        )
-        standalone_keys = set(["images", "text"])
-
-        if key_set.issubset(epsiode_keys):
+        if key_set.issubset(cls.EPISODE_KEYS):
             return True
-        elif key_set.issubset(standalone_keys):
+        elif key_set.issubset(cls.STANDALONE_KEYS):
             return False
         else:
             raise ValueError("Keys are mixed and do not follow the expected format.")
-
-    @staticmethod
-    def _extract_idx_element(
-        nested_dict: Dict[str, Dict[str, List[Optional[Any]]]], index: int
-    ) -> Dict[str, Dict[str, Any]]:
-        """
-        Extracts the index-th element from each sequence in the nested dictionary.
-
-        Args:
-            nested_dict (Dict[str, Dict[str, List[Optional[Any]]]]): A nested dictionary where the innermost
-                values are lists of elements, which can be None or any other type.
-            index (int): The index of the element to be extracted from each list in the nested dictionary.
-
-        Returns:
-            Dict[str, Dict[str, Any]]: A nested dictionary with the same structure as the input dictionary,
-                containing only the extracted index-th elements, excluding None values.
-
-        Example:
-            >>> nested_dict = {"outer_key": {"inner_key": [1, 2, 3]},
-            ...                "outer_key2": {"inner_key": [4, 5, 6]}}
-            >>> _extract_idx_element(nested_dict, 1)
-            {"outer_key": {"inner_key": 2}, "outer_key2": {"inner_key": 5}}
-        """
-        output: Dict[str, Dict[str, Any]] = {}
-        for outer_key, inner_dict in nested_dict.items():
-            for inner_key, inner_list in inner_dict.items():
-                if len(inner_list) <= index:
-                    continue
-                element = inner_list[index]
-                if element is not None:
-                    output.setdefault(outer_key, {})[inner_key] = element
-        return output
-
-    def _dict_append(
-        self,
-        batch_data: Dict[str, Dict[str, Any]],
-        processed_data: Dict[str, List[Any]],
-        local_positions: List[int],
-        loss_mask_value: int,
-    ) -> None:
-        """
-        Appends the data from a single episode to the processed data dictionary.
-
-        Args:
-            batch_data (Dict[str, Dict[str, Any]]): A dictionary containing the data from a single episode.
-            processed_data (Dict[str, List[Any]]): A dictionary containing the processed data from all episodes.
-            loss_mask_value (int): The value to use for the loss mask.
-
-        Raises:
-            ValueError: If the batch data does not contain either "input_ids" or "patches" and "patch_positions".
-
-        Example:
-            >>> batch_data = {"input_ids": [43]}
-            >>> processed_data = {"input_ids": [42], "patches": [PATCH_PAD], "patch_positions": [POS_PAD],
-            ...                   "input_types": [0], "loss_mask": [1]}
-            >>> _dict_append(batch_data, processed_data, loss_mak_value=0)
-            >>> processed_data
-            {"input_ids": [42, 43], "patches": [PATCH_PAD, PATCH_PAD], "patch_positions": [POS_PAD, POS_PAD],
-                "input_types": [0, 0], "loss_mask": [1, 0]}
-            >>> batch_data = {"patches": [np.ones((4, 16, 16))], "patch_positions": [[[0.0, 0.0], [0.2, 0.5]]]}
-            >>> _dict_append(batch_data, processed_data, loss_mak_value=0)
-            >>> processed_data
-            {"input_ids": [42, 43, 0], "patches": [PATCH_PAD, PATCH_PAD, np.ones((4, 16, 16))],
-                "patch_positions": [POS_PAD, POS_PAD, [[0.0, 0.0], [0.2, 0.5]]], "input_types": [0, 0, 1],
-                "loss_mask": [1, 0, 1]}
-        """
-        # If the batch data is not a list, convert it to a list of size 1
-        for key in batch_data:
-            if not isinstance(batch_data[key], list):
-                batch_data[key] = [batch_data[key]]
-
-        # Get the number of elements in the batch data
-        num_elements = len(next(iter(batch_data.values())))
-
-        # Get the input ids, patches, positions, input type and loss mask
-        input_ids = batch_data.get("input_ids", [self.token_pad_value] * num_elements)
-        patches = batch_data.get("patches", [self.patch_pad_value] * num_elements)
-        patch_positions = batch_data.get("patch_positions", [self.patch_position_pad_value] * num_elements)
-        if "input_ids" in batch_data:
-            input_types = [self.TOKEN_TYPE_ID] * num_elements
-        elif "patches" in batch_data and "patch_positions" in batch_data:
-            input_types = [self.PATCH_TYPE_ID] * num_elements
-        else:
-            raise ValueError("Batch data must contain either input_ids or patches and patch_positions.")
-        loss_maskes = [loss_mask_value] * num_elements
-
-        # Append the data to the processed data dictionary
-        processed_data["input_ids"].extend(input_ids)
-        processed_data["local_positions"].extend(local_positions)
-        processed_data["patches"].extend(patches)
-        processed_data["patch_positions"].extend(patch_positions)
-        processed_data["input_types"].extend(input_types)
-        processed_data["loss_mask"].extend(loss_maskes)
 
     def _interleave_episode(self, episode_data: Dict[str, Dict[str, Any]]) -> Dict[str, List[Any]]:
         """
@@ -223,43 +182,22 @@ class Interleaver:
             list item represents data from a specific time step.
 
         Example:
-            >>> episode_data = {"image_observations": {"patches": [[P1, P2], [P3, P4]],
-            ...                                        "patch_positions": [[LEFT, RIGHT], [LEFT, RIGHT]]},
-            ...                 "discrete_actions": {"input_ids": [[1, 2], [3, 4]]}
+            >>> episode_data = {"image_observations": {"a": [0, 1], "b": [2, 3]},
+            ...                 "discrete_actions": {"a": [[1, 2], [3, 4]], "c": [[5, 6], [7, 8]]}}
             >>> _interleave_episode(episode_data)
-            {'input_ids': [0, 0, 1, 2, 0, 0, 3, 4],
-             'patches': [P1, P2, PATCH_PAD, PATCH_PAD, P3, P4, PATCH_PAD, PATCH_PAD],
-             'patch_positions': [LEFT, RIGHT, POS_PAD, POS_PAD, LEFT, RIGHT, POS_PAD, POS_PAD],
-             'input_types': [0, 0, 1, 1, 0, 0, 1, 1],
-             'loss_mask': [0, 0, 1, 1, 0, 0, 1, 1]}
+            {'a': [0, 1, 2, 1, 3, 4],
+             'b': [2, None, None, 3, None, None],
+             'c': [None, 5, 6, None, 7, 8]}
 
         Note:
             The function assumes that all data sequences in the provided episode have the same length.
             It will raise an assertion error if this is not the case.
         """
-        output = {
-            "input_ids": [],
-            "local_positions": [],
-            "patches": [],
-            "patch_positions": [],
-            "input_types": [],
-            "loss_mask": [],
-        }
-
-        observation_keys = [
-            "text_observations",
-            "image_observations",
-            "discrete_observations",
-            "continuous_observations",
-        ]
-        action_keys = [
-            "discrete_actions",
-            "continuous_actions",
-        ]
+        output = {}
 
         # Get the length of each sequence in the d and make sure they are all equal
         obs_total_timesteps = None
-        for key in observation_keys:
+        for key in self.OBSERVATION_KEYS:
             if key in episode_data:
                 for ep in episode_data[key].values():
                     if obs_total_timesteps is None:
@@ -267,7 +205,7 @@ class Interleaver:
                     assert obs_total_timesteps == len(ep)
 
         action_total_timesteps = None
-        for key in action_keys:
+        for key in self.ACTION_KEYS:
             if key in episode_data:
                 for ep in episode_data[key].values():
                     if action_total_timesteps is None:
@@ -281,62 +219,24 @@ class Interleaver:
         # Interleave the data
         # Order: observation (text, image, discrete, continuous), then action (discrete, continuous)
         for t in range(obs_total_timesteps):
-            local_position = 0
             # Extract the current element from each sequence in the d
-            data_t = self._extract_idx_element(episode_data, t)
+            data_t = indexing_from_nested(episode_data, t)
 
-            ordered_obs_keys = [key for key in observation_keys if key in data_t]
-            ordered_action_keys = [key for key in action_keys if key in data_t]
+            ordered_obs_keys = [key for key in self.OBSERVATION_KEYS if key in data_t]
+            ordered_action_keys = [key for key in self.ACTION_KEYS if key in data_t]
+
             for mod_key in ordered_obs_keys:
-                for func_key in data_t[mod_key]:
-                    # If the data is not a list, convert it to a list of size 1
-                    if not isinstance(data_t[mod_key][func_key], list):
-                        data_t[mod_key][func_key] = [data_t[mod_key][func_key]]
-                    # Get the number of elements in the data (should be the same for all func keys)
-                    num_elements = len(data_t[mod_key][func_key])
-
-                # Compute the local positions of the data
-                if mod_key in observation_keys:
-                    local_positions = list(range(local_position, local_position + num_elements))
-                    local_position += num_elements
-                else:  # mod_key in action_keys
-                    local_positions = [self.local_position_pad_value] * num_elements
-
-                # Compute the loss mask value
-                if mod_key in action_keys + ["text_observations"]:
-                    loss_mask_value = 1
-                else:  # mod_key in ["image_observations", "discrete_observations", "continuous_observations"]
-                    loss_mask_value = 0
-
-                self._dict_append(data_t[mod_key], output, local_positions, loss_mask_value)
+                func_dict = data_t[mod_key]
+                to_append = {key: val if isinstance(val, list) else [val] for key, val in func_dict.items()}
+                extend_dol(output, to_append)
 
             if self.separator is not None:
-                self._dict_append(
-                    self.separator, output, local_positions=[self.local_position_pad_value], loss_mask_value=1
-                )
+                extend_dol(output, self.separator)
 
             for mod_key in ordered_action_keys:
-                for func_key in data_t[mod_key]:
-                    # If the data is not a list, convert it to a list of size 1
-                    if not isinstance(data_t[mod_key][func_key], list):
-                        data_t[mod_key][func_key] = [data_t[mod_key][func_key]]
-                    # Get the number of elements in the data (should be the same for all func keys)
-                    num_elements = len(data_t[mod_key][func_key])
-
-                # Compute the local positions of the data
-                if mod_key in observation_keys:
-                    local_positions = list(range(local_position, local_position + num_elements))
-                    local_position += num_elements
-                else:  # mod_key in action_keys
-                    local_positions = [self.local_position_pad_value] * num_elements
-
-                # Compute the loss mask value
-                if mod_key in action_keys + ["text_observations"]:
-                    loss_mask_value = 1
-                else:  # mod_key in ["image_observations", "discrete_observations", "continuous_observations"]
-                    loss_mask_value = 0
-
-                self._dict_append(data_t[mod_key], output, local_positions, loss_mask_value)
+                func_dict = data_t[mod_key]
+                to_append = {key: val if isinstance(val, list) else [val] for key, val in func_dict.items()}
+                extend_dol(output, to_append)
         return output
 
     def _interleave_standalone(self, standalone_data: Dict[str, Dict[str, Any]]) -> Dict[str, List[Any]]:
@@ -356,37 +256,17 @@ class Interleaver:
                         "text": {"input_ids": [1, 2]}
             >>> _interleave_standalone(standalone_data)
             {'input_ids': [0, 0, 1, 2],
-             'patches': [P1, P2, PATCH_PAD, PATCH_PAD],
-             'patch_positions': [LEFT, RIGHT, POS_PAD, POS_PAD],
-             'input_types': [0, 0, 1, 1],
+             'patches': [P1, P2, None, None],
              'loss_mask': [0, 0, 1, 1]}
         """
-        output = {
-            "input_ids": [],
-            "local_positions": [],
-            "patches": [],
-            "patch_positions": [],
-            "input_types": [],
-            "loss_mask": [],
-        }
-
-        if "images" in standalone_data:
-            local_positions = [self.local_position_pad_value] * len(standalone_data["images"]["patches"])
-            self._dict_append(standalone_data["images"], output, local_positions, loss_mask_value=0)
-        if "text" in standalone_data:
-            local_positions = [self.local_position_pad_value] * len(standalone_data["text"]["input_ids"])
-            self._dict_append(standalone_data["text"], output, local_positions, loss_mask_value=1)
+        output = {}
+        for key in ["images", "text"]:
+            if key in standalone_data:
+                extend_dol(output, standalone_data[key].copy())
         return output
 
     def __call__(self, batch_data: Dict[str, Dict[str, Any]]) -> Dict[str, List[Any]]:
-        output = {
-            "input_ids": [],
-            "local_positions": [],
-            "patches": [],
-            "patch_positions": [],
-            "input_types": [],
-            "loss_mask": [],
-        }
+        output = {}
 
         # Get the batch size
         first_mod = next(iter(batch_data.values()))
@@ -394,13 +274,13 @@ class Interleaver:
         batch_size = len(first_val)
 
         for batch_idx in range(batch_size):
-            data = self._extract_idx_element(batch_data, batch_idx)
+            data = indexing_from_nested(batch_data, batch_idx)
             if self._is_episode(data):
                 x = self._interleave_episode(data)
             else:
                 x = self._interleave_standalone(data)
 
-            for key in x:
-                output[key].append(x[key])
+            x = {key: [val] for key, val in x.items()}  # Convert all values to lists of size 1
+            extend_dol(output, x)
 
         return output

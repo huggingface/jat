@@ -22,6 +22,7 @@ from sample_factory.model.model_utils import get_rnn_size
 from sample_factory.utils.attr_dict import AttrDict
 from sample_factory.utils.typing import Config
 
+
 ENV_NAMES = [
     "assembly-v2",
     "basketball-v2",
@@ -106,7 +107,7 @@ def create_dataset(cfg: Config, dataset_size: int = 100_000, split: str = "train
 
     # Load checkpoint
     policy_id = cfg.policy_index
-    name_prefix = dict(latest="checkpoint", best="best")[cfg.load_checkpoint_kind]
+    name_prefix = {"latest": "checkpoint", "best": "best"}[cfg.load_checkpoint_kind]
     checkpoints = Learner.get_checkpoints(Learner.checkpoint_dir(cfg, policy_id), f"{name_prefix}_*")
     checkpoint_dict = Learner.load_checkpoint(checkpoints, device)
     actor_critic.load_state_dict(checkpoint_dict["model"])
