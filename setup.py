@@ -69,7 +69,7 @@ REQUIRED_PKGS = [
     "hydra-core",
     "accelerate",
     "wandb",
-    "datasets @ git+https://github.com/huggingface/datasets.git@master",
+    "datasets @ git+https://github.com/huggingface/datasets.git@main",
     "opencv-python",
     "Pillow",
 ]
