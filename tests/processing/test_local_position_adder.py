@@ -1,4 +1,5 @@
 import pytest
+
 from gia.processing.local_positions_adder import LocalPositionsAdder
 
 

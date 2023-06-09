@@ -3,7 +3,6 @@ import random
 import pytest
 from datasets import Dataset
 
-
 from gia.datasets.core import generate_prompts
 
 

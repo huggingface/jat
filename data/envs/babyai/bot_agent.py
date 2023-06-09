@@ -716,7 +716,7 @@ class Bot:
 
         queue = [(state, None) for state in initial_states]
         grid = self.mission.grid
-        previous_pos = dict()
+        previous_pos = {}
 
         while len(queue) > 0:
             state, prev_pos = queue[0]

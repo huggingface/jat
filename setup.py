@@ -57,6 +57,7 @@ from distutils.core import setup
 
 from setuptools import find_packages
 
+
 __version__ = "0.0.1.dev0"  # expected format is one of x.y.z.dev0, or x.y.z.rc1 or x.y.z (no to dashes, yes to dots)
 
 REQUIRED_PKGS = [
