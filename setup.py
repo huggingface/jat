@@ -69,7 +69,7 @@ REQUIRED_PKGS = [
     "hydra-core",
     "accelerate",
     "wandb",
-    "datasets @ git+https://github.com/qgallouedec/datasets.git@fix-IndexError-when-indexing-Sequence-of-Array2D-with-None-values",
+    "datasets @ git+https://github.com/huggingface/datasets.git@master",
     "opencv-python",
     "Pillow",
 ]
