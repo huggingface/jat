@@ -5,7 +5,7 @@ from datasets import load_dataset
 from tqdm import tqdm
 
 from gia.config.arguments import Arguments
-from gia.datasets import collate_fn, generate_prompts
+from gia.datasets import GIADataCollator, generate_prompts
 from gia.eval.evaluator import Evaluator
 from gia.eval.mappings import DATASET_FILE_MAPPING, TASK_TO_ENV_MAPPING
 from gia.model.gia_model import GiaModel
@@ -49,26 +49,17 @@ class MujocoEvaluator(Evaluator):
             min_prompt_len=int_per_seq,
             max_prompt_len=int_per_seq,
         )
-        processor = GiaProcessor(self.args)
+
+        processor = GiaProcessor()
+        collator = GIADataCollator()
         token_shift = processor.tokenizer.token_shift
 
         returns = []
         # due to how to KV cache is used, we only can evaluate one env instance at a time
         for ep in tqdm(range(self.args.n_episodes)):
             prompt = prompts[ep]
-            processed_prompt = processor(
-                continuous_observations=np.array(prompt["continuous_observations"]),
-                continuous_actions=np.array(prompt["continuous_actions"]),
-                padding=False,
-                truncation="max_length",
-            )
-            # To torch tensors
-            processed_prompt = collate_fn([{key: processed_prompt[key][0] for key in processed_prompt.keys()}])
-            for key in processed_prompt.keys():
-                processed_prompt[key] = processed_prompt[key].to(device)
-            # update the kv cache from the prompt
-            output = model(**processed_prompt, use_cache=True)
-            past_key_values = output.past_key_values
+            observations = np.array([prompt["continuous_observations"]])
+            actions = np.array([prompt["continuous_actions"]])
 
             # TODO:
             # - confirm attention masks are not needed in this setting
@@ -76,20 +67,26 @@ class MujocoEvaluator(Evaluator):
             accum_rewards = []
             done = False
             obs, info = env.reset()
+            past_key_values = None
             while not done:
                 # process the current observation
+                observations = np.concatenate([observations, obs[:, None, :]], axis=1)
 
+                # Compute the output of the model
                 processed = processor(
-                    continuous_observations=[obs],
-                    continuous_actions=[],
+                    continuous_observations=observations,
+                    continuous_actions=actions,
                     padding=False,
                     truncation="max_length",
+                    truncation_side="left",
+                    max_length=args.seq_len - num_act_tokens,  # ensure not to overflow when the actions are added
                 )
-                processed = collate_fn([{key: processed[key][0] for key in processed.keys()}])
+                processed = collator([{key: processed[key][0] for key in processed.keys()}])
                 for key in processed.keys():
                     processed[key] = processed[key].to(device)
                 action_tokens = []
                 for i in range(num_act_tokens):
+                    past_key_values = None  # FIXME: fails when past_key_values is passed
                     output = model(**processed, use_cache=True, past_key_values=past_key_values)
                     past_key_values = output.past_key_values
                     action_logits = output.logits[:, -1, token_shift:]
@@ -97,13 +94,16 @@ class MujocoEvaluator(Evaluator):
                     action_token = torch.argmax(action_logits, -1) + token_shift
                     action_tokens.append(action_token)
 
-                    processed["input_ids"] = action_token[None, :]
-                    if i == 0:  # only needs to be done once
-                        processed["loss_mask"] = torch.ones(1, 1, dtype=torch.int64, device=device)
-                        processed["input_types"] = torch.zeros(1, 1, dtype=torch.int64, device=device)
-                        processed["patches"] = torch.zeros(1, 1, 4, 16, 16, dtype=torch.uint8, device=device)
-                        processed["patch_positions"] = torch.zeros(1, 1, 2, 2, dtype=torch.float32, device=device)
-                        processed["local_positions"] = -torch.ones(1, 1, dtype=torch.int64, device=device)
+                    processed["input_ids"] = torch.cat([processed["input_ids"], action_token[:, None]], dim=1)
+                    processed["input_types"] = torch.cat(
+                        [processed["input_types"], torch.zeros(1, 1, dtype=torch.int64, device=device)], dim=1
+                    )
+                    processed["local_positions"] = torch.cat(
+                        [processed["local_positions"], -torch.ones(1, 1, dtype=torch.int64, device=device)], dim=1
+                    )
+                    processed["loss_mask"] = torch.cat(
+                        [processed["loss_mask"], torch.ones(1, 1, dtype=torch.bool, device=device)], dim=1
+                    )
 
                 # to ensure the KV cache includes the last action token
                 output = model(**processed, use_cache=True, past_key_values=past_key_values)
