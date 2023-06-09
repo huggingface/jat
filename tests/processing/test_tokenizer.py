@@ -133,7 +133,7 @@ def test_tokenize_image(modality, data_type, shape):
     patches = np.array(features[modality]["patches"])
     input_types = np.array(features[modality]["input_types"])
 
-    assert patches.shape[-3:] == (16, 16, 4)
+    assert patches.shape[-3:] == (4, 16, 16)
     # patches.shape[-4] is the the number of patches per image, which can vary depending on the image size
     assert patches.shape[:-4] == shape
     assert patches.dtype == np.uint8
@@ -148,13 +148,14 @@ def test_extract_patches():
     arr = np.arange(9 * 6 * 3, dtype=np.uint8).reshape(9, 6, 3)  # H, W, C
     image = Image.fromarray(arr)
     patches = tokenizer.extract_patches(image)[0]
+    arr = arr.transpose(2, 0, 1)  # C, H, W
 
-    np.testing.assert_equal(patches[0][:, :, :3], arr[0:3, 0:3, :])
-    np.testing.assert_equal(patches[0][:, :, :3], arr[0:3, 0:3, :])
-    np.testing.assert_equal(patches[1][:, :, :3], arr[0:3, 3:6, :])
-    np.testing.assert_equal(patches[2][:, :, :3], arr[3:6, 0:3, :])
-    np.testing.assert_equal(patches[3][:, :, :3], arr[3:6, 3:6, :])
-    np.testing.assert_equal(patches[4][:, :, :3], arr[6:9, 0:3, :])
-    np.testing.assert_equal(patches[5][:, :, :3], arr[6:9, 3:6, :])
+    np.testing.assert_equal(patches[0][:3], arr[:, 0:3, 0:3])
+    np.testing.assert_equal(patches[0][:3], arr[:, 0:3, 0:3])
+    np.testing.assert_equal(patches[1][:3], arr[:, 0:3, 3:6])
+    np.testing.assert_equal(patches[2][:3], arr[:, 3:6, 0:3])
+    np.testing.assert_equal(patches[3][:3], arr[:, 3:6, 3:6])
+    np.testing.assert_equal(patches[4][:3], arr[:, 6:9, 0:3])
+    np.testing.assert_equal(patches[5][:3], arr[:, 6:9, 3:6])
     for patch in patches:  # pad to have 4 channels
-        np.testing.assert_equal(patch[:, :, 3], np.zeros((3, 3), dtype=np.uint8))
+        np.testing.assert_equal(patch[3], np.zeros((3, 3), dtype=np.uint8))
