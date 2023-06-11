@@ -3,7 +3,7 @@ from datasets import Dataset, concatenate_datasets, load_dataset
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from gia.config import Arguments
+from gia.config import GiaConfig
 from gia.datasets import GiaDataCollator, maybe_prompt_dataset
 from gia.model import GiaModel
 from gia.processing import GiaProcessor
@@ -31,7 +31,8 @@ dataset = Dataset.load_from_disk("./dataset")
 
 dataloader = DataLoader(dataset, batch_size=2, shuffle=True, collate_fn=GiaDataCollator())
 
-model = GiaModel(Arguments(embed_dim=12, output_dir="./"))
+config = GiaConfig()
+model = GiaModel()
 
 for batch in tqdm(dataloader):
     with torch.no_grad():

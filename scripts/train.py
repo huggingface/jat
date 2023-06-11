@@ -1,7 +1,7 @@
 from datasets import Dataset, concatenate_datasets, load_dataset
 from transformers import Trainer
 
-from gia.config import Arguments
+from gia.config import Arguments, GiaConfig
 from gia.datasets import GiaDataCollator, maybe_prompt_dataset
 from gia.model import GiaModel
 from gia.processing import GiaProcessor
@@ -48,7 +48,8 @@ train_dataset = Dataset.load_from_disk("./train_dataset")
 
 
 # Initialize the processor and model
-model = GiaModel(args)
+config = GiaConfig()
+model = GiaModel(config)
 
 # Load the dataset
 trainer = Trainer(

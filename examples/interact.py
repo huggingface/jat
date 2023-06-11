@@ -3,7 +3,7 @@ import numpy as np
 import torch
 from datasets import load_dataset
 
-from gia.config import Arguments
+from gia.config import GiaConfig
 from gia.datasets import GiaDataCollator
 from gia.datasets.core import generate_prompts
 from gia.model.gia_model import GiaModel
@@ -13,10 +13,10 @@ from gia.processing import GiaProcessor
 def run():
     num_envs = 1  # Only single env is supported for now
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    args = Arguments(output_dir="./", task_names=["mujoco-ant"])
     processor = GiaProcessor()
     collator = GiaDataCollator()
-    model = GiaModel(args).to(device)
+    config = GiaConfig()
+    model = GiaModel(config).to(device)
     env = gym.vector.make("Ant-v4", num_envs, render_mode="human")
     action_dim = env.action_space.shape[1]
 
@@ -39,7 +39,7 @@ def run():
             padding=False,
             truncation="max_length",
             truncation_side="left",
-            max_length=args.seq_len - action_dim,  # ensure not to overflow when the actions are added
+            max_length=config.seq_len - action_dim,  # ensure not to overflow when the actions are added
         )
         # To torch tensors
         processed = collator([{key: processed[key][0] for key in processed.keys()}])  # TODO: weird syntax, to improve
