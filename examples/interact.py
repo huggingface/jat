@@ -4,8 +4,7 @@ import torch
 from datasets import load_dataset
 
 from gia.config import GiaConfig
-from gia.datasets import GiaDataCollator
-from gia.datasets.core import generate_prompts
+from gia.datasets import GiaDataCollator, Prompter
 from gia.model.gia_model import GiaModel
 from gia.processing import GiaProcessor
 
@@ -22,7 +21,8 @@ def run():
 
     # Buffer intialized with a prompt
     dataset = load_dataset("gia-project/gia-dataset", "mujoco-ant", split="train[:3]")
-    prompts = generate_prompts(dataset, num_prompts=num_envs)
+    prompter = Prompter(dataset)
+    prompts = prompter.generate_prompts(num_prompts=num_envs)
     observations = np.array(prompts["continuous_observations"])
     actions = np.array(prompts["continuous_actions"])
 
