@@ -1,7 +1,8 @@
 import random
 import warnings
-from typing import Dict, List, Union
+from typing import Dict, List, TypeVar, Union
 
+import numpy as np
 from datasets import Dataset, get_dataset_config_names
 
 
@@ -25,7 +26,11 @@ def get_task_name_list(task_names: Union[str, List[str]]) -> List[str]:
          'mujoco-halfcheetah', 'mujoco-walker', 'mujoco-reacher', 'mujoco-swimmer']
     """
     # Convrt to list if needed
-    task_names = [task_names] if isinstance(task_names, str) else task_names
+    if isinstance(task_names, str):
+        if "," in task_names:
+            task_names = task_names.split(",")
+        else:
+            task_names = [task_names]
     # Get all task names from gia dataset
     all_tasks = set(get_dataset_config_names("gia-project/gia-dataset"))
     # If the task name is a domain, load all the tasks of that domain
@@ -160,6 +165,9 @@ def maybe_prompt_dataset(
         return dataset
 
 
+T = TypeVar("T", List, np.ndarray)
+
+
 class Prompter:
     def __init__(
         self,
@@ -189,11 +197,20 @@ class Prompter:
                 prompts[key][idx] = prompts[key][idx][start : start + prompt_lengths[idx]]
         return prompts
 
+    @staticmethod
+    def _cat(x: T, y: T) -> T:
+        if isinstance(x, list) and isinstance(y, list):
+            return x + y
+        elif isinstance(x, np.ndarray) and isinstance(y, np.ndarray):
+            return np.concatenate((x, y))
+        else:
+            raise ValueError("x and y must be either lists or numpy arrays")
+
     def prompt(self, examples: Dict[str, List]) -> Dict[str, List]:
         num_examples = len(examples[next(iter(examples))])
         to_prompt_idxs = [idx for idx in range(num_examples) if random.random() < self.p_prompt]
         prompts = self.generate_prompts(len(to_prompt_idxs))
         for idx, to_prompt_idx in enumerate(to_prompt_idxs):
             for key in examples:
-                examples[key][to_prompt_idx] = prompts[key][idx] + examples[key][to_prompt_idx]
+                examples[key][to_prompt_idx] = self._cat(prompts[key][idx], examples[key][to_prompt_idx])
         return examples
