@@ -6,6 +6,9 @@ import numpy as np
 from datasets import Dataset, get_dataset_config_names
 
 
+T = TypeVar("T", List, np.ndarray)
+
+
 def get_task_name_list(task_names: Union[str, List[str]]) -> List[str]:
     """
     Get the list of task names from a list of task names or prefixes.
@@ -50,44 +53,6 @@ def get_task_name_list(task_names: Union[str, List[str]]) -> List[str]:
     return task_names
 
 
-def generate_prompts(
-    dataset: Dataset, num_prompts: int, p_end: float = 0.1, min_prompt_len: int = 1, max_prompt_len: int = 1024
-) -> Dataset:
-    """
-    Generate prompts from the dataset.
-
-    Args:
-        dataset (Dataset): Dataset to generate prompts from.
-        num_prompts (int): Number of prompts to generate.
-        p_end (float, optional): Probability of generating a prompt from the end of the episode. Defaults to 0.1.
-        min_prompt_len (int, optional): Sets the minimum prompt length, defaulting to 1. Beware, if the sampled
-            prompt is too short, the output prompt might also fall short of min_prompt_len.
-        max_prompt_len (int, optional): Maximum length of the prompt. Defaults to 10.
-    """
-    ep_lens = [len(ep[next(iter(ep))]) for ep in dataset]
-    prompt_ep_idxs = random.choices(range(len(dataset)), k=num_prompts)
-    from_ends = random.choices([True, False], k=num_prompts, weights=[p_end, 1 - p_end])
-    prompt_lengths = random.choices(
-        range(min_prompt_len, max_prompt_len + 1), k=num_prompts
-    )  # will be clipped later if necessary
-    starts = []
-    for ep_idx, from_end, prompt_length in zip(prompt_ep_idxs, from_ends, prompt_lengths):
-        max_start = max(0, ep_lens[ep_idx] - prompt_length)
-        if from_end:
-            starts.append(max_start)
-        else:
-            starts.append(random.randint(0, max_start))
-
-    prompts_ep = dataset.select(prompt_ep_idxs)
-
-    def dict_slice(x: Dict[str, List], idx: int) -> Dict[str, List]:
-        start, length = starts[idx], prompt_lengths[idx]
-        return {key: x[key][start : start + length] for key in x}
-
-    prompt_dataset = prompts_ep.map(dict_slice, with_indices=True)
-    return prompt_dataset
-
-
 def needs_prompt(task_name: str) -> bool:
     """
     Check if the task needs prompt. Usually, tasks that need prompt are RL ones.
@@ -110,62 +75,6 @@ def needs_prompt(task_name: str) -> bool:
     else:
         warnings.warn(f"Wether {task_name} needs prompt is unknown. Assuming it does not need prompt.")
         return False
-
-
-def prompt_dataset(
-    dataset: Dataset, p_prompt: float = 0.25, p_end: float = 0.1, min_prompt_len: int = 1, max_prompt_len: int = 1024
-) -> Dataset:
-    """
-    Prompt the dataset.
-
-    Args:
-        dataset (Dataset): Dataset to prompt.
-        p_prompt (float, optional): Probability of prompting an episode. Defaults to 0.25.
-        p_end (float, optional): Probability of prompting from the end of the episode. Defaults to 0.1.
-        min_prompt_len (int, optional): Minimum length of the prompt. Defaults to 1.
-        max_prompt_len (int, optional): Maximum length of the prompt. Defaults to 1024.
-
-    Returns:
-        Dataset: Prompted dataset.
-    """
-
-    is_prompted = random.choices([True, False], weights=[p_prompt, 1 - p_prompt], k=len(dataset))
-    prompts = generate_prompts(dataset, sum(is_prompted), p_end, min_prompt_len, max_prompt_len)  # [p0, p1, p2, ...]
-    prompts_iter = iter(prompts)
-    prompts = [next(prompts_iter) if p else None for p in is_prompted]  # [p0, None, None, p1, None, p2, ...]
-
-    def cat_prompt_left(sample, idx):
-        if prompts[idx] is not None:
-            for key in sample:
-                sample[key] = prompts[idx][key] + sample[key]
-        return sample
-
-    return dataset.map(cat_prompt_left, with_indices=True)  # concatenate the prompt left of the episode
-
-
-def maybe_prompt_dataset(
-    dataset: Dataset, p_prompt: float = 0.25, p_end: float = 0.1, min_prompt_len: int = 1, max_prompt_len: int = 1024
-) -> Dataset:
-    """
-    First, check if dataset needs to be prompted, then, prompt it if needed.
-
-    Args:
-        dataset (Dataset): Dataset to prompt.
-        p_prompt (float): Probability of prompting an episode.
-        p_end (float): Probability of prompting from the end of the episode.
-        min_prompt_len (int): Minimum length of the prompt.
-        max_prompt_len (int): Maximum length of the prompt.
-
-    Returns:
-        Dataset: Prompted dataset if needed, the original dataset otherwise.
-    """
-    if needs_prompt(dataset.config_name):
-        return prompt_dataset(dataset, p_prompt, p_end, min_prompt_len, max_prompt_len)
-    else:
-        return dataset
-
-
-T = TypeVar("T", List, np.ndarray)
 
 
 class Prompter:
