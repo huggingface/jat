@@ -1,13 +1,11 @@
-import torch
 import numpy as np
-
+import torch
 from datasets import load_dataset
 
 from gia.config.arguments import Arguments
-from gia.datasets.core import Prompter
+from gia.datasets import GiaDataCollator, Prompter
 from gia.model.gia_model import GiaModel
 from gia.processing import GiaProcessor
-from gia.datasets import GiaDataCollator, Prompter
 
 
 class GiaAgent:
@@ -21,7 +19,7 @@ class GiaAgent:
     ):
         self.args = args
         self.model = model
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device("cpu")  # "cuda" if torch.cuda.is_available() else "cpu")
 
         num_obs_tokens = obs_space.shape[1]
         self.num_act_tokens = action_space.shape[1]
