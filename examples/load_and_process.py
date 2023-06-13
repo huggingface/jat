@@ -1,7 +1,9 @@
+from functools import partial
+
 from datasets import concatenate_datasets, load_dataset
 from torch.utils.data import DataLoader
 
-from gia.datasets import GiaDataCollator, maybe_prompt_dataset
+from gia.datasets import GiaDataCollator, Prompter, needs_prompt
 from gia.processing import GiaProcessor
 
 
@@ -10,11 +12,26 @@ split = "train[:3]"  # take the first 3 episodes
 
 processor = GiaProcessor()
 
-# Load, prompt and process the dataset
+
+# Load, prompt and process the datasets
 datasets = {task_name: load_dataset("gia-project/gia-dataset", task_name, split=split) for task_name in task_names}
-datasets = {task_name: maybe_prompt_dataset(dataset) for task_name, dataset in datasets.items()}
+prompters = {task_name: Prompter(dataset) for task_name, dataset in datasets.items() if needs_prompt(task_name)}
+
+
+def prompt_and_process(example, prompter):
+    if prompter is not None:
+        return processor(**prompter.prompt(example))
+    else:
+        return processor(**example)
+
+
 datasets = {
-    task_name: dataset.map(lambda batch: processor(**batch), remove_columns=dataset.column_names, batched=True)
+    task_name: dataset.map(
+        partial(prompt_and_process, prompter=prompters.get(task_name)),
+        remove_columns=dataset.column_names,
+        batched=True,
+        batch_size=100,  # lower batch size to avoid OOM
+    )
     for task_name, dataset in datasets.items()
 }
 
