@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+"""Train a GIA model on the GIA dataset"""
+
 import os
 import sys
 from dataclasses import dataclass, field
