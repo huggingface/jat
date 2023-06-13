@@ -56,12 +56,6 @@ class GiaModel(nn.Module):
     ) -> CausalLMOutputWithPast:
         """
         Run a forward pass through the model. Takes in several inputs and returns a `CausalLMOutputWithPast` object.
-        return self.model(
-            inputs_embeds=embeds,
-            attention_mask=attention_mask,
-            labels=labels,
-            use_cache=use_cache,
-            past_key_values=past_key_values,
 
         Args:
             input_ids (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):
@@ -114,7 +108,7 @@ class GiaModel(nn.Module):
                 labels[~loss_mask] = -100
         else:
             labels = None
-        return self.causal_lm_model(inputs_embeds=embeds, attention_mask=attention_mask, labels=labels)
+        return self.causal_lm_model(
             inputs_embeds=embeds,
             attention_mask=attention_mask,
             labels=labels,
