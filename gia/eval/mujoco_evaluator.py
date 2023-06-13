@@ -4,11 +4,11 @@ import torch
 from datasets import load_dataset
 from tqdm import tqdm
 
+from gia import GiaConfig, GiaModel
 from gia.config.arguments import Arguments
 from gia.datasets import GiaDataCollator, Prompter
 from gia.eval.evaluator import Evaluator
 from gia.eval.mappings import DATASET_FILE_MAPPING, TASK_TO_ENV_MAPPING
-from gia import GiaConfig, GiaModel
 from gia.processing import GiaProcessor
 
 
@@ -41,7 +41,7 @@ class MujocoEvaluator(Evaluator):
         int_per_seq = (self.args.seq_len // tokens_per_step) - 1
         max_kv_size = int_per_seq * tokens_per_step
 
-        dataset = load_dataset("gia-project/gia-dataset", dataset_name, split="train")
+        dataset = load_dataset("gia-project/gia-dataset", dataset_name, split="test")
         prompter = Prompter(
             dataset,
             min_prompt_len=int_per_seq,
