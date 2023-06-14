@@ -19,7 +19,7 @@ class GiaAgent:
     ):
         self.args = args
         self.model = model
-        self.device = torch.device("cpu")  # "cuda" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         self._num_obs_tokens = obs_space.shape[1]
         self._num_act_tokens = action_space.shape[1]
@@ -100,8 +100,7 @@ class GiaAgent:
         if self._past_key_values[0][0].shape[2] > self.max_kv_size:
             # remove one step of tokens, to ensure context < 1024
             self._past_key_values = [
-                (k[:, :, self._tokens_per_step :], v[:, :, self._tokens_per_step :])
-                for (k, v) in self._past_key_values
+                (k[:, :, self._tokens_per_step :], v[:, :, self._tokens_per_step :]) for (k, v) in self._past_key_values
             ]
         action_tokens = torch.stack(action_tokens, dim=-1)
 
