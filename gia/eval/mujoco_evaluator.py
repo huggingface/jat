@@ -56,7 +56,6 @@ class MujocoEvaluator(Evaluator):
 
 
 if __name__ == "__main__":
-
     config = GiaConfig()
 
     args = Arguments(output_dir="tmp", n_episodes=2, task_names="mujoco-doublependulum")
