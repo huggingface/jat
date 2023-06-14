@@ -25,6 +25,7 @@ class GiaModel(nn.Module):
 
     def __init__(self, config: GiaConfig) -> None:
         super().__init__()
+        self.config = config
         if config.use_pretrained:
             self.causal_lm_model = AutoModelForCausalLM.from_pretrained(
                 config.causal_lm_name, config=config.causal_lm_config
