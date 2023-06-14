@@ -21,19 +21,19 @@ class GiaAgent:
         self.model = model
         self.device = torch.device("cpu")  # "cuda" if torch.cuda.is_available() else "cpu")
 
-        num_obs_tokens = obs_space.shape[1]
-        self.num_act_tokens = action_space.shape[1]
-        tokens_per_step = num_obs_tokens + self.num_act_tokens + int(self.args.use_separator)
-        int_per_seq = (self.args.seq_len // tokens_per_step) - 1
+        self._num_obs_tokens = obs_space.shape[1]
+        self._num_act_tokens = action_space.shape[1]
+        self._tokens_per_step = self._num_obs_tokens + self._num_act_tokens + int(self.args.use_separator)
+        self._int_per_seq = (self.args.seq_len // self._tokens_per_step) - 1
 
         dataset = load_dataset("gia-project/gia-dataset", dataset_name, split="test")
         prompter = Prompter(
             dataset,
-            min_prompt_len=int_per_seq,
-            max_prompt_len=int_per_seq,
+            min_prompt_len=self._int_per_seq,
+            max_prompt_len=self._int_per_seq,
         )
 
-        self.max_kv_size = int_per_seq * tokens_per_step
+        self.max_kv_size = self._int_per_seq * self._tokens_per_step
         self.prompts = prompter.generate_prompts(self.args.n_episodes)
 
         self.processor = GiaProcessor()
@@ -54,7 +54,7 @@ class GiaAgent:
             padding=False,
             truncation="max_length",
             truncation_side="left",
-            max_length=self.args.seq_len - self.num_act_tokens,  # ensure not to overflow when the actions are added
+            max_length=self.args.seq_len - self._num_act_tokens,  # ensure not to overflow when the actions are added
         )
 
         # TODO:
@@ -73,14 +73,14 @@ class GiaAgent:
             padding=False,
             truncation="max_length",
             truncation_side="left",
-            max_length=self.args.seq_len - self.num_act_tokens,  # ensure not to overflow when the actions are added
+            max_length=self.args.seq_len - self._num_act_tokens,  # ensure not to overflow when the actions are added
         )
         processed = self.collator([{key: processed[key][0] for key in processed.keys()}])
         for key in processed.keys():
             processed[key] = processed[key].to(self.device)
         action_tokens = []
 
-        for i in range(self.num_act_tokens):
+        for i in range(self._num_act_tokens):
             output = self.model(**processed, use_cache=True, past_key_values=self._past_key_values)
             self._past_key_values = output.past_key_values
             action_logits = output.logits[:, -1, self.token_shift :]
@@ -97,10 +97,10 @@ class GiaAgent:
         # to ensure the KV cache includes the last action token
         output = self.model(**processed, use_cache=True, past_key_values=self._past_key_values)
         self._past_key_values = output.past_key_values
-        if self.past_key_values[0][0].shape[2] > self.max_kv_size:
+        if self._past_key_values[0][0].shape[2] > self.max_kv_size:
             # remove one step of tokens, to ensure context < 1024
             self._past_key_values = [
-                (k[:, :, self.tokens_per_step :], v[:, :, self.tokens_per_step :]) for (k, v) in self._past_key_values
+                (k[:, :, self._tokens_per_step :], v[:, :, self._tokens_per_step :]) for (k, v) in self._past_key_values
             ]
         action_tokens = torch.stack(action_tokens, dim=-1)
 
