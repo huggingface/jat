@@ -90,7 +90,7 @@ EXTRAS_REQUIRE = {
 setup(
     name="gia",
     version=__version__,
-    description="is an open library the training of generally intelligent agents",
+    description="is an open library for the training of generally intelligent agents",
     long_description=open("README.md", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
     author="HuggingFace Inc.",
