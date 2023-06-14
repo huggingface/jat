@@ -66,7 +66,7 @@ class GiaAgent:
         output = self.model(**processed_prompt, use_cache=True)
         self._past_key_values = output.past_key_values
 
-    def get_action(self, obs) -> np.array:
+    def get_action(self, obs) -> np.ndarray:
         processed = self.processor(
             continuous_observations=[obs],
             continuous_actions=[],
@@ -106,6 +106,6 @@ class GiaAgent:
         action_tokens = torch.stack(action_tokens, dim=-1)
 
         # Decode the action tokens
-        action = self.processor.tokenizer.decode_continuous(action_tokens.cpu().numpy())
+        action = np.array(self.processor.tokenizer.decode_continuous(action_tokens.cpu().numpy()))
         # TODO: Clamp action to be in domain of action space?
         return action
