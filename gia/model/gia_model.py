@@ -51,6 +51,7 @@ class GiaModel(nn.Module):
         local_positions: Optional[torch.LongTensor] = None,
         attention_mask: Optional[torch.BoolTensor] = None,
         loss_mask: Optional[torch.BoolTensor] = None,
+        return_loss: Optional[torch.BoolType] = True
     ) -> CausalLMOutputWithPast:
         """
         Run a forward pass through the model. Takes in several inputs and returns a `CausalLMOutputWithPast` object.
@@ -78,6 +79,10 @@ class GiaModel(nn.Module):
                     - True for tokens that are **not ignored**,
                     - False for tokens that are **ignored**.
 
+            return_loss (`torch.Booltype`, *optional*):
+                Whether labels should be computed from `input_ids` and loss returned within model's output.
+                Default is `True`.
+
         Returns:
             `CausalLMOutputWithPast`: Output object from `transformers.ModelOutputs`.
 
@@ -89,7 +94,7 @@ class GiaModel(nn.Module):
                 - patches is provided but patch_positions is None (and vice-versa)
         """
         embeds = self.emb(input_ids, patches, patch_positions, input_types, local_positions, attention_mask)
-        if input_ids is not None:
+        if return_loss and input_ids is not None:
             labels = input_ids.clone()
             # All labels set to -100 are ignored (masked), the loss is only computed for labels in
             # [0, ..., config.vocab_size]
