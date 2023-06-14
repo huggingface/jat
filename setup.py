@@ -77,10 +77,7 @@ REQUIRED_PKGS = [
 
 DEV_REQUIRE = []
 
-TESTS_REQUIRE = [
-    "pytest",
-    "pytest-xdist",
-]
+TESTS_REQUIRE = ["pytest", "pytest-xdist", "gym[atari]==0.26.2"]
 
 QUALITY_REQUIRE = ["black[jupyter]~=22.0", "ruff", "pyyaml>=5.3.1"]
 
