@@ -100,7 +100,8 @@ class GiaAgent:
         if self._past_key_values[0][0].shape[2] > self.max_kv_size:
             # remove one step of tokens, to ensure context < 1024
             self._past_key_values = [
-                (k[:, :, self._tokens_per_step :], v[:, :, self._tokens_per_step :]) for (k, v) in self._past_key_values
+                (k[:, :, self._tokens_per_step :], v[:, :, self._tokens_per_step :])
+                for (k, v) in self._past_key_values
             ]
         action_tokens = torch.stack(action_tokens, dim=-1)
 
