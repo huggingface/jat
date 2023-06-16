@@ -2,7 +2,6 @@ import numpy as np
 import torch
 from datasets import load_dataset
 
-from gia.config.arguments import Arguments
 from gia.datasets import GiaDataCollator, Prompter
 from gia.model.gia_model import GiaModel
 from gia.processing import GiaProcessor
@@ -91,8 +90,7 @@ class GiaAgent:
         if self._past_key_values[0][0].shape[2] > self._max_kv_size:
             # remove one step of tokens, to ensure context < 1024
             self._past_key_values = [
-                (k[:, :, self._tokens_per_step :], v[:, :, self._tokens_per_step :])
-                for (k, v) in self._past_key_values
+                (k[:, :, self._tokens_per_step :], v[:, :, self._tokens_per_step :]) for (k, v) in self._past_key_values
             ]
         action_tokens = torch.stack(action_tokens, dim=-1)
 
