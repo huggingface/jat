@@ -14,7 +14,7 @@ GIA_PRETRAINED_CONFIG_ARCHIVE_MAP = {
 }
 
 
-class GiaConfig(PretrainedConfig):
+class GiaModelConfig(PretrainedConfig):
     r"""
     This is the configuration class to store the configuration of a [`GiaModel`]. It is used to instantiate an
     GIA model according to the specified arguments, defining the model architecture. Instantiating a configuration

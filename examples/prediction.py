@@ -5,7 +5,7 @@ from datasets import Dataset, concatenate_datasets, load_dataset
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from gia.config import GiaConfig
+from gia.config import GiaModelConfig
 from gia.datasets import GiaDataCollator, Prompter, needs_prompt
 from gia.model import GiaModel
 from gia.processing import GiaProcessor
@@ -47,7 +47,7 @@ dataset = Dataset.load_from_disk("./dataset")
 
 dataloader = DataLoader(dataset, batch_size=2, shuffle=True, collate_fn=GiaDataCollator())
 
-config = GiaConfig()
+config = GiaModelConfig()
 model = GiaModel(config)
 
 for batch in tqdm(dataloader):

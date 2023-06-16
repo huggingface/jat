@@ -3,7 +3,7 @@ import numpy as np
 import torch
 from datasets import load_dataset
 
-from gia.config import GiaConfig
+from gia.config import GiaModelConfig
 from gia.datasets import GiaDataCollator, Prompter
 from gia.model.gia_model import GiaModel
 from gia.processing import GiaProcessor
@@ -14,7 +14,7 @@ def run():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     processor = GiaProcessor()
     collator = GiaDataCollator()
-    config = GiaConfig()
+    config = GiaModelConfig()
     model = GiaModel(config).to(device)
     env = gym.vector.make("Ant-v4", num_envs, render_mode="human")
     action_dim = env.action_space.shape[1]
