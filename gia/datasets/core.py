@@ -128,9 +128,9 @@ class Prompter:
         return examples
 
 
-def load_gia_dataset(args, model_config):
+def load_gia_dataset(args, model_config, split="train"):
     train_datasets = {
-        task_name: load_dataset("gia-project/gia-dataset", task_name, split="train") for task_name in args.task_names
+        task_name: load_dataset("gia-project/gia-dataset", task_name, split=split) for task_name in args.task_names
     }
     prompters = {
         task_name: Prompter(dataset) for task_name, dataset in train_datasets.items() if needs_prompt(task_name)

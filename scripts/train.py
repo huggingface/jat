@@ -5,23 +5,19 @@
 from transformers import Trainer
 
 from gia import GiaModel, GiaModelConfig
-from gia.config.arguments import parse_args
+from gia.config import Arguments
 from gia.datasets import GiaDataCollator, load_gia_dataset
 
 
 def main():
-    args = parse_args()
-    model_config = GiaModelConfig.from_args(args)
+    args = Arguments.parse_args()
 
+    model_config = GiaModelConfig.from_args(args)
     model = GiaModel(model_config)
 
     # Load, prompt and process the datasets
     train_dataset = load_gia_dataset(args, model_config)  # I don't like that we have to pass two configs/args here
-    # Initialize the model
-    model_config = GiaModelConfig()
-    model = GiaModel(model_config)
 
-    # Load the dataset
     trainer = Trainer(
         model,
         args,

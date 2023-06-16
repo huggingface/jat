@@ -179,19 +179,20 @@ class Arguments(DatasetArguments, ModelArguments, EvalArguments, TrainingArgumen
         if "," in self.local_positions_groups:
             self.local_positions_groups = self.local_positions_groups.split(",")
 
+    @staticmethod
+    def parse_args() -> "Arguments":
+        parser = HfArgumentParser(Arguments)
+        if len(sys.argv) == 2 and sys.argv[1].endswith(".yaml"):
+            # If we pass only one argument to the script and it's the path to a YAML file,
+            # let's parse it to get our arguments.
+            # [0] because we only have one group of args
+            args = parser.parse_yaml_file(os.path.abspath(sys.argv[1]))[0]
+        else:
+            args = parser.parse_args_into_dataclasses()[0]
 
-def parse_args() -> Arguments:
-    parser = HfArgumentParser(Arguments)
-    if len(sys.argv) == 2 and sys.argv[1].endswith(".yaml"):
-        # If we pass only one argument to the script and it's the path to a YAML file,
-        # let's parse it to get our arguments.
-        args = parser.parse_yaml_file(os.path.abspath(sys.argv[1]))[0]  # [0] because we only have one group of args
-    else:
-        args = parser.parse_args_into_dataclasses()[0]
-
-    return args
+        return args
 
 
 if __name__ == "__main__":
-    args = parse_args()
+    args = Arguments.parse_args()
     Arguments.save(args)
