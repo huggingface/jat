@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Tuple
 
 import torch
 from torch import nn
@@ -25,6 +25,7 @@ class GiaModel(nn.Module):
 
     def __init__(self, config: GiaConfig) -> None:
         super().__init__()
+        self.config = config
         if config.use_pretrained:
             self.causal_lm_model = AutoModelForCausalLM.from_pretrained(
                 config.causal_lm_name, config=config.causal_lm_config
@@ -51,6 +52,8 @@ class GiaModel(nn.Module):
         local_positions: Optional[torch.LongTensor] = None,
         attention_mask: Optional[torch.BoolTensor] = None,
         loss_mask: Optional[torch.BoolTensor] = None,
+        past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
+        use_cache: bool = False,
     ) -> CausalLMOutputWithPast:
         """
         Run a forward pass through the model. Takes in several inputs and returns a `CausalLMOutputWithPast` object.
@@ -78,6 +81,15 @@ class GiaModel(nn.Module):
                     - True for tokens that are **not ignored**,
                     - False for tokens that are **ignored**.
 
+            past_key_values (`Tuple[Tuple[torch.FloatTensor]]`, *optional*, defaults to `None`):
+                Contains precomputed hidden-states (key and values in the attention blocks) as computed by the model
+                (see past_key_values output below). Can be used to speed up sequential decoding. The input_ids which
+                have their past given to this model should not be passed as input_ids as they have already been
+                computed.
+            use_cache (`bool`, *optional*, defaults to `False`):
+                If set to True, past_key_values key value states are returned and can be used to speed up decoding
+                (see past_key_values).
+
         Returns:
             `CausalLMOutputWithPast`: Output object from `transformers.ModelOutputs`.
 
@@ -97,7 +109,13 @@ class GiaModel(nn.Module):
                 labels[~loss_mask] = -100
         else:
             labels = None
-        return self.causal_lm_model(inputs_embeds=embeds, attention_mask=attention_mask, labels=labels)
+        return self.causal_lm_model(
+            inputs_embeds=embeds,
+            attention_mask=attention_mask,
+            labels=labels,
+            past_key_values=past_key_values,
+            use_cache=use_cache,
+        )
 
     def generate(
         self,

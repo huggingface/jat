@@ -38,6 +38,7 @@ def test_gia_model(test_mode, input_mode):
         patches=patches,
         patch_positions=patch_positions,
         input_types=input_types,
+        use_cache=True,
     )
     assert isinstance(output, CausalLMOutputWithPast)
     # Check the loss. If only patches are provided, the loss should be None.
