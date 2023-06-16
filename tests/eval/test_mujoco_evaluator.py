@@ -9,9 +9,7 @@ def test_mujoco_evaluator():
     args = Arguments(output_dir="tmp", n_episodes=2, task_names="mujoco-doublependulum")
     model = GiaModel(config)
 
-    evaluator = MujocoEvaluator(
-        args,
-        task_map={"mujoco": ["InvertedDoublePendulum-v4"]},
-        dataset_map={"mujoco": ["mujoco-doublependulum"]},
-    )
+    evaluator = MujocoEvaluator(args)
+    evaluator.env_names = ["InvertedDoublePendulum-v4"]
+    evaluator.data_filepaths = ["mujoco-doublependulum"]
     evaluator.evaluate(model)
