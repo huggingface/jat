@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Optional
 
 from transformers import HfArgumentParser, TrainingArguments
+from gia.datasets import get_task_name_list
 
 
 @dataclass
@@ -17,13 +18,13 @@ class DatasetArguments:
     task_names: str = field(
         default="all",
         metadata={
-            "help": "Comma-separated list of tasks to load. See the available tasks in "
-            "https://huggingface.co/datasets/gia-project/gia-dataset. If 'all', load all the tasks. Defaults to 'all'."
+            "help": (
+                "Comma-separated list of tasks (or prefixes, e.g. 'mujuco') to load."
+                "See the available tasks in https://huggingface.co/datasets/gia-project/gia-dataset. "
+                "If 'all', load all the tasks. Defaults to 'all'."
+            )
         },
     )
-    batch_size: int = field(default=8, metadata={"help": "The batch size."})
-    shuffle: bool = field(default=True, metadata={"help": "Whether to shuffle the dataset. Defaults to True."})
-    seq_len: int = field(default=1024, metadata={"help": "The length (number of tokens) of a sequence."})
     use_separator: bool = field(
         default=True, metadata={"help": "Whether to include a separator token between observations and actions."}
     )
@@ -45,8 +46,60 @@ class DatasetArguments:
     nb_bins: int = field(
         default=1024, metadata={"help": "The number of bins for the discretization of continuous observations."}
     )
-    load_from_cache: Optional[bool] = field(
-        default=True, metadata={"help": "Whether to load the dataset from the cache files."}
+    overwrite_cache: bool = field(default=False, metadata={"help": "Overwrite the cached training and evaluation sets"})
+    preprocessing_num_workers: Optional[int] = field(
+        default=None,
+        metadata={"help": "The number of processes to use for the preprocessing."},
+    )
+    pad_to_max_length: bool = field(
+        default=False,
+        metadata={
+            "help": (
+                "Whether to pad all samples to model maximum sentence length. "
+                "If False, will pad the samples dynamically when batching to the maximum length in the batch. More "
+                "efficient on GPU but very bad for TPU."
+            )
+        },
+    )
+    max_train_samples: Optional[int] = field(
+        default=None,
+        metadata={
+            "help": (
+                "For debugging purposes or quicker training, truncate the number of training examples to this "
+                "value if set."
+            )
+        },
+    )
+    max_eval_samples: Optional[int] = field(
+        default=None,
+        metadata={
+            "help": (
+                "For debugging purposes or quicker training, truncate the number of evaluation examples to this "
+                "value if set."
+            )
+        },
+    )
+    mask_loss_modalities: str = field(
+        default="default",
+        metadata={
+            "help": (
+                "The modalities to mask for the loss computation. Defaults to all modalities except text and actions."
+                "Specify as a comma-separated list of modalities. For example, "
+                "'continuous_observations,discrete_actions' will only mask the continuous observations and discrete "
+                "actions."
+            )
+        },
+    )
+    local_positions_groups: str = field(
+        default="default",
+        metadata={
+            "help": (
+                "The groups of modalities for which to add local positions. Defaults to a single group containing all "
+                "observations modalities (text, images, discrete and continuous observations)."
+                "Specify as a comma-separated list of groups. For example, "
+                "'text_observations,image_observations' will add local positions to only text and image observations."
+            )
+        },
     )
 
 
@@ -99,17 +152,8 @@ class EvalArguments:
     )
 
 
-class GiaTrainingArguments(TrainingArguments):
-    pass
-
-    def __post_init__(self):
-        super().__post_init__()
-        if isinstance(self.task_names, str):
-            self.task_names = self.task_names.split(",")
-
-
 @dataclass
-class Arguments(DatasetArguments, ModelArguments, EvalArguments, GiaTrainingArguments):
+class Arguments(DatasetArguments, ModelArguments, EvalArguments, TrainingArguments):
     def save(self) -> None:
         os.makedirs(self.output_dir, exist_ok=True)
         out_path = Path(self.output_dir) / "args.json"
@@ -122,6 +166,15 @@ class Arguments(DatasetArguments, ModelArguments, EvalArguments, GiaTrainingArgu
         with open(in_path, "r") as infile:
             loaded_args = json.load(infile)
         return cls(**loaded_args)
+
+    def __post_init__(self):
+        super().__post_init__()
+        # We could have the following in Dataset args and call another super post init ?
+        self.task_names = get_task_name_list(self.task_names)
+        if "," in self.mask_loss_modalities:
+            self.mask_loss_modalities = self.mask_loss_modalities.split(",")
+        if "," in self.local_positions_groups:
+            self.local_positions_groups = self.local_positions_groups.split(",")
 
 
 def parse_args() -> Arguments:

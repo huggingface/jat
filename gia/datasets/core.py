@@ -4,7 +4,10 @@ from typing import Dict, List, TypeVar, Union
 
 import numpy as np
 from datasets import Dataset, get_dataset_config_names
-
+from typing import Optional
+from gia.processing import GiaProcessor
+from datasets import concatenate_datasets, load_dataset
+from functools import partial
 
 T = TypeVar("T", List, np.ndarray)
 
@@ -123,3 +126,44 @@ class Prompter:
             for key in examples:
                 examples[key][to_prompt_idx] = self._cat(prompts[key][idx], examples[key][to_prompt_idx])
         return examples
+
+
+def load_gia_dataset(args, model_config):
+    train_datasets = {
+        task_name: load_dataset("gia-project/gia-dataset", task_name, split="train") for task_name in args.task_names
+    }
+    prompters = {
+        task_name: Prompter(dataset) for task_name, dataset in train_datasets.items() if needs_prompt(task_name)
+    }
+    processor = GiaProcessor(
+        args.mu,
+        args.M,
+        args.nb_bins,
+        args.patch_size,
+        args.mask_loss_modalities,
+        model_config.seq_len,
+        args.local_positions_groups,
+        args.use_separator,
+    )
+
+    def prompt_and_process(example, prompter: Optional[Prompter] = None):
+        if prompter is not None:
+            return processor(**prompter.prompt(example))
+        else:
+            return processor(**example)
+
+    train_datasets = {
+        task_name: dataset.map(
+            partial(prompt_and_process, prompter=prompters.get(task_name)),
+            remove_columns=dataset.column_names,
+            batched=True,
+            batch_size=20,  # lower this from 1000 to 20 avoid OOM
+            num_proc=args.preprocessing_num_workers,
+            load_from_cache_file=not args.overwrite_cache,
+        )
+        for task_name, dataset in train_datasets.items()
+    }
+
+    train_dataset = concatenate_datasets(list(train_datasets.values()))
+
+    return train_dataset
