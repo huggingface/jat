@@ -1,4 +1,4 @@
-from gia import GiaModelConfig, GiaModel
+from gia import GiaModel, GiaModelConfig
 from gia.config.arguments import Arguments
 from gia.eval.mujoco_evaluator import MujocoEvaluator
 

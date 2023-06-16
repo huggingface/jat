@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Optional
 
 from transformers import HfArgumentParser, TrainingArguments
+
 from gia.datasets import get_task_name_list
 
 
@@ -46,7 +47,9 @@ class DatasetArguments:
     nb_bins: int = field(
         default=1024, metadata={"help": "The number of bins for the discretization of continuous observations."}
     )
-    overwrite_cache: bool = field(default=False, metadata={"help": "Overwrite the cached training and evaluation sets"})
+    overwrite_cache: bool = field(
+        default=False, metadata={"help": "Overwrite the cached training and evaluation sets"}
+    )
     preprocessing_num_workers: Optional[int] = field(
         default=None,
         metadata={"help": "The number of processes to use for the preprocessing."},

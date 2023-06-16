@@ -4,9 +4,9 @@
 
 from transformers import Trainer
 
-from gia import GiaModelConfig, GiaModel
-from gia.datasets import GiaDataCollator, load_gia_dataset
+from gia import GiaModel, GiaModelConfig
 from gia.config.arguments import parse_args
+from gia.datasets import GiaDataCollator, load_gia_dataset
 
 
 def main():

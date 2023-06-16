@@ -2,7 +2,7 @@ import gym
 import torch
 from tqdm import tqdm
 
-from gia import GiaModelConfig, GiaModel
+from gia import GiaModel, GiaModelConfig
 from gia.config.arguments import Arguments
 from gia.eval.evaluator import Evaluator
 from gia.eval.mappings import DATASET_FILE_MAPPING, TASK_TO_ENV_MAPPING

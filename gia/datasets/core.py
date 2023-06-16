@@ -1,13 +1,13 @@
 import random
 import warnings
-from typing import Dict, List, TypeVar, Union
+from functools import partial
+from typing import Dict, List, Optional, TypeVar, Union
 
 import numpy as np
-from datasets import Dataset, get_dataset_config_names
-from typing import Optional
+from datasets import Dataset, concatenate_datasets, get_dataset_config_names, load_dataset
+
 from gia.processing import GiaProcessor
-from datasets import concatenate_datasets, load_dataset
-from functools import partial
+
 
 T = TypeVar("T", List, np.ndarray)
 
