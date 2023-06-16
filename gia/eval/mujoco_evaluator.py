@@ -14,10 +14,10 @@ def make_mujoco_env(env_name, render_mode=None):
 
 
 class MujocoEvaluator(Evaluator):
-    def __init__(self, args: Arguments, task_map=TASK_TO_ENV_MAPPING, dataset_map=DATASET_FILE_MAPPING):
+    def __init__(self, args: Arguments):
         self.task = "mujoco"
-        self.env_names = task_map[self.task]
-        self.data_filepaths = dataset_map[self.task]
+        self.env_names = TASK_TO_ENV_MAPPING[self.task]
+        self.data_filepaths = DATASET_FILE_MAPPING[self.task]
         self.args = args
 
     def evaluate(self, model: GiaModel):
@@ -31,7 +31,7 @@ class MujocoEvaluator(Evaluator):
         num_envs = 1
 
         env = gym.vector.make(env_name, num_envs)
-        gia_agent = GiaAgent(self.args, dataset_name, model, env.observation_space, env.action_space)
+        gia_agent = GiaAgent(dataset_name, model, env.observation_space, env.action_space)
 
         returns = []
         # due to how to KV cache is used, we only can evaluate one env instance at a time
@@ -62,9 +62,7 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = GiaModel(config).to(device)
 
-    evaluator = MujocoEvaluator(
-        args,
-        task_map={"mujoco": ["InvertedDoublePendulum-v4"]},
-        dataset_map={"mujoco": ["mujoco-doublependulum"]},
-    )
+    evaluator = MujocoEvaluator(args)
+    evaluator.env_names = ["InvertedDoublePendulum-v4"]
+    evaluator.data_filepaths = ["mujoco-doublependulum"]
     evaluator.evaluate(model)
