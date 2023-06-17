@@ -5,7 +5,7 @@ import pytest
 import yaml
 
 import gia.config.arguments
-from gia.config import Arguments, parse_args
+from gia.config import Arguments
 
 
 EXEC_PATH = os.path.abspath(gia.config.arguments.__file__)
@@ -94,7 +94,7 @@ def test_parse_args_no_arguments(tmp_path):
     # Simulate no additional arguments apart from output dir which is required
     sys.argv = [EXEC_PATH, f"--output_dir={tmp_path}"]
 
-    args = parse_args()
+    args = Arguments.parse_args()
 
     assert args.task_names == ["all"]
 
@@ -103,7 +103,7 @@ def test_parse_args_custom_arguments(tmp_path):
     # Simulate custom arguments
     sys.argv = [EXEC_PATH, f"--output_dir={tmp_path}", "--task_names=task1,task2"]
 
-    args = parse_args()
+    args = Arguments.parse_args()
 
     assert args.output_dir == str(tmp_path)
     assert args.task_names == ["task1", "task2"]
@@ -118,7 +118,7 @@ def test_parse_args_yaml_file(tmp_path):
     # Simulate passing a YAML file as an argument
     sys.argv = [EXEC_PATH, yaml_file_path]
 
-    args = parse_args()
+    args = Arguments.parse_args()
 
     assert args.output_dir == str(tmp_path)
     assert args.task_names == ["task1", "task2"]
