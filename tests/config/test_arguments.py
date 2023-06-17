@@ -86,8 +86,8 @@ def cleanup_argv():
 
 
 def test_post_init_task_names(tmp_path):
-    args = Arguments(task_names="task1,task2,task3", output_dir=tmp_path)
-    assert args.task_names == ["task1", "task2", "task3"]
+    args = Arguments(task_names="mujoco,atari-pong", output_dir=tmp_path)
+    assert args.task_names == ["mujoco", "atari-pong"]
 
 
 def test_parse_args_no_arguments(tmp_path):
@@ -101,19 +101,19 @@ def test_parse_args_no_arguments(tmp_path):
 
 def test_parse_args_custom_arguments(tmp_path):
     # Simulate custom arguments
-    sys.argv = [EXEC_PATH, f"--output_dir={tmp_path}", "--task_names=task1,task2"]
+    sys.argv = [EXEC_PATH, f"--output_dir={tmp_path}", "--task_names=mujoco,atari-pong"]
 
     args = Arguments.parse_args()
 
     assert args.output_dir == str(tmp_path)
-    assert args.task_names == ["task1", "task2"]
+    assert args.task_names == ["mujoco", "atari-pong"]
 
 
 def test_parse_args_yaml_file(tmp_path):
     # Create a temporary YAML file for testing
     yaml_file_path = os.path.join(tmp_path, "config.yaml")
     with open(yaml_file_path, "w") as yaml_file:
-        yaml.dump({"output_dir": str(tmp_path), "task_names": ["task1", "task2"]}, yaml_file)
+        yaml.dump({"output_dir": str(tmp_path), "task_names": ["mujoco", "atari-pong"]}, yaml_file)
 
     # Simulate passing a YAML file as an argument
     sys.argv = [EXEC_PATH, yaml_file_path]
@@ -121,4 +121,4 @@ def test_parse_args_yaml_file(tmp_path):
     args = Arguments.parse_args()
 
     assert args.output_dir == str(tmp_path)
-    assert args.task_names == ["task1", "task2"]
+    assert args.task_names == ["mujoco", "atari-pong"]
