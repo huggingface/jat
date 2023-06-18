@@ -106,7 +106,7 @@ def test_parse_args_no_arguments(tmp_path):
 
     args = Arguments.parse_args()
 
-    assert args.task_names == ["all"]
+    assert len(args.task_names) > 150  # ensure that there are many tasks (currently there are 151)
 
 
 def test_parse_args_custom_arguments(tmp_path):
