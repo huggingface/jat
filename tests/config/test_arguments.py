@@ -87,7 +87,17 @@ def cleanup_argv():
 
 def test_post_init_task_names(tmp_path):
     args = Arguments(task_names="mujoco,atari-pong", output_dir=tmp_path)
-    assert args.task_names == ["mujoco", "atari-pong"]
+    assert args.task_names == [
+        "atari-pong",
+        "mujoco-ant",
+        "mujoco-halfcheetah",
+        "mujoco-hopper",
+        "mujoco-swimmer",
+        "mujoco-reacher",
+        "mujoco-pendulum",
+        "mujoco-walker",
+        "mujoco-doublependulum",
+    ]
 
 
 def test_parse_args_no_arguments(tmp_path):
@@ -106,7 +116,17 @@ def test_parse_args_custom_arguments(tmp_path):
     args = Arguments.parse_args()
 
     assert args.output_dir == str(tmp_path)
-    assert args.task_names == ["mujoco", "atari-pong"]
+    assert args.task_names == [
+        "atari-pong",
+        "mujoco-ant",
+        "mujoco-halfcheetah",
+        "mujoco-hopper",
+        "mujoco-swimmer",
+        "mujoco-reacher",
+        "mujoco-pendulum",
+        "mujoco-walker",
+        "mujoco-doublependulum",
+    ]
 
 
 def test_parse_args_yaml_file(tmp_path):
@@ -121,4 +141,14 @@ def test_parse_args_yaml_file(tmp_path):
     args = Arguments.parse_args()
 
     assert args.output_dir == str(tmp_path)
-    assert args.task_names == ["mujoco", "atari-pong"]
+    assert args.task_names == [
+        "atari-pong",
+        "mujoco-ant",
+        "mujoco-halfcheetah",
+        "mujoco-hopper",
+        "mujoco-swimmer",
+        "mujoco-reacher",
+        "mujoco-pendulum",
+        "mujoco-walker",
+        "mujoco-doublependulum",
+    ]
