@@ -206,7 +206,7 @@ class GiaModelConfig(PretrainedConfig):
 
     @staticmethod
     def from_args(args: Arguments) -> "GiaModelConfig":
-        config = GiaModelConfig()
+        config = GiaModelConfig.from_pretrained("gia-project/gia")
         config.patch_size = args.patch_size
         config.nb_bins = args.nb_bins
         config.use_separator = args.use_separator
