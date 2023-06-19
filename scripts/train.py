@@ -27,9 +27,7 @@ def main():
     model = GiaModel(config)
 
     # Load, prompt and process the datasets
-    train_dataset = load_and_process_dataset(
-        args.task_names, "train", processor, not args.overwrite_cache, args.preprocessing_num_workers
-    )
+    train_dataset = load_and_process_dataset(args, "train", processor)
 
     trainer = Trainer(
         model,
