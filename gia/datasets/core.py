@@ -4,10 +4,8 @@ from functools import partial
 from typing import Dict, List, TypeVar, Union
 
 import numpy as np
-from datasets import Dataset, concatenate_datasets, get_dataset_config_names, load_dataset
+from datasets import Dataset, get_dataset_config_names, load_dataset
 
-from gia import GiaConfig
-from gia.config.arguments import DatasetArguments
 from gia.processing import GiaProcessor
 
 
@@ -160,9 +158,9 @@ class Prompter:
 
 
 def load_and_process_dataset(
-    data_args: DatasetArguments,
+    data_args,
     split: str,
-    config: GiaConfig,
+    config,
 ) -> Dict[str, Dataset]:
     """
     Load, prompt and process the dataset.
