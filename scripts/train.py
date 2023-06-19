@@ -14,7 +14,7 @@ def main():
 
     config = GiaConfig.from_args(args)
     model = GiaModel(config)
-    args.update(model.config)
+
     # Load, prompt and process the datasets
     train_dataset = load_and_process_dataset(args, "train", config)
 
