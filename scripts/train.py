@@ -6,17 +6,17 @@ from transformers import Trainer
 
 from gia import GiaConfig, GiaModel
 from gia.config import Arguments
-from gia.datasets import GiaDataCollator, load_gia_dataset
+from gia.datasets import GiaDataCollator, load_and_process_dataset
 
 
 def main():
     args = Arguments.parse_args()
 
-    model_config = GiaConfig.from_args(args)
-    model = GiaModel(model_config)
+    config = GiaConfig.from_args(args)
+    model = GiaModel(config)
 
     # Load, prompt and process the datasets
-    train_dataset = load_gia_dataset(args, model_config)  # I don't like that we have to pass two configs/args here
+    train_dataset = load_and_process_dataset(args, "train", config)
 
     trainer = Trainer(
         model,

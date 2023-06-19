@@ -35,6 +35,10 @@ class DatasetArguments:
     p_end: float = field(
         default=0.5, metadata={"help": "The probability of taking a prompt from the end of an episode."}
     )
+    min_prompt_len: int = field(default=10, metadata={"help": "The minimum length of a prompt (in tokens)."})
+    max_prompt_len: int = field(
+        default=1024, metadata={"help": "The maximum length of a prompt (in tokens)."}
+    )  # Ideally, this should Optional[int], and set to to seq_len if None.
     patch_size: int = field(
         default=16, metadata={"help": "The size of the patches to extract from image observations."}
     )
@@ -178,6 +182,8 @@ class Arguments(DatasetArguments, ModelArguments, EvalArguments, TrainingArgumen
             self.mask_loss_modalities = self.mask_loss_modalities.split(",")
         if "," in self.local_positions_groups:
             self.local_positions_groups = self.local_positions_groups.split(",")
+        if self.max_prompt_length is None:
+            self.max_prompt_length = self.seq_len
 
     @staticmethod
     def parse_args() -> "Arguments":
