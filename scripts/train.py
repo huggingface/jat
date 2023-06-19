@@ -19,13 +19,20 @@ def main():
     # Load, prompt and process the datasets
     train_datasets = load_and_process_dataset(args, "train", config)
     train_dataset = concatenate_datasets(list(train_datasets.values()))
+    test_datasets = generate_datasets("test", processor, data_args)
+    if data_args.max_eval_samples is not None:
+        test_datasets = {
+            task_name: dataset.select(range(data_args.max_eval_samples)) for task_name, dataset in test_datasets.items()
+        }
 
+
+    # Load the trainer
     trainer = Trainer(
         model,
         args,
         data_collator=GiaDataCollator(),
         train_dataset=train_dataset,
-        # eval_dataset=test_datasets,  # TODO: See https://github.com/huggingface/gia/issues/65
+        eval_dataset=test_datasets,
     )
     trainer.train()
 

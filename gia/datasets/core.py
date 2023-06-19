@@ -83,6 +83,17 @@ def needs_prompt(task_name: str) -> bool:
 
 
 class Prompter:
+    """
+    Prompter class to generate prompts for a dataset.
+
+    Args:
+        dataset (Dataset): Dataset to prompt.
+        p_prompt (float, optional): Probability of including a prompt at the beginning of a sequence. Defaults to 0.25.
+        p_end (float, optional): Probability of taking a prompt from the end of an episode. Defaults to 0.1.
+        min_prompt_len (int, optional): Minimum length of a prompt. Defaults to 1.
+        max_prompt_len (int, optional): Maximum length of a prompt. Defaults to 1024.
+    """
+
     def __init__(
         self,
         dataset: Dataset,
@@ -99,6 +110,15 @@ class Prompter:
         self.max_prompt_len = max_prompt_len
 
     def generate_prompts(self, num_prompts: int) -> Dict[str, List]:
+        """
+        Generate prompts for the dataset.
+
+        Args:
+            num_prompts (int): Number of prompts to generate.
+
+        Returns:
+            Dict[str, List]: Dictionary of prompts.
+        """
         prompt_ep_idxs = random.choices(range(len(self.dataset)), k=num_prompts)
         from_ends = random.choices([True, False], k=num_prompts, weights=[self.p_end, 1 - self.p_end])
         ep_lens = [self.ep_lens[idx] for idx in prompt_ep_idxs]
@@ -121,6 +141,15 @@ class Prompter:
             raise ValueError("x and y must be either lists or numpy arrays")
 
     def prompt(self, examples: Dict[str, List]) -> Dict[str, List]:
+        """
+        Prompt the examples.
+
+        Args:
+            examples (Dict[str, List]): Examples to prompt.
+
+        Returns:
+            Dict[str, List]: Prompted examples.
+        """
         num_examples = len(examples[next(iter(examples))])
         to_prompt_idxs = [idx for idx in range(num_examples) if random.random() < self.p_prompt]
         prompts = self.generate_prompts(len(to_prompt_idxs))
