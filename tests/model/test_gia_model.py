@@ -7,7 +7,7 @@ from transformers import Trainer, TrainingArguments
 from transformers.data.data_collator import default_data_collator
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
-from gia import GiaModel, GiaModelConfig
+from gia import GiaConfig, GiaModel
 
 
 def random_patch_positions(size):
@@ -21,7 +21,7 @@ def random_patch_positions(size):
 @pytest.mark.parametrize("test_mode", ["train", "eval"])
 @pytest.mark.parametrize("input_mode", ["input_ids", "patches", "both"])
 def test_gia_model(test_mode, input_mode):
-    model = GiaModel(GiaModelConfig())
+    model = GiaModel(GiaConfig())
     if test_mode == "train":
         model.train()
     else:  # 'eval'
@@ -52,7 +52,7 @@ def test_gia_model(test_mode, input_mode):
 
 
 def test_gia_model_local_positions():
-    model = GiaModel(GiaModelConfig())
+    model = GiaModel(GiaConfig())
     input_ids = torch.randint(0, 256, (2, 32), dtype=torch.long)
     local_positions = torch.randint(0, 256, (2, 32), dtype=torch.long)
     output_wo_local_positions = model(input_ids=input_ids)
@@ -63,7 +63,7 @@ def test_gia_model_local_positions():
 
 
 def test_gia_model_attention_mask():
-    model = GiaModel(GiaModelConfig())
+    model = GiaModel(GiaConfig())
     attention_mask = torch.randint(0, 2, (2, 32), dtype=torch.bool)
     input_ids_1 = torch.randint(0, 256, (2, 32), dtype=torch.long)
     input_ids_2 = input_ids_1.clone()
@@ -96,7 +96,7 @@ def test_gia_model_accelerate_compat():
     )
 
     dataloader = DataLoader(dataset, batch_size=2, shuffle=True, collate_fn=default_data_collator)
-    model = GiaModel(GiaModelConfig())
+    model = GiaModel(GiaConfig())
     accelerator = Accelerator()
     model, dataloader = accelerator.prepare(model, dataloader)
     for batch in dataloader:
@@ -118,6 +118,6 @@ def test_gia_model_trainer_compat():
         }
     )
     args = TrainingArguments(output_dir="./", report_to="none")
-    model = GiaModel(GiaModelConfig())
+    model = GiaModel(GiaConfig())
     trainer = Trainer(model=model, args=args, train_dataset=dataset, data_collator=default_data_collator)
     trainer.train()

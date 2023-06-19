@@ -16,7 +16,7 @@ GIA_PRETRAINED_CONFIG_ARCHIVE_MAP = {
 }
 
 
-class GiaModelConfig(PretrainedConfig):
+class GiaConfig(PretrainedConfig):
     r"""
     This is the configuration class to store the configuration of a [`GiaModel`]. It is used to instantiate an
     GIA model according to the specified arguments, defining the model architecture. Instantiating a configuration
@@ -205,8 +205,8 @@ class GiaModelConfig(PretrainedConfig):
         return output
 
     @staticmethod
-    def from_args(args: Arguments) -> "GiaModelConfig":
-        config = GiaModelConfig.from_pretrained("gia-project/gia")
+    def from_args(args: Arguments) -> "GiaConfig":
+        config = GiaConfig.from_pretrained("gia-project/gia")
         config.patch_size = args.patch_size
         config.nb_bins = args.nb_bins
         config.use_separator = args.use_separator

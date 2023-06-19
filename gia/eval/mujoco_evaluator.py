@@ -2,7 +2,7 @@ import gym
 import torch
 from tqdm import tqdm
 
-from gia import GiaModel, GiaModelConfig
+from gia import GiaConfig, GiaModel
 from gia.config.arguments import Arguments
 from gia.eval.evaluator import Evaluator
 from gia.eval.mappings import DATASET_FILE_MAPPING, TASK_TO_ENV_MAPPING
@@ -56,7 +56,7 @@ class MujocoEvaluator(Evaluator):
 
 
 if __name__ == "__main__":
-    config = GiaModelConfig()
+    config = GiaConfig()
 
     args = Arguments(output_dir="tmp", n_episodes=2, task_names="mujoco-doublependulum")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
