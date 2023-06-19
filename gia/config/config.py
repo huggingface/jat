@@ -1,12 +1,8 @@
 """ GIA Config model configuration"""
 
 import copy
-from typing import Optional
 
-from transformers import AutoConfig
-from transformers.configuration_utils import PretrainedConfig
-
-from ..utils import logger
+from transformers import GPTNeoConfig
 
 
 GIA_PRETRAINED_CONFIG_ARCHIVE_MAP = {
@@ -14,7 +10,7 @@ GIA_PRETRAINED_CONFIG_ARCHIVE_MAP = {
 }
 
 
-class GiaConfig(PretrainedConfig):
+class GiaConfig(GPTNeoConfig):
     r"""
     This is the configuration class to store the configuration of a [`GiaModel`]. It is used to instantiate an
     GIA model according to the specified arguments, defining the model architecture. Instantiating a configuration
@@ -26,16 +22,8 @@ class GiaConfig(PretrainedConfig):
 
 
     Args:
-        causal_lm_name (`str`, *optional*, defaults to "EleutherAI/gpt-neo-125M"):
-            The name of the causal language model to use. This can be a model identifier or the path to a directory
-            containing a configuration file saved using the [`~PreTrainedModel.save_pretrained`] method.
-        causal_lm_config (`PretrainedConfig`, *optional*):
-            The configuration of the causal language model to use. If not provided, the configuration of the model
-            specified by `causal_lm_name` will be used. Note that this configuration will be modified to match the
-            Gia model architecture.
-        embed_dim (`int`, *optional*, defaults to None):
-            The embedding dimension of the Gia model. If not provided, the embedding dimension of the causal language
-            model will be used.
+        seq_len (`int`, *optional*, defaults to 2048):
+            The length (number of tokens) of a sequence.
         patch_size (`int`, *optional*, defaults to 16):
             Size of the patches to extract from image observations.
         image_vocab_size (`int`, *optional*, defaults to 128):
@@ -52,28 +40,37 @@ class GiaConfig(PretrainedConfig):
             Maximum number of local positions to encode.
         use_separator (`bool`, *optional*, defaults to True):
             Whether to include a separator token between observations and actions.
-        seq_len (`int`, *optional*, defaults to None):
-            The length (number of tokens) of a sequence. If not provided, the maximum sequence length of the causal
-            language model will be used.
-        use_pretrained (`bool`, *optional*, defaults to False):
-            Whether to use the pretrained weights of the causal language model.
-
-    Example:
-
-    ```python
-    >>> from gia import GiaModel, GiaConfig
-    >>> config = GiaConfig()
-    >>> model = GiaModel(config)
-    ```
+        hidden_size (`int`, *optional*, defaults to 2048):
+            Dimensionality of the encoder layers and the pooler layer.
+        num_layers (`int`, *optional*, defaults to 24):
+            Number of hidden layers in the Transformer encoder.
+        num_heads (`int`, *optional*, defaults to 16):
+            Number of attention heads for each attention layer in the Transformer encoder.
+        intermediate_size (`int`, *optional*, defaults to None):
+            Dimensionality of the "intermediate" (i.e., feed-forward) layer in the Transformer encoder. If None,
+            `intermediate_size = 4 * hidden_size`.
+        activation_function (`str` or `function`, *optional*, defaults to `"gelu_new"`):
+            The non-linear activation function (function or string) in the encoder and pooler. If string, `"gelu"`,
+            `"relu"`, `"selu"` and `"gelu_new"` are supported.
+        resid_dropout (`float`, *optional*, defaults to 0.0):
+            Residual dropout used in the attention pattern.
+        embed_dropout (`float`, *optional*, defaults to 0.0):
+            The dropout probabilitiy for all fully connected layers in the embeddings, encoder, and pooler.
+        attention_dropout (`float`, *optional*, defaults to 0.0):
+            The dropout ratio for the attention probabilities.
+        layer_norm_epsilon (`float`, *optional*, defaults to 1e-5):
+            The epsilon used by the layer normalization layers.
+        initializer_range (`float`, *optional*, defaults to 0.02):
+            The standard deviation of the truncated_normal_initializer for initializing all weight matrices.
+        use_cache (`bool`, *optional*, defaults to `True`):
+            Whether or not the model should return the last key/values attentions (not used by all models). Only
+            relevant if `config.is_decoder=True`.
     """
     model_type = "gia"
-    is_composition = True
 
     def __init__(
         self,
-        causal_lm_name: str = "EleutherAI/gpt-neo-125M",
-        causal_lm_config: PretrainedConfig = None,
-        embed_dim: Optional[int] = None,
+        seq_len: int = 2048,
         patch_size: int = 16,
         image_vocab_size: int = 128,
         num_groups: int = 32,
@@ -82,53 +79,58 @@ class GiaConfig(PretrainedConfig):
         nb_bins: int = 1024,
         max_local_position: int = 512,
         use_separator: bool = True,
-        seq_len: Optional[int] = None,
-        use_pretrained: bool = False,
+        hidden_size: int = 2048,
+        num_layers: int = 24,
+        num_heads: int = 16,
+        intermediate_size=None,
+        activation_function: str = "gelu_new",
+        resid_dropout: float = 0.0,
+        embed_dropout: float = 0.0,
+        attention_dropout: float = 0,
+        layer_norm_epsilon: float = 0.00001,
+        initializer_range: float = 0.02,
+        use_cache: bool = True,
         **kwargs,
     ):
-        self.causal_lm_name = causal_lm_name
-        if causal_lm_config is None:
-            logger.info(f"causal_lm_config is None. Initializing {self.causal_lm_name} with default values.")
-            self.causal_lm_config = AutoConfig.from_pretrained(causal_lm_name)
-        else:
-            self.causal_lm_config = AutoConfig.from_pretrained(causal_lm_name, **causal_lm_config)
-
-        self.embed_dim = embed_dim if embed_dim is not None else self.causal_lm_config.hidden_size
         self.patch_size = patch_size
         self.image_vocab_size = image_vocab_size
         self.num_groups = num_groups
         self.num_res_channels = num_res_channels
-        self._text_vocab_size = text_vocab_size
-        self._nb_bins = nb_bins
+        self.text_vocab_size = text_vocab_size
+        self.nb_bins = nb_bins
         self.max_local_position = max_local_position
-        self._use_separator = use_separator
-        self.seq_len = seq_len if seq_len is not None else self.causal_lm_config.max_position_embeddings
-        self.use_pretrained = use_pretrained
+        self.use_separator = use_separator
 
-        # update vocab_size
-        self.causal_lm_config.vocab_size = self.vocab_size
+        if self.use_separator:
+            vocab_size = self.text_vocab_size + self.nb_bins + 1
+        else:
+            vocab_size = self.text_vocab_size + self.nb_bins
 
-        super().__init__(**kwargs)
-
-    @property
-    def embed_dim(self):
-        return self.causal_lm_config.hidden_size
-
-    @embed_dim.setter
-    def embed_dim(self, value):
-        if self.causal_lm_config.hidden_size != value:
-            logger.info("Setting embed_dim also sets causal_lm_config.hidden_size to the same value.")
-            self.causal_lm_config.hidden_size = value
+        super().__init__(
+            vocab_size=vocab_size,
+            max_position_embeddings=seq_len,  # renamed from max_position_embeddings
+            hidden_size=hidden_size,
+            num_layers=num_layers,
+            num_heads=num_heads,
+            intermediate_size=intermediate_size,
+            window_size=seq_len,  # we want to attend to all tokens
+            activation_function=activation_function,
+            resid_dropout=resid_dropout,
+            embed_dropout=embed_dropout,
+            attention_dropout=attention_dropout,
+            layer_norm_epsilon=layer_norm_epsilon,
+            initializer_range=initializer_range,
+            use_cache=use_cache,
+            **kwargs,
+        )
 
     @property
     def seq_len(self):
-        return self.causal_lm_config.max_position_embeddings
+        return self.max_position_embeddings
 
     @seq_len.setter
     def seq_len(self, value):
-        if self.causal_lm_config.max_position_embeddings != value:
-            logger.info("Setting seq_len also sets causal_lm_config.max_position_embeddings to the same value.")
-            self.causal_lm_config.max_position_embeddings = value
+        self.max_position_embeddings = value
 
     @property
     def vocab_size(self):
@@ -139,56 +141,12 @@ class GiaConfig(PretrainedConfig):
 
     @vocab_size.setter
     def vocab_size(self, value):
-        raise AttributeError(
-            "vocab_size is a derived attribute that is the sum of text_vocab_size and nb_bins, plus one if using a "
-            "separator token. It cannot be set directly. Please set text_vocab_size, nb_bins, and use_separator "
-            "instead."
-        )
-
-    @property
-    def text_vocab_size(self):
-        return self._text_vocab_size
-
-    @text_vocab_size.setter
-    def text_vocab_size(self, value):
-        if self._text_vocab_size != value:
-            logger.info(
-                "Updating the text_vocab_size will also update the vocab_size of the causal_lm_config. "
-                "The vocab_size is recalculated based on the following formula: "
-                "vocab_size = text_vocab_size + nb_bins + 1 if use_separator is True, otherwise 0."
+        if value != self.vocab_size:
+            raise ValueError(
+                "vocab_size is a derived attribute that is the sum of text_vocab_size and nb_bins, plus one if using "
+                "a separator token. It cannot be set directly. Please set text_vocab_size, nb_bins, and use_separator "
+                "instead."
             )
-            self._text_vocab_size = value
-            self.causal_lm_config.vocab_size = self.vocab_size
-
-    @property
-    def nb_bins(self):
-        return self._nb_bins
-
-    @nb_bins.setter
-    def nb_bins(self, value):
-        if self._nb_bins != value:
-            logger.info(
-                "Updating the nb_bins will also update the vocab_size of the causal_lm_config. "
-                "The vocab_size is recalculated based on the following formula: "
-                "vocab_size = text_vocab_size + nb_bins + 1 if use_separator is True, otherwise 0."
-            )
-            self._nb_bins = value
-            self.causal_lm_config.vocab_size = self.vocab_size
-
-    @property
-    def use_separator(self):
-        return self._use_separator
-
-    @use_separator.setter
-    def use_separator(self, value):
-        if self._use_separator != value:
-            logger.info(
-                "Updating use_separator will also update the vocab_size of the causal_lm_config. "
-                "The vocab_size is recalculated based on the following formula: "
-                "vocab_size = text_vocab_size + nb_bins + 1 if use_separator is True, otherwise 0."
-            )
-            self._use_separator = value
-            self.causal_lm_config.vocab_size = self.vocab_size
 
     def to_dict(self):
         """
@@ -198,6 +156,5 @@ class GiaConfig(PretrainedConfig):
             `Dict[str, any]`: Dictionary of all the attributes that make up this configuration instance,
         """
         output = copy.deepcopy(self.__dict__)
-        output["causal_lm_config"] = self.causal_lm_config.to_dict()
         output["model_type"] = self.__class__.model_type
         return output
