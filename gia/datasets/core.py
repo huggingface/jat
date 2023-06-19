@@ -1,12 +1,14 @@
 import random
 import warnings
 from functools import partial
-from typing import Callable, Dict, List, TypeVar, Union
+from typing import Dict, List, TypeVar, Union
 
 import numpy as np
 from datasets import Dataset, concatenate_datasets, get_dataset_config_names, load_dataset
 
 from gia.config.arguments import DatasetArguments
+from gia.processing import GiaProcessor
+from gia import GiaConfig
 
 
 T = TypeVar("T", List, np.ndarray)
@@ -131,7 +133,7 @@ class Prompter:
 def load_and_process_dataset(
     data_args: DatasetArguments,
     split: str,
-    processor: Callable,
+    config: GiaConfig,
 ):
     """
     Load, prompt and process the dataset.
@@ -139,7 +141,6 @@ def load_and_process_dataset(
     Args:
         data_args (DatasetArguments): Dataset arguments.
         split (str): Split of the dataset to load.
-        processor (Callable): Processor to use to process the dataset.
 
     Returns:
         Dataset: Processed dataset.
@@ -156,6 +157,16 @@ def load_and_process_dataset(
         for task_name, dataset in dataset_dict.items()
         if needs_prompt(task_name)
     }
+    processor = GiaProcessor(
+        data_args.mu,
+        data_args.M,
+        config.nb_bins,
+        config.patch_size,
+        data_args.mask_loss_modalities,
+        config.seq_len,
+        data_args.local_positions_groups,
+        config.use_separator,
+    )
 
     def prompt_and_process(example, prompter):
         if prompter is not None:
