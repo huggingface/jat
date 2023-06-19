@@ -118,6 +118,34 @@ class DataTrainingArguments:
             self.local_positions_groups = self.local_positions_groups.split(",")
 
 
+def generate_datasets(split, processor, data_args):
+    _datasets = {
+        task_name: load_dataset("gia-project/gia-dataset", task_name, split=split)
+        for task_name in data_args.task_names
+    }
+    prompters = {
+        task_name: Prompter(dataset) for task_name, dataset in _datasets.items() if needs_prompt(task_name)
+    }
+
+    def prompt_and_process(example, prompter: Optional[Prompter] = None):
+        if prompter is not None:
+            return processor(**prompter.prompt(example))
+        else:
+            return processor(**example)
+
+    processed_datasets = {
+        task_name: dataset.map(
+            partial(prompt_and_process, prompter=prompters.get(task_name)),
+            remove_columns=dataset.column_names,
+            batched=True,
+            batch_size=20,  # lower this from 1000 to 20 avoid OOM
+            num_proc=data_args.preprocessing_num_workers,
+            load_from_cache_file=not data_args.overwrite_cache,
+        )
+        for task_name, dataset in _datasets.items()
+    }
+    return processed_datasets
+
 def main():
     parser = HfArgumentParser((DataTrainingArguments, TrainingArguments))
 
@@ -157,45 +185,25 @@ def main():
     model = GiaModel(config)
 
     # Load, prompt and process the datasets
-    train_datasets = {
-        task_name: load_dataset("gia-project/gia-dataset", task_name, split="train")
-        for task_name in data_args.task_names
-    }
-    prompters = {
-        task_name: Prompter(dataset) for task_name, dataset in train_datasets.items() if needs_prompt(task_name)
-    }
-
-    def prompt_and_process(example, prompter: Optional[Prompter] = None):
-        if prompter is not None:
-            return processor(**prompter.prompt(example))
-        else:
-            return processor(**example)
-
-    train_datasets = {
-        task_name: dataset.map(
-            partial(prompt_and_process, prompter=prompters.get(task_name)),
-            remove_columns=dataset.column_names,
-            batched=True,
-            batch_size=20,  # lower this from 1000 to 20 avoid OOM
-            num_proc=data_args.preprocessing_num_workers,
-            load_from_cache_file=not data_args.overwrite_cache,
-        )
-        for task_name, dataset in train_datasets.items()
-    }
-
+    train_datasets = generate_datasets("train", processor, data_args)
     train_dataset = concatenate_datasets(list(train_datasets.values()))
+    test_datasets = generate_datasets("test", processor, data_args)
+    if data_args.max_eval_samples is not None:
+        test_datasets = {
+            task_name: dataset.select(range(data_args.max_eval_samples)) for task_name, dataset in test_datasets.items()
+        }
 
     # Initialize the model
     config = GiaConfig()
     model = GiaModel(config)
 
-    # Load the dataset
+    # Load the trainer
     trainer = Trainer(
         model,
         trainer_args,
         data_collator=GiaDataCollator(),
         train_dataset=train_dataset,
-        # eval_dataset=test_datasets,  # TODO: See https://github.com/huggingface/gia/issues/65
+        eval_dataset=test_datasets,
     )
     trainer.train()
 

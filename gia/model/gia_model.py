@@ -54,6 +54,7 @@ class GiaModel(nn.Module):
         loss_mask: Optional[torch.BoolTensor] = None,
         past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
         use_cache: bool = False,
+        return_loss: bool = True,
     ) -> CausalLMOutputWithPast:
         """
         Run a forward pass through the model. Takes in several inputs and returns a `CausalLMOutputWithPast` object.
@@ -89,6 +90,9 @@ class GiaModel(nn.Module):
             use_cache (`bool`, *optional*, defaults to `False`):
                 If set to True, past_key_values key value states are returned and can be used to speed up decoding
                 (see past_key_values).
+            return_loss (`bool`, *optional*):
+                Whether labels should be computed from `input_ids` and loss returned within model's output.
+                Default is `True`.
 
         Returns:
             `CausalLMOutputWithPast`: Output object from `transformers.ModelOutputs`.
@@ -101,7 +105,7 @@ class GiaModel(nn.Module):
                 - patches is provided but patch_positions is None (and vice-versa)
         """
         embeds = self.emb(input_ids, patches, patch_positions, input_types, local_positions, attention_mask)
-        if input_ids is not None:
+        if return_loss and input_ids is not None:
             labels = input_ids.clone()
             # All labels set to -100 are ignored (masked), the loss is only computed for labels in
             # [0, ..., config.vocab_size]
