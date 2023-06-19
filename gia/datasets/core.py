@@ -134,7 +134,7 @@ def load_and_process_dataset(
     data_args: DatasetArguments,
     split: str,
     config: GiaConfig,
-):
+) -> Dict[str, Dataset]:
     """
     Load, prompt and process the dataset.
 

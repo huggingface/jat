@@ -2,6 +2,7 @@
 """Train a GIA model on the GIA dataset"""
 
 
+from datasets import concatenate_datasets
 from transformers import Trainer
 
 from gia import GiaConfig, GiaModel
@@ -16,7 +17,8 @@ def main():
     model = GiaModel(config)
 
     # Load, prompt and process the datasets
-    train_dataset = load_and_process_dataset(args, "train", config)
+    train_datasets = load_and_process_dataset(args, "train", config)
+    train_dataset = concatenate_datasets(list(train_datasets.values()))
 
     trainer = Trainer(
         model,
