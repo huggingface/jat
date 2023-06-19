@@ -79,7 +79,7 @@ class GiaModel(nn.Module):
                     - True for tokens that are **not ignored**,
                     - False for tokens that are **ignored**.
 
-            return_loss (`torch.Booltype`, *optional*):
+            return_loss (`bool`, *optional*):
                 Whether labels should be computed from `input_ids` and loss returned within model's output.
                 Default is `True`.
 
