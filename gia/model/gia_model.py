@@ -5,7 +5,7 @@ from torch import nn
 from transformers import AutoModelForCausalLM
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
-from gia import GiaModelConfig
+from gia import GiaConfig
 
 from .embedding import Embeddings
 
@@ -23,7 +23,7 @@ class GiaModel(nn.Module):
             Model configuration class with all the parameters of the model.
     """
 
-    def __init__(self, config: GiaModelConfig) -> None:
+    def __init__(self, config: GiaConfig) -> None:
         super().__init__()
         self.config = config
         if config.use_pretrained:

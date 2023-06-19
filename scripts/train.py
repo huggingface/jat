@@ -4,7 +4,7 @@
 
 from transformers import Trainer
 
-from gia import GiaModel, GiaModelConfig
+from gia import GiaModel, GiaConfig
 from gia.config import Arguments
 from gia.datasets import GiaDataCollator, load_gia_dataset
 
@@ -12,7 +12,7 @@ from gia.datasets import GiaDataCollator, load_gia_dataset
 def main():
     args = Arguments.parse_args()
 
-    model_config = GiaModelConfig.from_args(args)
+    model_config = GiaConfig.from_args(args)
     model = GiaModel(model_config)
 
     # Load, prompt and process the datasets

@@ -1,5 +1,5 @@
 from .arguments import Arguments, DatasetArguments, ModelArguments
-from .config import GiaModelConfig
+from .config import GiaConfig
 
 
-__all__ = ["Arguments", "DatasetArguments", "ModelArguments", "GiaModelConfig"]
+__all__ = ["Arguments", "DatasetArguments", "ModelArguments", "GiaConfig"]

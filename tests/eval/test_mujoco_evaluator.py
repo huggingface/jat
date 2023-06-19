@@ -1,10 +1,10 @@
-from gia import GiaModel, GiaModelConfig
+from gia import GiaModel, GiaConfig
 from gia.config.arguments import Arguments
 from gia.eval.mujoco_evaluator import MujocoEvaluator
 
 
 def test_mujoco_evaluator():
-    config = GiaModelConfig()
+    config = GiaConfig()
 
     args = Arguments(output_dir="tmp", n_episodes=2, task_names="mujoco-doublependulum")
     model = GiaModel(config)

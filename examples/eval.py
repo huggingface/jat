@@ -5,7 +5,7 @@ from typing import List
 
 import torch
 
-from gia.config import Arguments, GiaModelConfig
+from gia.config import Arguments, GiaConfig
 from gia.config.arguments import parse_args
 from gia.eval.evaluator import Evaluator
 from gia.eval.mujoco_evaluator import MujocoEvaluator
@@ -29,7 +29,7 @@ def eval():
     # args = Arguments.load(args.save_dir)  # TODO: reimplement if still required
     evaluators = create_evaluators(args)
 
-    model = GiaModel(GiaModelConfig())
+    model = GiaModel(GiaConfig())
     model = model.to("cuda")
 
     checkpoints_dir = os.path.join(args.output_dir)

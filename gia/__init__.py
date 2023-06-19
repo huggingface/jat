@@ -1,5 +1,5 @@
-from .config import GiaModelConfig
+from .config import GiaConfig
 from .model import GiaModel
 
 
-__all__ = ["GiaModelConfig", "GiaModel"]
+__all__ = ["GiaConfig", "GiaModel"]
