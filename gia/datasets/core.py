@@ -1,12 +1,10 @@
 import random
 import warnings
 from functools import partial
-from typing import Dict, List, Optional, TypeVar, Union
+from typing import Callable, Dict, List, Optional, TypeVar, Union
 
 import numpy as np
 from datasets import Dataset, concatenate_datasets, get_dataset_config_names, load_dataset
-
-from gia.processing import GiaProcessor
 
 
 T = TypeVar("T", List, np.ndarray)
@@ -128,25 +126,35 @@ class Prompter:
         return examples
 
 
-def load_gia_dataset(args, model_config, split="train"):
+def load_and_process_dataset(
+    task_names: List[str],
+    split: str,
+    processor: Callable,
+    load_from_cache_file: bool = True,
+    preprocessing_num_workers: Optional[int] = None,
+):
+    """
+    Load, prompt and process the dataset.
+
+    Args:
+        task_names (List[str]): List of task names to load.
+        split (str): Split of the dataset to load.
+        processor (Callable): Processor to process the dataset.
+        load_from_cache_file (bool, optional): Whether to load the dataset from cache or not. Defaults to True.
+        preprocessing_num_workers (Optional[int], optional): Number of workers for preprocessing. Defaults to None.
+
+    Returns:
+        Dataset: Processed dataset.
+    """
+
     train_datasets = {
-        task_name: load_dataset("gia-project/gia-dataset", task_name, split=split) for task_name in args.task_names
+        task_name: load_dataset("gia-project/gia-dataset", task_name, split=split) for task_name in task_names
     }
     prompters = {
         task_name: Prompter(dataset) for task_name, dataset in train_datasets.items() if needs_prompt(task_name)
     }
-    processor = GiaProcessor(
-        args.mu,
-        args.M,
-        args.nb_bins,
-        args.patch_size,
-        args.mask_loss_modalities,
-        model_config.seq_len,
-        args.local_positions_groups,
-        args.use_separator,
-    )
 
-    def prompt_and_process(example, prompter: Optional[Prompter] = None):
+    def prompt_and_process(example, prompter):
         if prompter is not None:
             return processor(**prompter.prompt(example))
         else:
@@ -158,8 +166,8 @@ def load_gia_dataset(args, model_config, split="train"):
             remove_columns=dataset.column_names,
             batched=True,
             batch_size=20,  # lower this from 1000 to 20 avoid OOM
-            num_proc=args.preprocessing_num_workers,
-            load_from_cache_file=not args.overwrite_cache,
+            num_proc=preprocessing_num_workers,
+            load_from_cache_file=load_from_cache_file,
         )
         for task_name, dataset in train_datasets.items()
     }

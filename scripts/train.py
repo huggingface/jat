@@ -4,19 +4,32 @@
 
 from transformers import Trainer
 
-from gia import GiaModel, GiaModelConfig
+from gia import GiaModel, GiaConfig
 from gia.config import Arguments
-from gia.datasets import GiaDataCollator, load_gia_dataset
+from gia.datasets import GiaDataCollator, load_and_process_dataset
+from gia.processing import GiaProcessor
 
 
 def main():
     args = Arguments.parse_args()
 
-    model_config = GiaModelConfig.from_args(args)
-    model = GiaModel(model_config)
+    config = GiaConfig.from_args(args)
+    processor = GiaProcessor(
+        args.mu,
+        args.M,
+        config.nb_bins,
+        config.patch_size,
+        args.mask_loss_modalities,
+        config.seq_len,
+        args.local_positions_groups,
+        config.use_separator,
+    )
+    model = GiaModel(config)
 
     # Load, prompt and process the datasets
-    train_dataset = load_gia_dataset(args, model_config)  # I don't like that we have to pass two configs/args here
+    train_dataset = load_and_process_dataset(
+        args.task_names, "train", processor, not args.overwrite_cache, args.preprocessing_num_workers
+    )
 
     trainer = Trainer(
         model,
