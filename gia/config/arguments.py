@@ -182,8 +182,8 @@ class Arguments(DatasetArguments, ModelArguments, EvalArguments, TrainingArgumen
             self.mask_loss_modalities = self.mask_loss_modalities.split(",")
         if "," in self.local_positions_groups:
             self.local_positions_groups = self.local_positions_groups.split(",")
-        if self.max_prompt_length is None:
-            self.max_prompt_length = self.seq_len
+        if self.max_prompt_len is None:
+            self.max_prompt_len = self.seq_len
 
     @staticmethod
     def parse_args() -> "Arguments":
