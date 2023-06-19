@@ -4,7 +4,7 @@
 
 from transformers import Trainer
 
-from gia import GiaModel, GiaConfig
+from gia import GiaConfig, GiaModel
 from gia.config import Arguments
 from gia.datasets import GiaDataCollator, load_gia_dataset
 

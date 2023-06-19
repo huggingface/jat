@@ -7,7 +7,7 @@ from transformers import Trainer, TrainingArguments
 from transformers.data.data_collator import default_data_collator
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
-from gia import GiaModel, GiaConfig
+from gia import GiaConfig, GiaModel
 
 
 def random_patch_positions(size):
