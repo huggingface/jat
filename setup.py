@@ -69,7 +69,7 @@ REQUIRED_PKGS = [
     "hydra-core",
     "accelerate",
     "wandb",
-    "datasets @ git+https://github.com/qgallouedec/datasets.git@5936-sequence-of-array-not-supported-for-most-dtype",
+    "datasets @ git+https://github.com/huggingface/datasets.git@main",
     "opencv-python",
     "Pillow",
 ]
@@ -77,10 +77,7 @@ REQUIRED_PKGS = [
 
 DEV_REQUIRE = []
 
-TESTS_REQUIRE = [
-    "pytest",
-    "pytest-xdist",
-]
+TESTS_REQUIRE = ["pytest", "pytest-xdist", "gym[mujoco]==0.26.2"]
 
 QUALITY_REQUIRE = ["black[jupyter]~=22.0", "ruff", "pyyaml>=5.3.1"]
 
@@ -93,7 +90,7 @@ EXTRAS_REQUIRE = {
 setup(
     name="gia",
     version=__version__,
-    description="is an open library the training of generally intelligent agents",
+    description="is an open library for the training of generally intelligent agents",
     long_description=open("README.md", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
     author="HuggingFace Inc.",

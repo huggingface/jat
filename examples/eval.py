@@ -1,3 +1,4 @@
+import json
 import os
 import time
 from typing import List
@@ -25,27 +26,33 @@ def create_evaluators(args: Arguments) -> List[Evaluator]:
 
 def eval():
     args = parse_args()  # only need to specify the run directory
-    args = Arguments.load(args.save_dir)  # loads all the args from the run directory
+    # args = Arguments.load(args.save_dir)  # TODO: reimplement if still required
     evaluators = create_evaluators(args)
 
     model = GiaModel(GiaConfig())
     model = model.to("cuda")
 
-    checkpoints_path = os.path.join(args.save_dir, "checkpoints")
+    checkpoints_dir = os.path.join(args.output_dir)
     evaluated_checkpoints = set()
 
     results = {}
 
     while True:
         time.sleep(1)
-        all_checkpoints = set(os.listdir(checkpoints_path))
+        all_checkpoints = {f.path for f in os.scandir(checkpoints_dir) if f.is_dir()}
         if len(all_checkpoints - evaluated_checkpoints) == 0:
             print("all checkpoints evaluated")
-        for filename in all_checkpoints - evaluated_checkpoints:
-            checkpoint_path = os.path.join(checkpoints_path, filename)
+            break
+        for checkpoint_path in all_checkpoints - evaluated_checkpoints:
             # Log to wandb directly?
             results[checkpoint_path] = eval_checkpoint(checkpoint_path, evaluators, model)
-            evaluated_checkpoints.add(filename)
+            evaluated_checkpoints.add(checkpoint_path)
+
+    print(results)
+    output_filepath = f"{args.output_dir}/eval_results.json"
+
+    with open(output_filepath, "w") as fp:
+        json.dump(results, fp)
 
 
 def eval_checkpoint(checkpoint_path: str, evaluators: List[Evaluator], model: torch.nn.Module):
