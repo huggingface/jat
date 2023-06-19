@@ -214,7 +214,4 @@ def load_and_process_dataset(
         )
         for task_name, dataset in dataset_dict.items()
     }
-
-    dataset = concatenate_datasets(list(dataset_dict.values()))
-
-    return dataset
+    return dataset_dict
