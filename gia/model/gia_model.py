@@ -6,6 +6,7 @@ from transformers.modeling_outputs import CausalLMOutputWithPast
 
 from gia import GiaConfig
 
+from .activation import GEGLU
 from .embedding import Embeddings
 
 
@@ -28,7 +29,11 @@ class GiaModel(PreTrainedModel):
 
     def __init__(self, config: GiaConfig) -> None:
         super().__init__(config)
+        if config.activation_function == "geglu":
+            config.activation_function = GEGLU(config.intermediate_size, config.intermediate_size)
         self.causal_lm_model = GPTNeoForCausalLM(config)
+        self.causal_lm_model.transformer.wte.requires_grad_(False)
+        self.causal_lm_model.transformer.wpe.requires_grad_(False)
 
         self.emb = Embeddings(
             config.hidden_size,

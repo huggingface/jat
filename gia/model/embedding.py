@@ -177,7 +177,7 @@ class Embeddings(nn.Module):
         num_local_positions: int = 512,
         patch_size: int = 16,
         image_vocab_size: int = 128,
-        num_res_channels: int = 256,
+        num_res_channels: int = 32,
         num_groups: int = 32,
     ) -> None:
         super().__init__()

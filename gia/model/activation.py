@@ -4,40 +4,18 @@ from torch import Tensor
 
 
 class GEGLU(nn.Module):
-    r"""Applies the Gaussian Error Gated Linear Units function (GEGLU) as described in
-    'GLU Variants Improve Transformer' (Shazeer, 2020):
+    r"""
+    A variant of the gated linear unit activation function from https://arxiv.org/abs/2002.05202.
 
-    Given the input tensor x, the function splits x into two tensors 'a' and 'b' along the last dimension. Then it
-    applies the GELU function to 'b' and multiplies the result by 'a':
-
-    .. math:: \text{GEGLU}(x) = a * \text{GELU}(b)
-
-    where a and b are two equally-sized chunks obtained by splitting the input tensor x.
-
-    Args:
-        x (Tensor): The input tensor. The size of its last dimension must be even, as it is split into two equal
-            chunks.
-
-    Shape:
-        - Input: :math:`(*, H)` where :math:`*` represents any number of dimensions and `H` is the dimension size that
-            will be split.
-        - Output: :math:`(*, H/2)`, where the output size is half the size of the input's last dimension.
-
-    Examples::
-
-        >>> m = nn.GEGLU()
-        >>> input = torch.randn(2, 4)
-        >>> output = m(input)
+    Parameters:
+        dim_in (`int`): The number of channels in the input.
+        dim_out (`int`): The number of channels in the output.
     """
 
-    def geglu(self, x: Tensor) -> Tensor:
-        if x.shape[-1] % 2 != 0:
-            raise ValueError(
-                f"Input tensor must have an even number of dimensions along the last axis. "
-                f"Got {x.shape[-1]} dimensions."
-            )
-        a, b = x.chunk(2, dim=-1)
-        return a * F.gelu(b)
+    def __init__(self, dim_in: int, dim_out: int):
+        super().__init__()
+        self.proj = nn.Linear(dim_in, dim_out * 2)
 
-    def forward(self, x: Tensor) -> Tensor:
-        return self.geglu(x)
+    def forward(self, hidden_states: Tensor) -> Tensor:
+        hidden_states, gate = self.proj(hidden_states).chunk(2, dim=-1)
+        return hidden_states * F.gelu(gate)
