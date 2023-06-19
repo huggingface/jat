@@ -1,6 +1,7 @@
 """ GIA Config model configuration"""
 
 import copy
+from typing import Optional
 
 from transformers import GPTNeoConfig
 
@@ -82,11 +83,11 @@ class GiaConfig(GPTNeoConfig):
         hidden_size: int = 2048,
         num_layers: int = 24,
         num_heads: int = 16,
-        intermediate_size=None,
+        intermediate_size: Optional[int] = None,
         activation_function: str = "gelu_new",
         resid_dropout: float = 0.0,
         embed_dropout: float = 0.0,
-        attention_dropout: float = 0,
+        attention_dropout: float = 0.0,
         layer_norm_epsilon: float = 0.00001,
         initializer_range: float = 0.02,
         use_cache: bool = True,
