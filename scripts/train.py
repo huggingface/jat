@@ -7,27 +7,16 @@ from transformers import Trainer
 from gia import GiaConfig, GiaModel
 from gia.config import Arguments
 from gia.datasets import GiaDataCollator, load_and_process_dataset
-from gia.processing import GiaProcessor
 
 
 def main():
     args = Arguments.parse_args()
 
     config = GiaConfig.from_args(args)
-    processor = GiaProcessor(
-        args.mu,
-        args.M,
-        config.nb_bins,
-        config.patch_size,
-        args.mask_loss_modalities,
-        config.seq_len,
-        args.local_positions_groups,
-        config.use_separator,
-    )
     model = GiaModel(config)
-
+    args.update(model.config)
     # Load, prompt and process the datasets
-    train_dataset = load_and_process_dataset(args, "train", processor)
+    train_dataset = load_and_process_dataset(args, "train", config)
 
     trainer = Trainer(
         model,

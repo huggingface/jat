@@ -6,9 +6,9 @@ from typing import Dict, List, TypeVar, Union
 import numpy as np
 from datasets import Dataset, concatenate_datasets, get_dataset_config_names, load_dataset
 
+from gia import GiaConfig
 from gia.config.arguments import DatasetArguments
 from gia.processing import GiaProcessor
-from gia import GiaConfig
 
 
 T = TypeVar("T", List, np.ndarray)
