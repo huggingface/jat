@@ -19,12 +19,11 @@ def main():
     # Load, prompt and process the datasets
     train_datasets = load_and_process_dataset(args, "train", config)
     train_dataset = concatenate_datasets(list(train_datasets.values()))
-    test_datasets = generate_datasets("test", processor, data_args)
-    if data_args.max_eval_samples is not None:
+    test_datasets = load_and_process_dataset(args, "test", config)
+    if args.max_eval_samples is not None:
         test_datasets = {
-            task_name: dataset.select(range(data_args.max_eval_samples)) for task_name, dataset in test_datasets.items()
+            task_name: dataset.select(range(args.max_eval_samples)) for task_name, dataset in test_datasets.items()
         }
-
 
     # Load the trainer
     trainer = Trainer(
