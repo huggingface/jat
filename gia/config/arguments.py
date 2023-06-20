@@ -3,7 +3,7 @@ import os
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 
 from transformers import HfArgumentParser, TrainingArguments
 
@@ -150,10 +150,52 @@ class EvalArguments:
             "help": "The number of test batches to evaluate. If -1 (default), the full test set will be evaluated."
         },
     )
+    eval_checkpoints: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": (
+                "Comma-separated list of tasks (or prefixes, e.g. 'mujuco') to load."
+                "See the available tasks in https://huggingface.co/datasets/gia-project/gia-dataset. "
+                "If 'all', load all the tasks. Defaults to 'all'."
+            )
+        },
+    )
 
 
 @dataclass
-class Arguments(DatasetArguments, ModelArguments, EvalArguments, TrainingArguments):
+class WandBArguments:
+    wandb_enabled: bool = field(
+        default=True,
+        metadata={"help": ("Whether to enable or disable WandB.")},
+    )
+    wandb_tags: Optional[List[str]] = field(
+        default=None,
+        metadata={"help": ("Tags to group and filter runs on Weights and Biases.")},
+    )
+    wandb_project: Optional[str] = field(
+        default="gia",
+        metadata={"help": ("The project to store runs under.")},
+    )
+    wandb_entity: Optional[str] = field(
+        default="huggingface",
+        metadata={"help": ("The entity to store runs under.")},
+    )
+    wandb_run_group: Optional[str] = field(
+        default="tr_00_some-descriptor",
+        metadata={"help": ("Group multiple runs under this group name.")},
+    )
+    wandb_run_id: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": (
+                "Set this to a globally unique string (per project) corresponding to a single run of your script."
+            )
+        },
+    )
+
+
+@dataclass
+class Arguments(DatasetArguments, ModelArguments, EvalArguments, WandBArguments, TrainingArguments):
     def save(self) -> None:
         os.makedirs(self.output_dir, exist_ok=True)
         out_path = Path(self.output_dir) / "args.json"
@@ -177,6 +219,17 @@ class Arguments(DatasetArguments, ModelArguments, EvalArguments, TrainingArgumen
             self.local_positions_groups = self.local_positions_groups.split(",")
         if self.max_prompt_len is None:
             self.max_prompt_len = self.seq_len
+        if self.eval_checkpoints is not None and "," in self.eval_checkpoints:
+            self.eval_checkpoints = self.eval_checkpoints.split(",")
+
+        if self.wandb_enabled:
+            os.environ["WANDB_ENTITY"] = self.wandb_entity
+            os.environ["WANDB_PROJECT"] = self.wandb_project
+            os.environ["WANDB_RUN_GROUP"] = self.wandb_run_group
+            if self.wandb_run_id is not None:
+                os.environ["WANDB_RUN_ID"] = self.wandb_run_id
+            if self.wandb_tags is not None:
+                os.environ["WANDB_TAGS"] = ",".join(tag for tag in self.wandb_tags)
 
     @staticmethod
     def parse_args() -> "Arguments":
