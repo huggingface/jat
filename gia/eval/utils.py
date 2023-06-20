@@ -9,7 +9,7 @@ def is_slurm_available() -> bool:
     return True
     # returns true if a slurm queueing system is available
     try:
-        result = subprocess.run(["sinfo"], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        subprocess.run(["sinfo"], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         return True
     except FileNotFoundError:
         return False

@@ -1,7 +1,7 @@
 import torch
 
-from gia.model import GiaModel
 from gia.config.arguments import Arguments
+from gia.model import GiaModel
 
 
 class Evaluator:

@@ -1,6 +1,7 @@
 import gym
 import torch
 from gym.vector.vector_env import VectorEnv
+
 from gia import GiaConfig, GiaModel
 from gia.config.arguments import Arguments
 from gia.eval.mappings import TASK_TO_ENV_MAPPING

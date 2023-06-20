@@ -2,9 +2,9 @@ import numpy as np
 from gym.vector.vector_env import VectorEnv
 from tqdm import tqdm
 
+from gia import GiaModel
 from gia.eval.evaluator import Evaluator
 from gia.eval.rl.gia_agent import GiaAgent
-from gia import GiaModel
 
 
 class RLEvaluator(Evaluator):
