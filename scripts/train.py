@@ -7,6 +7,13 @@ from transformers import AutoConfig, AutoModel, Trainer
 
 from gia.config import Arguments
 from gia.datasets import GiaDataCollator, load_and_process_dataset
+from gia.eval.utils import is_slurm_available
+
+
+class EvaluateCheckpointCallback(TrainerCallback):
+    def on_save(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs):
+        print("on save callback", args)
+        # return super().on_save(args, state, control, **kwargs)
 
 
 def main():
@@ -36,6 +43,7 @@ def main():
         data_collator=GiaDataCollator(),
         train_dataset=train_dataset,
         eval_dataset=test_datasets,
+        callbacks=[EvaluateCheckpointCallback] if is_slurm_available() else [],
     )
     trainer.train()
 
