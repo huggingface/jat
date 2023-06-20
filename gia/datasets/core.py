@@ -1,9 +1,12 @@
 import random
 import warnings
+from functools import partial
 from typing import Dict, List, TypeVar, Union
 
 import numpy as np
-from datasets import Dataset, get_dataset_config_names
+from datasets import Dataset, get_dataset_config_names, load_dataset
+
+from gia.processing import GiaProcessor
 
 
 T = TypeVar("T", List, np.ndarray)
@@ -152,3 +155,61 @@ class Prompter:
             for key in examples:
                 examples[key][to_prompt_idx] = self._cat(prompts[key][idx], examples[key][to_prompt_idx])
         return examples
+
+
+def load_and_process_dataset(
+    data_args,
+    split: str,
+    config,
+) -> Dict[str, Dataset]:
+    """
+    Load, prompt and process the dataset.
+
+    Args:
+        data_args (DatasetArguments): Dataset arguments.
+        split (str): Split of the dataset to load.
+
+    Returns:
+        Dataset: Processed dataset.
+    """
+
+    dataset_dict = {
+        task_name: load_dataset("gia-project/gia-dataset", task_name, split=split)
+        for task_name in data_args.task_names
+    }
+    prompters = {
+        task_name: Prompter(
+            dataset, data_args.p_prompt, data_args.p_end, data_args.min_prompt_len, data_args.max_prompt_len
+        )
+        for task_name, dataset in dataset_dict.items()
+        if needs_prompt(task_name)
+    }
+    processor = GiaProcessor(
+        data_args.mu,
+        data_args.M,
+        config.nb_bins,
+        config.patch_size,
+        data_args.mask_loss_modalities,
+        config.seq_len,
+        data_args.local_positions_groups,
+        config.use_separator,
+    )
+
+    def prompt_and_process(example, prompter):
+        if prompter is not None:
+            return processor(**prompter.prompt(example))
+        else:
+            return processor(**example)
+
+    dataset_dict = {
+        task_name: dataset.map(
+            partial(prompt_and_process, prompter=prompters.get(task_name)),
+            remove_columns=dataset.column_names,
+            batched=True,
+            batch_size=20,  # lower this from 1000 to 20 avoid OOM
+            num_proc=data_args.preprocessing_num_workers,
+            load_from_cache_file=not data_args.overwrite_cache,
+        )
+        for task_name, dataset in dataset_dict.items()
+    }
+    return dataset_dict
