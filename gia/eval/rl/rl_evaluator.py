@@ -1,4 +1,4 @@
-import torch
+import numpy as np
 from gym.vector.vector_env import VectorEnv
 from tqdm import tqdm
 
@@ -34,4 +34,4 @@ class RLEvaluator(Evaluator):
             returns.append(sum(accum_rewards))
         env.close()
 
-        return returns
+        return np.mean(returns)  # TODO: add std for more detailed logging
