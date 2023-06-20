@@ -81,7 +81,7 @@ class ModelArguments:
         },
     )
     num_res_channels: int = field(
-        default=256, metadata={"help": "The number of residual channels in the image patch encoder."}
+        default=32, metadata={"help": "The number of residual channels in the image patch encoder."}
     )
     num_groups: int = field(
         default=32, metadata={"help": "The number of groups for the group normalization in the image patch encoder."}
