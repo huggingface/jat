@@ -99,7 +99,8 @@ def test_gia_model_accelerate_compat():
     )
 
     dataloader = DataLoader(dataset, batch_size=2, shuffle=True, collate_fn=default_data_collator)
-    model = GiaModel(GiaConfig())
+    config = GiaConfig(num_heads=24, num_layers=2, hidden_size=384, intermediate_size=768)
+    model = GiaModel(config)
     accelerator = Accelerator()
     model, dataloader = accelerator.prepare(model, dataloader)
     for batch in dataloader:
