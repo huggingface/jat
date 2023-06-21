@@ -4,11 +4,8 @@ import copy
 from typing import Optional
 
 from transformers import AutoConfig, GPTNeoConfig
-from transformers.configuration_utils import PretrainedConfig
 
 from gia.config.arguments import Arguments
-
-from ..utils import logger
 
 
 GIA_PRETRAINED_CONFIG_ARCHIVE_MAP = {
@@ -182,4 +179,3 @@ class GiaConfig(GPTNeoConfig):
 
 
 AutoConfig.register("gia", GiaConfig)
-
