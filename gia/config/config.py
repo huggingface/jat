@@ -35,7 +35,7 @@ class GiaConfig(GPTNeoConfig):
             Vocabulary size for the patch position encodings.
         num_groups (`int`, *optional*, defaults to 32):
             Number of groups for the Residual Attention Block.
-        num_res_channels (`int`, *optional*, defaults to 256):
+        num_res_channels (`int`, *optional*, defaults to 64):
             Number of residual channels for the Residual Attention Block.
         text_vocab_size (`int`, *optional*, defaults to 30_000):
             Vocabulary size for the text tokens.
@@ -79,7 +79,7 @@ class GiaConfig(GPTNeoConfig):
         patch_size: int = 16,
         image_vocab_size: int = 128,
         num_groups: int = 32,
-        num_res_channels: int = 32,
+        num_res_channels: int = 64,
         text_vocab_size: int = 30_000,
         nb_bins: int = 1024,
         max_local_position: int = 512,
