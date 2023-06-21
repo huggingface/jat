@@ -11,5 +11,5 @@ NAMES=(
 
 for i in "${!ENVS[@]}"; do
     echo "${ENVS[$i]}"
-    python create_babyai_dataset.py --name_env=${ENVS[$i]} --saving_path=${NAMES[$i]} --max_num_frames=100000
+    python create_babyai_dataset.py --name_env=${ENVS[$i]} --saving_path=${NAMES[$i]} --max_num_episodes=100000
 done
