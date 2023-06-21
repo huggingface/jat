@@ -1,5 +1,5 @@
 import subprocess
-
+from accelerate import Accelerator
 from transformers import TrainerCallback
 from transformers.trainer_callback import TrainerControl, TrainerState
 from transformers.training_args import TrainingArguments
@@ -13,8 +13,9 @@ class EvaluateCheckpointCallback(TrainerCallback):
     EVAL_SLURM_SCRIPT = "scripts/cluster/launch_eval.slurm"
 
     def on_save(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs):
-        # print("on save callback", args, state, control, wandb.run.id, kwargs)
-        # return super().on_save(args, state, control, **kwargs)
+        if not Accelerator().is_main_process:
+            # otherwise multi-GPU jobs will launch several evals.
+            return
         checkpoint_name = f"checkpoint-{state.global_step}"
         for task in args.task_names:
             self._launch_slurm_job(args, task, checkpoint_name)
