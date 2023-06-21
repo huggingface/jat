@@ -6,7 +6,6 @@ from gia.eval.rl import GymEvaluator
 
 
 def is_slurm_available() -> bool:
-    return True
     # returns true if a slurm queueing system is available
     try:
         subprocess.run(["sinfo"], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
