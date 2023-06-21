@@ -21,8 +21,10 @@ class EvaluateCheckpointCallback(TrainerCallback):
 
     def _launch_slurm_job(self, args: Arguments, task: str, checkpoint: str) -> None:
         launch_args = (
-            f"--output_dir={args.output_dir} --task_names={task} --eval_checkpoints={checkpoint} --n_episodes={args.n_episodes}"
-            f"--wandb_run_id={wandb.run.id} --wandb_project={args.wandb_project} --wandb_run_group={args.wandb_run_group}"
+            f"--output_dir={args.output_dir} --task_names={task}"
+            f"--eval_checkpoints={checkpoint} --n_episodes={args.n_episodes}"
+            f"--wandb_run_id={wandb.run.id} --wandb_project={args.wandb_project}"
+            f"--wandb_run_group={args.wandb_run_group}"
         )
         if is_slurm_available():
             subprocess.call(["sbatch", self.EVAL_SLURM_SCRIPT, launch_args])
