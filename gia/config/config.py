@@ -3,7 +3,7 @@
 import copy
 from typing import Optional
 
-from transformers import GPTNeoConfig, AutoConfig
+from transformers import AutoConfig, GPTNeoConfig
 
 
 GIA_PRETRAINED_CONFIG_ARCHIVE_MAP = {
