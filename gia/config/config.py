@@ -4,6 +4,11 @@ import copy
 from typing import Optional
 
 from transformers import AutoConfig, GPTNeoConfig
+from transformers.configuration_utils import PretrainedConfig
+
+from gia.config.arguments import Arguments
+
+from ..utils import logger
 
 
 GIA_PRETRAINED_CONFIG_ARCHIVE_MAP = {
@@ -166,5 +171,15 @@ class GiaConfig(GPTNeoConfig):
         output["model_type"] = self.__class__.model_type
         return output
 
+    @staticmethod
+    def from_args(args: Arguments) -> "GiaConfig":
+        config = GiaConfig.from_pretrained("gia-project/gia")
+        config.patch_size = args.patch_size
+        config.nb_bins = args.nb_bins
+        config.use_separator = args.use_separator
+        # TODO add other args
+        return config
+
 
 AutoConfig.register("gia", GiaConfig)
+
