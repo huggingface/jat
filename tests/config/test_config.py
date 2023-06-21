@@ -1,5 +1,6 @@
 import pytest
 from transformers import AutoConfig, AutoModel
+
 import gia  # noqa
 
 
