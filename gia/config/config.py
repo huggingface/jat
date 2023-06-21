@@ -3,11 +3,13 @@
 import copy
 from typing import Optional
 
-from transformers import GPTNeoConfig
+from transformers import GPTNeoConfig, AutoConfig
 
 
 GIA_PRETRAINED_CONFIG_ARCHIVE_MAP = {
-    "gia-project/gia": "https://huggingface.co/gia-project/gia/resolve/main/config.json",
+    "gia-project/gia-80m": "https://huggingface.co/gia-project/gia-80m/blob/main/config.json",
+    "gia-project/gia-387m": "https://huggingface.co/gia-project/gia-387m/blob/main/config.json",
+    "gia-project/gia-1.27b": "https://huggingface.co/gia-project/gia-1.27b/blob/main/config.json",
 }
 
 
@@ -82,10 +84,9 @@ class GiaConfig(GPTNeoConfig):
         use_separator: bool = True,
         hidden_size: int = 2048,
         num_layers: int = 24,
-        attention_types=[[["global", "local"], 12]],
         num_heads: int = 16,
         intermediate_size: Optional[int] = None,
-        activation_function: str = "geglu",
+        activation_function: str = "gelu_new",
         resid_dropout: float = 0.0,
         embed_dropout: float = 0.0,
         attention_dropout: float = 0.0,
@@ -113,7 +114,7 @@ class GiaConfig(GPTNeoConfig):
             max_position_embeddings=seq_len,  # renamed from max_position_embeddings
             hidden_size=hidden_size,
             num_layers=num_layers,
-            attention_types=attention_types,
+            attention_types=[[["global"], num_layers]],
             num_heads=num_heads,
             intermediate_size=intermediate_size,
             window_size=seq_len,  # we want to attend to all tokens
@@ -159,5 +160,11 @@ class GiaConfig(GPTNeoConfig):
             `Dict[str, any]`: Dictionary of all the attributes that make up this configuration instance,
         """
         output = copy.deepcopy(self.__dict__)
+        output.pop("attention_types")
+        output.pop("max_position_embeddings")
+        output.pop("window_size")
         output["model_type"] = self.__class__.model_type
         return output
+
+
+AutoConfig.register("gia", GiaConfig)
