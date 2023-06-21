@@ -1,8 +1,8 @@
 import os
 
 import torch
-
 import wandb
+
 from gia import GiaConfig, GiaModel
 from gia.config import Arguments
 from gia.eval.utils import get_evaluator

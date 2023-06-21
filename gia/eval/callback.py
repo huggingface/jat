@@ -1,10 +1,9 @@
 import subprocess
-from accelerate import Accelerator
-from transformers import TrainerCallback
-from transformers.trainer_callback import TrainerControl, TrainerState
-from transformers.training_args import TrainingArguments
 
 import wandb
+from accelerate import Accelerator
+from transformers import TrainerCallback, TrainerControl, TrainerState, TrainingArguments
+
 from gia.config import Arguments
 from gia.eval.utils import is_slurm_available
 
