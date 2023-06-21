@@ -11,5 +11,5 @@
 source /fsx/ed/miniconda3/etc/profile.d/conda.sh
 
 conda activate gia
-
+echo $1
 python /fsx/ed/work/gia/scripts/evaluate.py $1
