@@ -35,7 +35,6 @@ class GiaModel(PreTrainedModel):
 
         # Remove the embedding layers from the causal language model
         del self.causal_lm_model.transformer.wte
-        del self.causal_lm_model.transformer.wpe
 
         self.emb = Embeddings(
             config.hidden_size,
