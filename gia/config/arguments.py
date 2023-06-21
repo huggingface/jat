@@ -113,38 +113,31 @@ class DatasetArguments:
 @dataclass
 class ModelArguments:
     """
-    Arguments related to the model.
+    Arguments pertaining to which model/config/tokenizer we are going to trained from.
     """
 
-    model_name: str = field(default="EleutherAI/gpt-neo-125M", metadata={"help": "The name of the model"})
-    use_pretrained: bool = field(default=False, metadata={"help": "Whether to use a pretrained model or not."})
-    embed_dim: int = field(default=768, metadata={"help": "The embedding dimension."})
-    seq_len: int = field(default=1024, metadata={"help": "The length (number of tokens) of a sequence."})
-    use_separator: bool = field(
-        default=True, metadata={"help": "Whether to include a separator token between observations and actions."}
+    model_name_or_path: str = field(
+        default="gia-project/gia-1.27b",
+        metadata={"help": "Path to pretrained model or model identifier from huggingface.co/models"},
     )
-    max_nb_observation_tokens: int = field(
-        default=512, metadata={"help": "The maximum number of tokens for one observation."}
+    config_name: Optional[str] = field(
+        default=None, metadata={"help": "Pretrained config name or path if not the same as model_name"}
     )
-    text_vocab_size: int = field(default=30_000, metadata={"help": "The size of the model vocabulary for text."})
-    nb_bins: int = field(
-        default=1024, metadata={"help": "The number of bins for the discretization of continuous observations."}
+    cache_dir: Optional[str] = field(
+        default=None, metadata={"help": "Where do you want to store the pretrained models downloaded from the Hub"}
     )
-    patch_size: int = field(
-        default=16, metadata={"help": "The size of the patches to extract from image observations."}
+    model_revision: str = field(
+        default="main",
+        metadata={"help": "The specific model version to use (can be a branch name, tag name or commit id)."},
     )
-    image_vocab_size: int = field(
-        default=128,
+    use_auth_token: bool = field(
+        default=False,
         metadata={
-            "help": "The size of the model vocabulary for images. The maximum size for "
-            "an image is therefore patch_size*image_vocab_size."
+            "help": (
+                "Will use the token generated when running `huggingface-cli login` (necessary to use this script "
+                "with private models)."
+            )
         },
-    )
-    num_res_channels: int = field(
-        default=64, metadata={"help": "The number of residual channels in the image patch encoder."}
-    )
-    num_groups: int = field(
-        default=32, metadata={"help": "The number of groups for the group normalization in the image patch encoder."}
     )
 
 
