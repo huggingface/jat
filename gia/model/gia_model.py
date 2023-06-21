@@ -1,12 +1,11 @@
 from typing import Optional, Tuple
 
 import torch
-from transformers import GPTNeoForCausalLM, PreTrainedModel
+from transformers import AutoModel, GPTNeoForCausalLM, PreTrainedModel
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
 from gia import GiaConfig
 
-from .activation import GEGLU
 from .embedding import Embeddings
 
 
@@ -27,13 +26,16 @@ class GiaModel(PreTrainedModel):
             Model configuration class with all the parameters of the model.
     """
 
+    config_class = GiaConfig
+    base_model_prefix = "gia"
+
     def __init__(self, config: GiaConfig) -> None:
         super().__init__(config)
-        if config.activation_function == "geglu":
-            config.activation_function = GEGLU(config.intermediate_size, config.intermediate_size)
         self.causal_lm_model = GPTNeoForCausalLM(config)
-        self.causal_lm_model.transformer.wte.requires_grad_(False)
-        self.causal_lm_model.transformer.wpe.requires_grad_(False)
+
+        # Remove the embedding layers from the causal language model
+        del self.causal_lm_model.transformer.wte
+        del self.causal_lm_model.transformer.wpe
 
         self.emb = Embeddings(
             config.hidden_size,
@@ -134,3 +136,6 @@ class GiaModel(PreTrainedModel):
         num_tokens: int = 1,
     ):
         raise NotImplementedError("GiaModel.generate is not implemented yet.")
+
+
+AutoModel.register(GiaConfig, GiaModel)
