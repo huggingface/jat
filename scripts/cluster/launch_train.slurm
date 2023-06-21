@@ -13,5 +13,5 @@ source /fsx/ed/miniconda3/etc/profile.d/conda.sh
 
 conda activate gia
 
-accelerate launch /fsx/ed/work/gia/scripts/train.py --output_dir=runs/run_60 --task_names=mujoco,oscar --save_steps=100 --logging_steps=10 \
---preprocessing_num_worker=24 --wandb_project=gia --wandb_run_group=train_20230621 --wandb_run_id=train_mujoco_oscar
+accelerate launch /fsx/ed/work/gia/scripts/train.py --output_dir=runs/run_61 --task_names=mujoco --save_steps=20 --logging_steps=10 \
+--preprocessing_num_worker=24 --wandb_project=gia --wandb_run_group=train_20230621 --wandb_run_id=test_eval_mujoco --max_steps=200
