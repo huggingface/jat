@@ -51,7 +51,9 @@ class DatasetArguments:
     nb_bins: int = field(
         default=1024, metadata={"help": "The number of bins for the discretization of continuous observations."}
     )
-    overwrite_cache: bool = field(default=False, metadata={"help": "Overwrite the cached training and evaluation sets"})
+    overwrite_cache: bool = field(
+        default=False, metadata={"help": "Overwrite the cached training and evaluation sets"}
+    )
     preprocessing_num_workers: Optional[int] = field(
         default=None,
         metadata={"help": "The number of processes to use for the preprocessing."},
@@ -188,7 +190,9 @@ class WandBArguments:
     wandb_run_id: Optional[str] = field(
         default=None,
         metadata={
-            "help": ("Set this to a globally unique string (per project) corresponding to a single run of your script.")
+            "help": (
+                "Set this to a globally unique string (per project) corresponding to a single run of your script."
+            )
         },
     )
 
