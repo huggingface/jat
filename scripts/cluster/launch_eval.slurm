@@ -12,4 +12,4 @@ source /fsx/ed/miniconda3/etc/profile.d/conda.sh
 
 conda activate gia
 
-accelerate launch /fsx/ed/work/gia/scripts/evaluate.py $1
+python /fsx/ed/work/gia/scripts/evaluate.py $1
