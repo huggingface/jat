@@ -101,7 +101,10 @@ class Prompter:
         max_prompt_len: int = 1024,
     ) -> None:
         self.dataset = dataset
-        self.ep_lens = [len(ep[next(iter(ep))]) for ep in self.dataset]
+        # Trick to speed up the code: use reward since it's the lightest key
+        key = "rewards" if "rewards" in dataset.column_names else next(iter(dataset.column_names))
+        _d = self.dataset.select_columns([key])
+        self.ep_lens = [len(v[key]) for v in _d]
         self.p_prompt = p_prompt
         self.p_end = p_end
         self.min_prompt_len = min_prompt_len
