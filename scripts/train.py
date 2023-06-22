@@ -3,9 +3,8 @@
 
 
 from datasets import concatenate_datasets
-from transformers import Trainer
+from transformers import AutoConfig, AutoModel, Trainer
 
-from gia import GiaConfig, GiaModel
 from gia.config import Arguments
 from gia.datasets import GiaDataCollator, load_and_process_dataset
 
@@ -13,8 +12,13 @@ from gia.datasets import GiaDataCollator, load_and_process_dataset
 def main():
     args = Arguments.parse_args()
 
-    config = GiaConfig.from_args(args)
-    model = GiaModel(config)
+    config = AutoConfig.from_pretrained(
+        args.config_name or args.model_name_or_path,
+        cache_dir=args.cache_dir,
+        revision=args.model_revision,
+        use_auth_token=True if args.use_auth_token else None,
+    )
+    model = AutoModel.from_config(config=config)
 
     # Load, prompt and process the datasets
     train_datasets = load_and_process_dataset(args, "train", config)

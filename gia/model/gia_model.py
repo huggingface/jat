@@ -1,8 +1,7 @@
 from typing import Optional, Tuple
 
 import torch
-from torch import nn
-from transformers import AutoModelForCausalLM
+from transformers import AutoModel, GPTNeoForCausalLM, PreTrainedModel
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
 from gia import GiaConfig
@@ -10,9 +9,13 @@ from gia import GiaConfig
 from .embedding import Embeddings
 
 
-class GiaModel(nn.Module):
+class GiaModel(PreTrainedModel):
     """
     GiaModel is a wrapper around a transformer model that takes in both text and image patches as input.
+
+    This model inherits from [`PreTrainedModel`]. Check the superclass documentation for the generic methods the
+    library implements for all its model (such as downloading or saving, resizing the input embeddings, pruning heads
+    etc.)
 
     This model is a PyTorch [torch.nn.Module](https://pytorch.org/docs/stable/nn.html#torch.nn.Module) subclass.
     Use it as a regular PyTorch Module and refer to the PyTorch documentation for all matter related to general usage
@@ -23,18 +26,18 @@ class GiaModel(nn.Module):
             Model configuration class with all the parameters of the model.
     """
 
+    config_class = GiaConfig
+    base_model_prefix = "gia"
+
     def __init__(self, config: GiaConfig) -> None:
-        super().__init__()
-        self.config = config
-        if config.use_pretrained:
-            self.causal_lm_model = AutoModelForCausalLM.from_pretrained(
-                config.causal_lm_name, config=config.causal_lm_config
-            )
-        else:
-            self.causal_lm_model = AutoModelForCausalLM.from_config(config.causal_lm_config)
+        super().__init__(config)
+        self.causal_lm_model = GPTNeoForCausalLM(config)
+
+        # Remove the embedding layers from the causal language model
+        del self.causal_lm_model.transformer.wte
 
         self.emb = Embeddings(
-            config.embed_dim,
+            config.hidden_size,
             config.vocab_size,
             config.max_local_position,
             config.patch_size,
@@ -132,3 +135,6 @@ class GiaModel(nn.Module):
         num_tokens: int = 1,
     ):
         raise NotImplementedError("GiaModel.generate is not implemented yet.")
+
+
+AutoModel.register(GiaConfig, GiaModel)
