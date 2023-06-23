@@ -19,11 +19,6 @@ class EvaluateCheckpointCallback(TrainerCallback):
     def __init__(self) -> None:
         self._logged_files = set()
 
-    def on_init_end(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs):
-        if args.wandb_enabled:  # for custom x-axis on evals
-            wandb.define_metric("eval/step")
-            wandb.define_metric("eval/*", step_metric="eval/step")
-
     def on_save(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs):
         if not Accelerator().is_main_process:
             # otherwise multi-GPU jobs will launch several evals.
@@ -56,7 +51,12 @@ class EvaluateCheckpointCallback(TrainerCallback):
         # I attempted to push this directly in the eval jobs but wandb
         # does not support parallel writing to the same report
         # I don't like that there are lots of small files here : TODO
+        if not args.wandb_enabled:
+            return
 
+        # for custom x-axis on evals
+        wandb.define_metric("eval/step")
+        wandb.define_metric("eval/*", step_metric="eval/step")
         try:  # I don't want this stopping training due to issues loading files etc
             all_eval_jsons = glob.glob(f"{args.output_dir}/eval/**/*.json", recursive=True)
             to_log = self._logged_files.difference(all_eval_jsons)
