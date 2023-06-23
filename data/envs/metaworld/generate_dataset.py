@@ -11,16 +11,13 @@ from sample_factory.algo.utils.action_distributions import argmax_actions
 from sample_factory.algo.utils.env_info import extract_env_info
 from sample_factory.algo.utils.make_env import make_env_func_batched
 from sample_factory.algo.utils.rl_utils import make_dones, prepare_and_normalize_obs
-from sample_factory.cfg.arguments import (
-    load_from_checkpoint,
-    parse_full_cfg,
-    parse_sf_args,
-)
+from sample_factory.cfg.arguments import load_from_checkpoint, parse_full_cfg, parse_sf_args
 from sample_factory.envs.env_utils import register_env
 from sample_factory.model.actor_critic import create_actor_critic
 from sample_factory.model.model_utils import get_rnn_size
 from sample_factory.utils.attr_dict import AttrDict
 from sample_factory.utils.typing import Config
+from tqdm import tqdm
 
 
 ENV_NAMES = [
@@ -121,16 +118,21 @@ def create_dataset(cfg: Config, dataset_size: int = 100_000, split: str = "train
 
     # Reset environment
     observations, _ = env.reset()
+    dones = [True]
     rnn_states = torch.zeros([env.num_agents, get_rnn_size(cfg)], dtype=torch.float32, device=device)
 
-    for value in dataset:
-        value.append([])
-
     # Run the environment
-    dones = [False]
+    progress_bar = tqdm(total=dataset_size)
+    num_timesteps = 0
     with torch.no_grad():
-        num_timesteps = 0
         while num_timesteps < dataset_size or not dones[0]:
+            for agent_idx, done in enumerate(dones):
+                if done:
+                    rnn_states[agent_idx] = torch.zeros([get_rnn_size(cfg)], dtype=torch.float32, device=device)
+                    for value in dataset.values():
+                        value.append([])
+
+            progress_bar.update(1)
             normalized_obs = prepare_and_normalize_obs(actor_critic, observations)
             policy_outputs = actor_critic(normalized_obs, rnn_states)
 
@@ -146,18 +148,11 @@ def create_dataset(cfg: Config, dataset_size: int = 100_000, split: str = "train
             dataset["continuous_actions"][-1].append(actions[0])
 
             observations, rewards, terminated, truncated, _ = env.step(actions)
-            dones = make_dones(terminated, truncated)
+            dones = make_dones(terminated, truncated).cpu().numpy()
 
             dataset["rewards"][-1].append(rewards.cpu().numpy())
 
             num_timesteps += 1
-
-            dones = dones.cpu().numpy()
-            for agent_idx, done in enumerate(dones):
-                if done:
-                    rnn_states[agent_idx] = torch.zeros([get_rnn_size(cfg)], dtype=torch.float32, device=device)
-                    for value in dataset:
-                        value.append([])
 
     env.close()
 
@@ -180,8 +175,8 @@ def main() -> int:
         register_env(env_name, make_custom_env)
     parser, _ = parse_sf_args(argv=None, evaluation=True)
     cfg = parse_full_cfg(parser)
-    status = create_dataset(cfg, dataset_size=90_000, split="train")
-    status = create_dataset(cfg, dataset_size=10_000, split="test")
+    status = create_dataset(cfg, dataset_size=1_600_000, split="train")
+    status = create_dataset(cfg, dataset_size=160_000, split="test")
     return status
 
 
