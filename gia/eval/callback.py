@@ -38,7 +38,7 @@ class EvaluateCheckpointCallback(TrainerCallback):
         launch_args = (
             f"--output_dir={args.output_dir} --task_names={task} "
             f"--eval_checkpoints={checkpoint} --n_episodes={args.n_episodes} "
-            f"--wandb_run_id=eval --wandb_project={args.wandb_project} "
+            f"--wandb_run_id=train --wandb_project={args.wandb_project} "
             f"--wandb_run_group={args.wandb_run_group}"
         )
         if is_slurm_available():
@@ -72,4 +72,4 @@ class EvaluateCheckpointCallback(TrainerCallback):
                 self._logged_files.add(file)
 
         except Exception as e:
-            print("Exception logging evals to wanbd:", e)
+            print("Exception logging evals to wandb:", e)
