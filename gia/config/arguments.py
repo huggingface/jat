@@ -224,7 +224,7 @@ class Arguments(DatasetArguments, ModelArguments, EvalArguments, WandBArguments,
                 self.eval_checkpoints = self.eval_checkpoints.split(",")
             else:
                 self.eval_checkpoints = [self.eval_checkpoints]
-        
+
         if self.wandb_enabled:
             os.environ["WANDB_ENTITY"] = self.wandb_entity
             os.environ["WANDB_PROJECT"] = self.wandb_project
@@ -233,10 +233,6 @@ class Arguments(DatasetArguments, ModelArguments, EvalArguments, WandBArguments,
                 os.environ["WANDB_RUN_ID"] = self.wandb_run_id
             if self.wandb_tags is not None:
                 os.environ["WANDB_TAGS"] = ",".join(tag for tag in self.wandb_tags)
-
-            # for custom x-axis on evals
-            wandb.define_metric("eval/step")
-            wandb.define_metric("eval/*", step_metric="eval/step")
 
     @staticmethod
     def parse_args() -> "Arguments":

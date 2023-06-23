@@ -19,6 +19,11 @@ class EvaluateCheckpointCallback(TrainerCallback):
     def __init__(self) -> None:
         self._logged_files = set()
 
+    def on_init_end(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs):
+        if args.wandb_enabled:  # for custom x-axis on evals
+            wandb.define_metric("eval/step")
+            wandb.define_metric("eval/*", step_metric="eval/step")
+
     def on_save(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs):
         if not Accelerator().is_main_process:
             # otherwise multi-GPU jobs will launch several evals.
