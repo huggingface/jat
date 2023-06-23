@@ -210,6 +210,21 @@ class Arguments(DatasetArguments, ModelArguments, EvalArguments, WandBArguments,
         return cls(**loaded_args)
 
     def __post_init__(self):
+        if self.wandb_enabled:
+            # skip  Trainrt wandb init
+            os.environ["WANDB_ENTITY"] = self.wandb_entity
+            os.environ["WANDB_PROJECT"] = self.wandb_project
+            os.environ["WANDB_RUN_GROUP"] = self.wandb_run_group
+            if self.wandb_run_id is not None:
+                os.environ["WANDB_RUN_ID"] = self.wandb_run_id
+            if self.wandb_tags is not None:
+                os.environ["WANDB_TAGS"] = ",".join(tag for tag in self.wandb_tags)
+
+            wandb.init()
+            # for custom x-axis on evals
+            wandb.define_metric("eval/step")
+            wandb.define_metric("eval/*", step_metric="eval/step")
+
         super().__post_init__()
         # We could have the following in Dataset args and call another super post init ?
         self.task_names = get_task_name_list(self.task_names)
@@ -224,15 +239,6 @@ class Arguments(DatasetArguments, ModelArguments, EvalArguments, WandBArguments,
                 self.eval_checkpoints = self.eval_checkpoints.split(",")
             else:
                 self.eval_checkpoints = [self.eval_checkpoints]
-
-        if self.wandb_enabled:
-            os.environ["WANDB_ENTITY"] = self.wandb_entity
-            os.environ["WANDB_PROJECT"] = self.wandb_project
-            os.environ["WANDB_RUN_GROUP"] = self.wandb_run_group
-            if self.wandb_run_id is not None:
-                os.environ["WANDB_RUN_ID"] = self.wandb_run_id
-            if self.wandb_tags is not None:
-                os.environ["WANDB_TAGS"] = ",".join(tag for tag in self.wandb_tags)
 
     @staticmethod
     def parse_args() -> "Arguments":

@@ -19,11 +19,11 @@ class EvaluateCheckpointCallback(TrainerCallback):
     def __init__(self) -> None:
         self._logged_files = set()
 
-    def on_init_end(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs):
-        wandb.init(id=args.wandb_run_id, group=args.wandb_run_group, project=args.wandb_project)
-        # for custom x-axis on evals
-        wandb.define_metric("eval/step")
-        wandb.define_metric("eval/*", step_metric="eval/step")
+    # def on_init_end(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs):
+    #     wandb.init(id=args.wandb_run_id, group=args.wandb_run_group, project=args.wandb_project)
+    #     # for custom x-axis on evals
+    #     wandb.define_metric("eval/step")
+    #     wandb.define_metric("eval/*", step_metric="eval/step")
 
     def on_save(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs):
         if not Accelerator().is_main_process:
