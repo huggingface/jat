@@ -222,9 +222,12 @@ class Arguments(DatasetArguments, ModelArguments, EvalArguments, WandBArguments,
             self.local_positions_groups = self.local_positions_groups.split(",")
         if self.max_prompt_len is None:
             self.max_prompt_len = self.seq_len
-        if self.eval_checkpoints is not None and "," in self.eval_checkpoints:
-            self.eval_checkpoints = self.eval_checkpoints.split(",")
-
+        if self.eval_checkpoints is not None:
+            if "," in self.eval_checkpoints:
+                self.eval_checkpoints = self.eval_checkpoints.split(",")
+            else:
+                self.eval_checkpoints = [self.eval_checkpoints]
+        
         if self.wandb_enabled:
             os.environ["WANDB_ENTITY"] = self.wandb_entity
             os.environ["WANDB_PROJECT"] = self.wandb_project
