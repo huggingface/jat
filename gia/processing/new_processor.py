@@ -4,17 +4,13 @@ from typing import Dict, List, Optional, Tuple, TypeVar, Union
 import cv2
 import numpy as np
 from numpy.lib.stride_tricks import as_strided
-from PIL import Image
-from transformers import BatchEncoding, PreTrainedTokenizer, image_utils
-from transformers.image_processing_utils import BaseImageProcessor, BatchFeature
-from transformers.processing_utils import ProcessorMixin
+from transformers import AutoTokenizer
 
 from .interleaver import Interleaver
 from .local_positions_adder import LocalPositionsAdder
-from .utils import nested_like
 
 
-ImageInput = Union["Image.Image", np.ndarray, List["Image.Image"], List[np.ndarray]]
+ImageType = List[List[List[int]]]
 
 T = TypeVar("T")
 
@@ -23,9 +19,8 @@ def clamp(x, min_value, max_value):
     return max(min(x, max_value), min_value)
 
 
-class GiaImageProcessor(BaseImageProcessor):
-    def __init__(self, patch_size: int = 16, **kwargs) -> None:
-        super().__init__(**kwargs)
+class GiaImageProcessor:
+    def __init__(self, patch_size: int = 16) -> None:
         self.patch_size = patch_size
 
     def _resize_to_multiple_of_patch_size(self, image: np.ndarray) -> np.ndarray:
@@ -64,45 +59,17 @@ class GiaImageProcessor(BaseImageProcessor):
         patches = [patch.transpose(2, 0, 1) for patch in patches]
         return patches, patch_positions
 
-    def _to_numpy_array(self, images: ImageInput) -> np.ndarray:
-        # From every possible type of input, convert to a numpy array or to a list of numpy arrays (if batched)
-        if isinstance(images, list):
-            if all(isinstance(image, np.ndarray) for image in images):
-                return images
-            elif all(isinstance(image, Image.Image) for image in images):
-                return [np.array(image) for image in images]
-            else:
-                raise TypeError("images must be a list of numpy arrays or a list of PIL images.")
-        elif isinstance(images, np.ndarray):
-            return images  # single image
-        elif isinstance(images, Image.Image):
-            return np.array(images)
-        else:
-            raise TypeError("images must be a numpy array or a PIL image.")
-
-    def __call__(self, images: image_utils.ImageInput) -> BatchFeature:
-        images = self._to_numpy_array(images)
-        is_batched = isinstance(images, list)
-        if is_batched:
-            output = {"patches": [], "patch_positions": []}
-            for image in images:
-                patches, patch_positions = self._extract_patches(self._to_numpy_array(image))
-                output["patches"].append(patches)
-                output["patch_positions"].append(patch_positions)
-        else:
-            patches, patch_positions = self._extract_patches(self._to_numy_array(images))
-            output = {"patches": patches, "patch_positions": patch_positions}
-        return BatchFeature(output)
+    def __call__(self, images: List[ImageType]):
+        output = {"patches": [], "patch_positions": []}
+        for image in images:
+            patches, patch_positions = self._extract_patches(np.array(image, dtype=np.uint8))
+            output["patches"].append(patches)
+            output["patch_positions"].append(patch_positions)
+        return output
 
 
-GiaImageProcessor.register_for_auto_class()
-
-
-class GiaContinuousTokenizer(PreTrainedTokenizer):
-    def __init__(
-        self, mu: float = 100.0, M: float = 256.0, nb_bins: int = 1024, token_shift: int = 0, **kwargs
-    ) -> None:
-        super().__init__(**kwargs)
+class GiaContinuousTokenizer:
+    def __init__(self, mu: float = 100.0, M: float = 256.0, nb_bins: int = 1024, token_shift: int = 0) -> None:
         self.mu = mu
         self.M = M
         self.nb_bins = nb_bins
@@ -112,9 +79,6 @@ class GiaContinuousTokenizer(PreTrainedTokenizer):
     @property
     def vocab_size(self) -> int:
         return self.nb_bins
-
-    def save_vocabulary(self, save_directory: str, filename_prefix: Optional[str] = None) -> Tuple[str]:
-        return ()
 
     def _float_to_token(self, x: float) -> int:
         # Normalize tensors to the range [-1, 1]
@@ -148,52 +112,25 @@ class GiaContinuousTokenizer(PreTrainedTokenizer):
         else:
             raise TypeError("tokens must be a list of integers or a list of list of integers.")
 
-    def __call__(self, x: Union[List[float], List[List[float]]]) -> BatchEncoding:
-        if isinstance(x, List) and all(isinstance(x_i, float) for x_i in x):
-            input_ids = [self._float_to_token(x_i) for x_i in x]
-        elif isinstance(x, List) and all(isinstance(x_i, List) for x_i in x):
-            input_ids = [[self._float_to_token(x_ij) for x_ij in x_i] for x_i in x]
-        else:
-            raise TypeError("x must be a list of floats or a list of list of floats.")
-        return BatchEncoding({"input_ids": input_ids})
+    def __call__(self, x: List[List[float]]):
+        input_ids = [[self._float_to_token(x_ij) for x_ij in x_i] for x_i in x]
+        return {"input_ids": input_ids}
 
 
-GiaContinuousTokenizer.register_for_auto_class()
-
-
-class GiaDiscreteTokenizer(PreTrainedTokenizer):
-    def __init__(self, max_value: int = 1024, token_shift: int = 0, **kwargs) -> None:
-        super().__init__(**kwargs)
+class GiaDiscreteTokenizer:
+    def __init__(self, max_value: int = 1024, token_shift: int = 0) -> None:
         self.max_value = max_value
         self.token_shift = token_shift
 
-    def save_vocabulary(self, save_directory: str, filename_prefix: Optional[str] = None) -> Tuple[str]:
-        return ()
+    def decode(self, tokens: List[List[int]]) -> Union[List[int], List[List[int]]]:
+        return [[clamp(token_ij - self.token_shift, 0, self.max_value) for token_ij in token_i] for token_i in tokens]
 
-    def decode(self, tokens: Union[List[int], List[List[int]]]) -> Union[List[int], List[List[int]]]:
-        if isinstance(tokens, List) and all(isinstance(token, int) for token in tokens):
-            return [clamp(token - self.token_shift, 0, self.max_value) for token in tokens]
-        elif isinstance(tokens, List) and all(isinstance(token, List) for token in tokens):
-            return [
-                [clamp(token_ij - self.token_shift, 0, self.max_value) for token_ij in token_i] for token_i in tokens
-            ]
-        else:
-            raise TypeError("tokens must be a list of integers or a list of list of integers.")
-
-    def __call__(self, x: Union[List[int], List[List[int]]]) -> BatchEncoding:
-        if isinstance(x, List) and all(isinstance(x_i, int) for x_i in x):
-            input_ids = [clamp(x_i, 0, self.max_value) + self.token_shift for x_i in x]
-        elif isinstance(x, List) and all(isinstance(x_i, List) for x_i in x):
-            input_ids = [[clamp(x_ij, 0, self.max_value) + self.token_shift for x_ij in x_i] for x_i in x]
-        else:
-            raise TypeError("x must be a list of ints or a list of list of ints.")
-        return BatchEncoding({"input_ids": input_ids})
+    def __call__(self, x: Union[List[int], List[List[int]]]):
+        input_ids = [[clamp(x_ij, 0, self.max_value) + self.token_shift for x_ij in x_i] for x_i in x]
+        return {"input_ids": input_ids}
 
 
-GiaDiscreteTokenizer.register_for_auto_class()
-
-
-class GiaProcessor(ProcessorMixin):
+class GiaProcessor:
     r"""
     Constructs an OneFormer processor which wraps [`OneFormerImageProcessor`] and
     [`CLIPTokenizer`]/[`CLIPTokenizerFast`] into a single processor that inherits both the image processor and
@@ -209,54 +146,23 @@ class GiaProcessor(ProcessorMixin):
         discrete_tokenizer ([`TODO`]):
             The tokenizer for discrete values.
     """
-    attributes = [
-        "image_processor",
-        "text_tokenizer",
-        "continuous_tokenizer",
-        "discrete_tokenizer",
-    ]
-    image_processor_class = "AutoImageProcessor"
-    text_tokenizer_class = "AutoTokenizer"
-    continuous_tokenizer_class = "AutoTokenizer"
-    discrete_tokenizer_class = "AutoTokenizer"
 
     def __init__(
         self,
-        image_processor=None,
-        text_tokenizer=None,
-        continuous_tokenizer=None,
-        discrete_tokenizer=None,
+        patch_size: int = 16,
+        mu: float = 100.0,
+        M: float = 256.0,
+        nb_bins: int = 1024,
+        token_shift: int = 0,
         mask_loss_modalities: Union[List[str], str] = "default",
         seq_len: int = 1024,
         local_positions_groups: Union[List[List[str]], str] = "default",
         use_separator: bool = True,
-        **kwargs,
     ):
-        if image_processor is None:
-            raise ValueError("You need to specify an `image_processor`.")
-        if text_tokenizer is None:
-            raise ValueError("You need to specify a `text_tokenizer`.")
-        if continuous_tokenizer is None:
-            raise ValueError("You need to specify a `continuous_tokenizer`.")
-        if discrete_tokenizer is None:
-            raise ValueError("You need to specify a `discrete_tokenizer`.")
-
-        if continuous_tokenizer.token_shift != text_tokenizer.vocab_size:
-            raise ValueError(
-                f"The continuous tokenizer must have a token shift (currently {continuous_tokenizer.token_shift}) "
-                f"equal to the vocab size of the text tokenizer (currently {text_tokenizer.vocab_size})."
-            )
-        if discrete_tokenizer.token_shift != text_tokenizer.vocab_size:
-            raise ValueError(
-                "The discrete tokenizer must have a token shift equal to the vocab size of the text tokenizer."
-            )
-        super().__init__(
-            image_processor,
-            text_tokenizer,
-            continuous_tokenizer,
-            discrete_tokenizer,
-            **kwargs,
-        )
+        self.image_processor = GiaImageProcessor(patch_size)
+        self.text_tokenizer = AutoTokenizer.from_pretrained("albert-base-v2")
+        self.continuous_tokenizer = GiaContinuousTokenizer(mu, M, nb_bins, token_shift)
+        self.discrete_tokenizer = GiaDiscreteTokenizer(max_value=nb_bins, token_shift=token_shift)
 
         if mask_loss_modalities == "default":
             self.mask_loss_modalities = [
@@ -289,7 +195,7 @@ class GiaProcessor(ProcessorMixin):
         self.local_positions_adder = LocalPositionsAdder(local_positions_groups)
         if use_separator:
             separator = {
-                "input_ids": [continuous_tokenizer.token_shift + continuous_tokenizer.vocab_size + 1],
+                "input_ids": [token_shift + nb_bins + 1],
                 "input_types": [0],
                 "loss_mask": [True],
             }
@@ -369,59 +275,34 @@ class GiaProcessor(ProcessorMixin):
             padded["attention_mask"].append(mask)
         return padded
 
-    @property
-    def vocab_size(self) -> int:
-        return self.text_tokenizer.vocab_size + self.continuous_tokenizer.vocab_size
-
-    def _fix_discrete_actions(
-        self,
-        discrete_actions: Union[int, List[int], List[List[int]]],
-        rewards: Optional[Union[float, List[float]]] = None,
-    ) -> Union[List[int], List[List[int]]]:
-        # The purpose of this section is to "fix" the format of 'discrete_actions'.
-        # The thing is, when it's a list of ints, we don't know if it's batched or not.
-        # We need to infer it from 'rewards'.
-        # If 'rewards' is a list of floats, then 'discrete_actions' is batched, and we need to unsqueeze it.
-        # If 'rewards' is a float, then 'discrete_actions' is not batched, and we can leave it as it is.
-
-        if isinstance(discrete_actions, List) and all(isinstance(action, int) for action in discrete_actions):
-            if isinstance(rewards, List):
-                return [[action] for action in discrete_actions]
-            elif isinstance(rewards, float):
-                return discrete_actions
-            else:
-                raise RuntimeError("Failed to infer whether the input is batched or not.")
-        else:
-            return discrete_actions
-
     def __call__(
         self,
-        text: Optional[Union[str, List[str]]] = None,
-        images: Optional[Union[np.ndarray, List[np.ndarray]]] = None,
-        text_observations: Optional[Union[str, List[str]]] = None,
-        image_observations: Optional[Union[np.ndarray, List[np.ndarray]]] = None,
-        discrete_observations: Optional[Union[List[int], List[List[int]]]] = None,
-        continuous_observations: Optional[Union[List[float], List[List[float]]]] = None,
-        discrete_actions: Optional[Union[int, List[int], List[List[int]]]] = None,  # pa case here, we allow int
-        continuous_actions: Optional[Union[List[float], List[List[float]]]] = None,
-        rewards: Optional[Union[float, List[float]]] = None,
+        text: Optional[List[str]] = None,
+        images: Optional[List[ImageType]] = None,
+        text_observations: Optional[List[List[str]]] = None,
+        image_observations: Optional[List[List[ImageType]]] = None,
+        discrete_observations: Optional[List[List[List[int]]]] = None,
+        continuous_observations: Optional[List[List[List[float]]]] = None,
+        discrete_actions: Optional[List[List[List[int]]]] = None,
+        continuous_actions: Optional[List[List[List[float]]]] = None,
+        rewards: Optional[List[List[float]]] = None,
         interleave: bool = True,
         truncation: Union[bool, str] = "residual",
         truncation_side: str = "right",
         padding: Union[bool, str] = "max_length",
         max_length: Optional[int] = None,
-    ) -> BatchEncoding:
-        discrete_actions = self._fix_discrete_actions(discrete_actions, rewards)
-
+    ):
         batch_encoding = {}
         if text is not None:
             input_ids = self.text_tokenizer(text)["input_ids"]
-            input_types = nested_like(input_ids, 0)
+            input_types = [[0] * len(val) for val in input_ids]
             batch_encoding["text"] = {"input_ids": input_ids, "input_types": input_types}
 
         if images is not None:
-            patches, patch_positions = self.image_processor(images)
-            input_types = nested_like(patches, 1)
+            output = self.image_processor(images)
+            patches = output["patches"]
+            patch_positions = output["patch_positions"]
+            input_types = [[[1] * len(val) for val in seq] for seq in patches]
             batch_encoding["images"] = {
                 "patches": patches,
                 "patch_positions": patch_positions,
@@ -429,48 +310,54 @@ class GiaProcessor(ProcessorMixin):
             }
 
         if text_observations is not None:
-            input_ids = self.text_tokenizer(text_observations)["input_ids"]
-            input_types = nested_like(input_ids, 0)
+            input_ids = [self.text_tokenizer(seq)["input_ids"] for seq in text_observations]
+            input_types = [[[0] * len(val) for val in seq] for seq in input_ids]
             batch_encoding["text_observations"] = {"input_ids": input_ids, "input_types": input_types}
 
         if image_observations is not None:
-            patches, patch_positions = self.image_processor(images)
-            input_types = nested_like(patches, 1)
-            batch_encoding["images_observations"] = {
+            output = [self.image_processor(seq) for seq in image_observations]
+            patches = [ep["patches"] for ep in output]
+            patch_positions = [ep["patch_positions"] for ep in output]
+            input_types = [[[1] * len(val) for val in seq] for seq in patches]
+            batch_encoding["image_observations"] = {
                 "patches": patches,
                 "patch_positions": patch_positions,
                 "input_types": input_types,
             }
 
         if discrete_observations is not None:
-            input_ids = self.discrete_tokenizer(discrete_observations)
-            input_types = nested_like(input_ids, 0)
+            input_ids = [self.discrete_tokenizer(ep)["input_ids"] for ep in discrete_observations]
+            input_types = [[[0] * len(val) for val in seq] for seq in input_ids]
             batch_encoding["discrete_observations"] = {"input_ids": input_ids, "input_types": input_types}
 
         if continuous_observations is not None:
-            input_ids = self.continuous_tokenizer(continuous_observations)
-            input_types = nested_like(input_ids, 0)
+            input_ids = [self.continuous_tokenizer(ep)["input_ids"] for ep in continuous_observations]
+            input_types = [[[0] * len(val) for val in seq] for seq in input_ids]
             batch_encoding["continuous_observations"] = {"input_ids": input_ids, "input_types": input_types}
 
         if discrete_actions is not None:
-            input_ids = self.discrete_tokenizer(discrete_actions)
-            input_types = nested_like(input_ids, 0)
+            discrete_actions = [[[action] for action in seq] for seq in discrete_actions]
+            input_ids = [self.discrete_tokenizer(ep)["input_ids"] for ep in discrete_actions]
+            input_types = [[[0] for _ in seq] for seq in input_ids]
             batch_encoding["discrete_actions"] = {"input_ids": input_ids, "input_types": input_types}
 
         if continuous_actions is not None:
-            input_ids = self.continuous_tokenizer(continuous_actions)
-            input_types = nested_like(input_ids, 0)
+            input_ids = [self.continuous_tokenizer(ep)["input_ids"] for ep in continuous_actions]
+            input_types = [[[0] * len(val) for val in seq] for seq in input_ids]
             batch_encoding["continuous_actions"] = {"input_ids": input_ids, "input_types": input_types}
 
         if rewards is not None:
-            input_ids = self.continuous_tokenizer(rewards)
-            input_types = nested_like(input_ids, 0)
+            rewards = [[[reward] for reward in seq] for seq in rewards]
+            input_ids = [self.continuous_tokenizer(ep)["input_ids"] for ep in rewards]
+            input_types = [[[0] for _ in seq] for seq in input_ids]
             batch_encoding["rewards"] = {"input_ids": input_ids, "input_types": input_types}
 
         # Add the loss mask
         for modality in batch_encoding:
             if modality in self.mask_loss_modalities:
-                batch_encoding[modality]["loss_mask"] = nested_like(batch_encoding[modality]["input_types"], False)
+                batch_encoding[modality]["loss_mask"] = [
+                    [[False] * len(val) for val in seq] for seq in batch_encoding[modality]["input_types"]
+                ]
 
         # Add the local positions
         self.local_positions_adder(batch_encoding)
