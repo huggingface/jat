@@ -3,40 +3,7 @@ import random
 import numpy as np
 import pytest
 
-from gia.processing.new_processor import GiaContinuousTokenizer, GiaDiscreteTokenizer, GiaImageProcessor, GiaProcessor
-
-
-def test_decode_continuous():
-    # Instantiate GiaProcessor
-    tokenizer = GiaContinuousTokenizer(nb_bins=1024)
-
-    # Create sample tokens
-    x = np.linspace(-5.0, 5.0, 50).reshape(1, 25, -1).tolist()  # Convert to batch of size 1, 25 timesteps, 2 features
-
-    # Call tokenize_continuous method
-    tokens = tokenizer(x)
-
-    # Compute the expected result
-    expected_result = tokenizer.decode(tokens["input_ids"])
-
-    # Assert that the result is close to the expected result
-    np.testing.assert_allclose(x, expected_result, atol=1e-1)
-
-
-def test_decode_continuous_single_token():
-    tokenizer = GiaContinuousTokenizer()
-    token = 512
-    decoded_tokens = tokenizer.decode([token])
-    assert abs(decoded_tokens[0]) < 1e-4
-
-
-def test_decode_continuous_list_of_tokens():
-    tokenizer = GiaContinuousTokenizer()
-    tokens = [256, 512, 768]
-    decoded_tokens = tokenizer.decode(tokens)
-    assert decoded_tokens[0] < 1.0
-    assert abs(decoded_tokens[1]) < 1e-4
-    assert decoded_tokens[2] > 1.0
+from gia.processing.processing import GiaContinuousTokenizer, GiaDiscreteTokenizer, GiaImageProcessor, GiaProcessor
 
 
 def test_continuous_tokenizer():
@@ -51,6 +18,19 @@ def test_continuous_tokenizer():
         assert len(output["input_ids"][i]) == len(input_data[i])
 
 
+def test_decode_continuous():
+    tokenizer = GiaContinuousTokenizer()
+    tokens = [[256, 512, 768]]
+    decoded = tokenizer.decode(tokens)
+    assert isinstance(decoded, list)
+    assert len(decoded) == 1
+    assert isinstance(decoded[0], list)
+    assert all(isinstance(d, float) for d in decoded[0])
+    assert decoded[0][0] < 1.0
+    assert abs(decoded[0][1]) < 1e-4
+    assert decoded[0][2] > 1.0
+
+
 def test_discrete_tokenizer():
     tokenizer = GiaDiscreteTokenizer(token_shift=10)
     input_data = [[0, 1, 2], [3, 4, 5]]
@@ -62,6 +42,13 @@ def test_discrete_tokenizer():
     for i in range(len(input_data)):
         assert len(output["input_ids"][i]) == len(input_data[i])
         assert output["input_ids"][i][0] == 10 + input_data[i][0]
+
+
+def test_decode_discrete():
+    tokenizer = GiaDiscreteTokenizer(token_shift=10)
+    tokens = [[256, 512, 768]]
+    decoded = tokenizer.decode(tokens)
+    assert decoded == [[246, 502, 758]]  # tokens - tokens_shift
 
 
 def test_image_processor():
