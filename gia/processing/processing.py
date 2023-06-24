@@ -1,89 +1,164 @@
+import math
 from typing import Dict, List, Optional, Tuple, TypeVar, Union
 
-import datasets
+import cv2
 import numpy as np
-from PIL import Image
+from numpy.lib.stride_tricks import as_strided
+from transformers import AutoTokenizer
 
 from .interleaver import Interleaver
 from .local_positions_adder import LocalPositionsAdder
-from .tokenizer import GiaTokenizer
-from .utils import nested_like
 
+
+ImageType = List[List[List[int]]]
 
 T = TypeVar("T")
-NestedList = Union[None, T, List["NestedList[T]"]]
+
+
+def clamp(x, min_value, max_value):
+    return max(min(x, max_value), min_value)
+
+
+class GiaImageProcessor:
+    def __init__(self, patch_size: int = 16) -> None:
+        self.patch_size = patch_size
+
+    def _resize_to_multiple_of_patch_size(self, image: np.ndarray) -> np.ndarray:
+        P = self.patch_size
+        H, W, _ = image.shape
+        # Resize to the closest above multiple of the patch size
+        H = H - H % P + P if H % P != 0 else H
+        W = W - W % P + P if W % P != 0 else W
+        image = cv2.resize(image, (W, H), interpolation=cv2.INTER_AREA)
+        return image
+
+    def _extract_patches(self, image: np.ndarray) -> Tuple[np.ndarray, List[float]]:
+        image = self._resize_to_multiple_of_patch_size(image)
+        # Pad the image with 0 to have 4 channels
+        image = np.pad(image, ((0, 0), (0, 0), (0, 4 - image.shape[2])), mode="constant", constant_values=0)
+        # Get the number of patches per row and column
+        num_patches_per_col = image.shape[0] // self.patch_size
+        num_patches_per_row = image.shape[1] // self.patch_size
+        # Extract patches
+        shape = (num_patches_per_col, num_patches_per_row, self.patch_size, self.patch_size, 4)
+        strides = (self.patch_size * image.strides[0], self.patch_size * image.strides[1]) + image.strides
+        patches = as_strided(image, shape=shape, strides=strides)
+        patches = patches.reshape(-1, self.patch_size, self.patch_size, 4)
+        # Compute the relative position intervals of the patches within the image
+        # They are described as [[x_min, y_min], [x_max, y_max]]
+        # Output shape is (N, 2, 2) with N the total number of patches in the image
+        patch_positions = [
+            [
+                [col / (num_patches_per_col), row / (num_patches_per_row)],
+                [(col + 1) / (num_patches_per_col), (row + 1) / (num_patches_per_row)],
+            ]
+            for col in range(num_patches_per_col)
+            for row in range(num_patches_per_row)
+        ]
+        # To channels first
+        patches = [patch.transpose(2, 0, 1) for patch in patches]
+        return patches, patch_positions
+
+    def __call__(self, images: List[ImageType]):
+        output = {"patches": [], "patch_positions": []}
+        for image in images:
+            patches, patch_positions = self._extract_patches(np.array(image, dtype=np.uint8))
+            output["patches"].append(patches)
+            output["patch_positions"].append(patch_positions)
+        return output
+
+
+class GiaContinuousTokenizer:
+    def __init__(self, mu: float = 100.0, M: float = 256.0, nb_bins: int = 1024, token_shift: int = 0) -> None:
+        self.mu = mu
+        self.M = M
+        self.nb_bins = nb_bins
+        self.token_shift = token_shift
+        self.mu_law_compand = True
+
+    @property
+    def vocab_size(self) -> int:
+        return self.nb_bins
+
+    def _float_to_token(self, x: float) -> int:
+        # Normalize tensors to the range [-1, 1]
+        if self.mu_law_compand:
+            x = math.copysign(1, x) * math.log(self.mu * abs(x) + 1.0) / math.log(self.M * self.mu + 1.0)
+        # Clip to the range [-1, 1]
+        x = max(min(x, 1), -1)
+        # Discretize tensors
+        x = (x + 1.0) / 2 * self.nb_bins  # [-1, 1] to [0, nb_bins]
+        x = math.floor(x)
+        x = self.nb_bins - 1 if x == self.nb_bins else x  # Handle the case where x == 1.0
+        # Shift
+        token = x + self.token_shift
+        return token
+
+    def _token_to_float(self, token: int) -> float:
+        # Subtract token shift
+        token = max(0, token - self.token_shift)
+        # Maps tokens from [0, nb_bins-1] to [-1, 1]; We map the bin number to the center of the bin
+        val = (2 * token + 1) / self.nb_bins - 1
+        # De-mu-law compand tensors
+        if self.mu_law_compand:
+            val = math.copysign(1, val) * (math.exp(abs(val) * math.log(self.M * self.mu + 1.0)) - 1.0) / self.mu
+        return val
+
+    def decode(self, tokens: List[List[int]]) -> List[List[float]]:
+        return [[self._token_to_float(token_ij) for token_ij in token_i] for token_i in tokens]
+
+    def __call__(self, x: List[List[float]]):
+        input_ids = [[self._float_to_token(x_ij) for x_ij in x_i] for x_i in x]
+        return {"input_ids": input_ids}
+
+
+class GiaDiscreteTokenizer:
+    def __init__(self, max_value: int = 1024, token_shift: int = 0) -> None:
+        self.max_value = max_value
+        self.token_shift = token_shift
+
+    def decode(self, tokens: List[List[int]]) -> Union[List[int], List[List[int]]]:
+        return [[clamp(token_ij - self.token_shift, 0, self.max_value) for token_ij in token_i] for token_i in tokens]
+
+    def __call__(self, x: Union[List[int], List[List[int]]]):
+        input_ids = [[clamp(x_ij, 0, self.max_value) + self.token_shift for x_ij in x_i] for x_i in x]
+        return {"input_ids": input_ids}
 
 
 class GiaProcessor:
-    """
-    Processor for GIA
-
-    This processor takes as input a batch of observations and actions and returns a batch of tokens, patches,
-    patch_positions, and loss masks and attention masks.
-
-    ```python
-    >>> processor = GiaProcessor(seq_len=15)
-    >>> batch_data = processor(
-    ...     continuous_observations=[[[0.0, 0.1], [0.2, 0.3], [0.4, 0.5]]],
-    ...     discrete_actions=[[0, 1, 2]],
-    ... )
-    >>> batch_data["input_ids"]
-    [[30512, 30632, 31024, 30000, 30665, 30685, 31024, 30001, 30699, 30710, 31024, 30002, None, None, None]]
-    >>> batch_data["input_types"]
-    [[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, None, None, None]]
-    >>> batch_data["local_positions"]
-    [[0, 1, None, None, 0, 1, None, None, 0, 1, None, None, None, None, None]]
-    >>> batch_data["loss_mask"]
-    [[False, False, True, None, False, False, True, None, False, False, True, None, None, None, None]]
-    >>> batch_data["attention_mask"]
-    [[True, True, True, True, True, True, True, True, True, True, True, True, False, False, False]]
-    ```
+    r"""
+    Constructs an OneFormer processor which wraps [`OneFormerImageProcessor`] and
+    [`CLIPTokenizer`]/[`CLIPTokenizerFast`] into a single processor that inherits both the image processor and
+    tokenizer functionalities.
 
     Args:
-        mu (`float`, *optional*, defaults to `100`):
-            The μ parameter for the μ-law companding of continuous observations and actions.
-        M (`float`, *optional*, defaults to `256`):
-            The M parameter for the μ-law companding of continuous observations and actions.
-        nb_bins (`int`, *optional*, defaults to `1024`):
-            The number of bins for the discretization of continuous observations and actions.
-        patch_size (`int`, *optional*, defaults to `16`):
-            The size of the patches to extract from images.
-        mask_loss_modalities (`Union[List[str], str]`, *optional*, defaults to `"default"`):
-            The modalities to mask for the loss computation. Defaults to all modalities except text and actions.
-        seq_len (`int`, *optional*, defaults to `1024`):
-            The length (number of tokens) of a sequence.
-        local_positions_groups (`Union[List[List[str]], str]`, *optional*, defaults to `"default"`):
-            The groups of modalities for which to add local positions. Defaults to a single group containing all
-            observations modalities (text, images, discrete and continuous observations).
-        use_separator (`bool`, *optional*, defaults to `True`):
-            Whether to include a separator token between observations and actions.
+        image_processor ([`TODO`]):
+            The image processor.
+        text_tokenizer ([`TODO`]):
+            The tokenizer for text.
+        continuous_tokenizer ([`TODO`]):
+            The tokenizer for continuous values.
+        discrete_tokenizer ([`TODO`]):
+            The tokenizer for discrete values.
     """
-
-    features = datasets.Features(
-        {
-            "input_ids": datasets.Sequence(datasets.Value(dtype="int64")),
-            "patches": datasets.Sequence(datasets.Image()),
-            "patch_positions": datasets.Sequence(datasets.Array2D((2, 2), dtype="float32")),
-            "input_types": datasets.Sequence(datasets.Value(dtype="int64")),
-            "local_positions": datasets.Sequence(datasets.Value(dtype="int64")),
-            "loss_mask": datasets.Sequence(datasets.Value(dtype="bool")),
-            "attention_mask": datasets.Sequence(datasets.Value(dtype="bool")),
-        }
-    )
 
     def __init__(
         self,
-        mu: float = 100,
-        M: float = 256,
-        nb_bins: int = 1024,
         patch_size: int = 16,
+        mu: float = 100.0,
+        M: float = 256.0,
+        nb_bins: int = 1024,
+        token_shift: int = 0,
         mask_loss_modalities: Union[List[str], str] = "default",
         seq_len: int = 1024,
         local_positions_groups: Union[List[List[str]], str] = "default",
         use_separator: bool = True,
-    ) -> None:
-        super().__init__()
-        self.tokenizer = GiaTokenizer(mu, M, nb_bins, patch_size)
+    ):
+        self.image_processor = GiaImageProcessor(patch_size)
+        self.text_tokenizer = AutoTokenizer.from_pretrained("albert-base-v2")
+        self.continuous_tokenizer = GiaContinuousTokenizer(mu, M, nb_bins, token_shift)
+        self.discrete_tokenizer = GiaDiscreteTokenizer(max_value=nb_bins, token_shift=token_shift)
+
         if mask_loss_modalities == "default":
             self.mask_loss_modalities = [
                 # "text",
@@ -115,7 +190,7 @@ class GiaProcessor:
         self.local_positions_adder = LocalPositionsAdder(local_positions_groups)
         if use_separator:
             separator = {
-                "input_ids": [self.tokenizer.vocab_size],
+                "input_ids": [token_shift + nb_bins + 1],
                 "input_types": [0],
                 "loss_mask": [True],
             }
@@ -195,92 +270,106 @@ class GiaProcessor:
             padded["attention_mask"].append(mask)
         return padded
 
+    def decode_discrete(self, tokens: List[List[int]]) -> List[List[int]]:
+        return self.discrete_tokenizer.decode(tokens)
+
+    def decode_continuous(self, tokens: List[List[int]]) -> List[List[float]]:
+        return self.continuous_tokenizer.decode(tokens)
+
     def __call__(
         self,
-        text: Optional[str] = None,
-        images: Optional[np.ndarray] = None,
-        text_observations: NestedList[str] = None,
-        image_observations: NestedList[Union[np.ndarray, Image.Image]] = None,
-        discrete_observations: NestedList[int] = None,
-        continuous_observations: NestedList[float] = None,
-        discrete_actions: NestedList[int] = None,
-        continuous_actions: NestedList[float] = None,
-        rewards: NestedList[float] = None,
+        text: Optional[List[str]] = None,
+        images: Optional[List[ImageType]] = None,
+        text_observations: Optional[List[List[str]]] = None,
+        image_observations: Optional[List[List[ImageType]]] = None,
+        discrete_observations: Optional[List[List[List[int]]]] = None,
+        continuous_observations: Optional[List[List[List[float]]]] = None,
+        discrete_actions: Optional[List[List[List[int]]]] = None,
+        continuous_actions: Optional[List[List[List[float]]]] = None,
+        rewards: Optional[List[List[float]]] = None,
         interleave: bool = True,
         truncation: Union[bool, str] = "residual",
         truncation_side: str = "right",
         padding: Union[bool, str] = "max_length",
         max_length: Optional[int] = None,
     ):
-        """
-        Process input. Returns tokens, patches, patch_positions, and loss masks.
+        batch_encoding = {}
+        if text is not None:
+            input_ids = self.text_tokenizer(text)["input_ids"]
+            input_types = [[0] * len(val) for val in input_ids]
+            batch_encoding["text"] = {"input_ids": input_ids, "input_types": input_types}
 
-        Args:
-            text (Optional[str], optional): Standalone text input. Defaults to None.
-            images (Optional[np.ndarray], optional): Standalone image input. Defaults to None.
-            text_observations (NestedList[str], optional): Episode text observations. Defaults to None.
-            image_observations (NestedList[Union[np.ndarray, Image]], optional): Episode image observations.
-                Defaults to None.
-            discrete_observations (NestedList[int], optional): Episode discrete observations. Defaults to None.
-            continuous_observations (NestedList[float], optional): Episode continuous observations. Defaults to None.
-            discrete_actions (NestedList[int], optional): Episode discrete actions. Defaults to None.
-            continuous_actions (NestedList[float], optional): Episode continuous actions. Defaults to None.
-            rewards (NestedList[float], optional): Rewards. Defaults to None.
-            interleave (bool, optional): Interleave observations and actions. Defaults to True.
-            truncation (Union[bool, str]): Specifies the truncation strategy.
-                - 'residual' (default): Truncate to a maximum length specified with `max_length` or to the maximum
-                    acceptable input length for the model if `max_length` is not provided. Any residual elements that
-                    don't reach `max_length` in length are used to form a new sub-sequence.
-                - True or 'max_length': Truncate to a maximum length specified with `max_length` or to the maximum
-                    acceptable input length for the model if `max_length` is not provided.
-                - False or 'do_not_truncate': No truncation (i.e., can output a batch with sequences of different
-                    lengths).
-            truncation_side (str): Specifies the side to truncate when `truncation` is True or 'max_length'. Can be
-                'left' or 'right' (default). With truncation='residual', this parameter can only be 'right'.
-            padding (Union[bool, str]): Specifies the padding strategy.
-                - True or 'longest': Pad to the length of the longest sequence in the batch (or no padding if only a
-                    single sequence if provided).
-                - 'max_length' (default): Pad to a maximum length specified with `max_length` or to the maximum
-                    acceptable input length for the model if `max_length` is not provided.
-                - False or 'do_not_pad': No padding (i.e., can output a batch with sequences of different
-                    lengths).
-            max_length (Optional[int]): Specifies the maximum length for padding and truncation. If not provided, the
-                maximum acceptable input length for the model is used.
+        if images is not None:
+            output = self.image_processor(images)
+            patches = output["patches"]
+            patch_positions = output["patch_positions"]
+            input_types = [[[1] * len(val) for val in seq] for seq in patches]
+            batch_encoding["images"] = {
+                "patches": patches,
+                "patch_positions": patch_positions,
+                "input_types": input_types,
+            }
 
-        Raises:
-            ValueError: Invalid truncation strategy.
-            ValueError: Invalid padding strategy.
+        if text_observations is not None:
+            input_ids = [self.text_tokenizer(seq)["input_ids"] for seq in text_observations]
+            input_types = [[[0] * len(val) for val in seq] for seq in input_ids]
+            batch_encoding["text_observations"] = {"input_ids": input_ids, "input_types": input_types}
 
-        Returns:
-            Dict[str, List[Any]]: A dictionary of tensors containing the tokenized inputs.
-        """
-        features = self.tokenizer(
-            text,
-            images,
-            text_observations,
-            image_observations,
-            discrete_observations,
-            continuous_observations,
-            discrete_actions,
-            continuous_actions,
-            rewards,
-        )
+        if image_observations is not None:
+            output = [self.image_processor(seq) for seq in image_observations]
+            patches = [ep["patches"] for ep in output]
+            patch_positions = [ep["patch_positions"] for ep in output]
+            input_types = [[[1] * len(val) for val in seq] for seq in patches]
+            batch_encoding["image_observations"] = {
+                "patches": patches,
+                "patch_positions": patch_positions,
+                "input_types": input_types,
+            }
+
+        if discrete_observations is not None:
+            input_ids = [self.discrete_tokenizer(ep)["input_ids"] for ep in discrete_observations]
+            input_types = [[[0] * len(val) for val in seq] for seq in input_ids]
+            batch_encoding["discrete_observations"] = {"input_ids": input_ids, "input_types": input_types}
+
+        if continuous_observations is not None:
+            input_ids = [self.continuous_tokenizer(ep)["input_ids"] for ep in continuous_observations]
+            input_types = [[[0] * len(val) for val in seq] for seq in input_ids]
+            batch_encoding["continuous_observations"] = {"input_ids": input_ids, "input_types": input_types}
+
+        if discrete_actions is not None:
+            discrete_actions = [[[action] for action in seq] for seq in discrete_actions]
+            input_ids = [self.discrete_tokenizer(ep)["input_ids"] for ep in discrete_actions]
+            input_types = [[[0] for _ in seq] for seq in input_ids]
+            batch_encoding["discrete_actions"] = {"input_ids": input_ids, "input_types": input_types}
+
+        if continuous_actions is not None:
+            input_ids = [self.continuous_tokenizer(ep)["input_ids"] for ep in continuous_actions]
+            input_types = [[[0] * len(val) for val in seq] for seq in input_ids]
+            batch_encoding["continuous_actions"] = {"input_ids": input_ids, "input_types": input_types}
+
+        if rewards is not None:
+            rewards = [[[reward] for reward in seq] for seq in rewards]
+            input_ids = [self.continuous_tokenizer(ep)["input_ids"] for ep in rewards]
+            input_types = [[[0] for _ in seq] for seq in input_ids]
+            batch_encoding["rewards"] = {"input_ids": input_ids, "input_types": input_types}
 
         # Add the loss mask
-        for modality in features:
+        for modality in batch_encoding:
             if modality in self.mask_loss_modalities:
-                features[modality]["loss_mask"] = nested_like(features[modality]["input_types"], False)
+                batch_encoding[modality]["loss_mask"] = [
+                    [[False] * len(val) for val in seq] for seq in batch_encoding[modality]["input_types"]
+                ]
 
         # Add the local positions
-        self.local_positions_adder(features)
+        self.local_positions_adder(batch_encoding)
 
         # Pop the reward, if any
-        features.pop("rewards", None)
+        batch_encoding.pop("rewards", None)
 
         if interleave:
-            batch_data = self.interleaver(features)
+            batch_data = self.interleaver(batch_encoding)
         else:
-            return features
+            return batch_encoding
 
         # Truncate sequences
         if truncation in [True, "max_length", "residual"]:
