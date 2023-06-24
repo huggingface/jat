@@ -34,7 +34,6 @@ class GiaAgent:
 
         self.processor = GiaProcessor()
         self.collator = GiaDataCollator()
-        self.token_shift = self.processor.token_shift
 
     def reset(self) -> None:
         prompt = self.prompter.generate_prompts(1)
