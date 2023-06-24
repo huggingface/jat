@@ -16,7 +16,7 @@ class BaseLanguageModelingEvaluator(Evaluator):
     def evaluate(self, model: GiaModel):
         model.eval()
         losses = []
-        processor = GiaProcessor(self.args)
+        processor = GiaProcessor()
         dataset = load_dataset("gia-project/gia-dataset", self.task, split="test")
         dataset = dataset.map(lambda batch: processor(**batch), remove_columns=dataset.column_names, batched=True)
         dataloader = DataLoader(dataset, batch_size=self.args.batch_size, collate_fn=GiaDataCollator(), shuffle=True)
