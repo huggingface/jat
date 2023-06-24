@@ -127,35 +127,46 @@ class GiaDiscreteTokenizer:
 
 class GiaProcessor:
     r"""
-    Constructs an OneFormer processor which wraps [`OneFormerImageProcessor`] and
-    [`CLIPTokenizer`]/[`CLIPTokenizerFast`] into a single processor that inherits both the image processor and
-    tokenizer functionalities.
+    Processor for Gia.
 
     Args:
-        image_processor ([`TODO`]):
-            The image processor.
-        text_tokenizer ([`TODO`]):
-            The tokenizer for text.
-        continuous_tokenizer ([`TODO`]):
-            The tokenizer for continuous values.
-        discrete_tokenizer ([`TODO`]):
-            The tokenizer for discrete values.
+        patch_size (`int`, *optional*, defaults to 16):
+            Size of the patches to extract from image observations.
+        text_tokenizer_name (`str`, *optional*, default to `"albert-base-v2"`):
+            Name of the pretrained tokenizer for text to use.
+        mu (`float`, *optional*, default to 100.0):
+            μ parameter for the μ-law companding of continuous observations and actions.
+        M (`float`, *optional*, default to 256.0):
+            M parameter for the μ-law companding of continuous observations and actions.
+        nb_bins (`int`, *optional*, defaults to 1024):
+            Number of bins for the discretization of continuous observations and actions. It's also used as the max
+            value for discrete tokenizer.
+        mask_loss_modalities (`str` or `List[str]`, *optional*, default to `"default"`):
+            Modalities to mask for the loss computation. Defaults to all modalities except text and actions.
+        seq_len (`int`, *optional*, default to 2048):
+            The length (number of tokens) of a sequence.
+        local_positions_group (`str` or `List[List[str]]`, *optional*, default to `default`):
+            The groups of modalities for which to add local positions. Defaults to a single group containing all
+            observations modalities (text, images, discrete and continuous observations).
+        use_separator (`bool`, *optional*, default to `True`):
+            Whether to include a separator token between observations and actions.
     """
 
     def __init__(
         self,
         patch_size: int = 16,
+        text_tokenizer_name: str = "albert-base-v2",
         mu: float = 100.0,
         M: float = 256.0,
         nb_bins: int = 1024,
-        token_shift: int = 0,
-        mask_loss_modalities: Union[List[str], str] = "default",
-        seq_len: int = 1024,
-        local_positions_groups: Union[List[List[str]], str] = "default",
+        mask_loss_modalities: Union[str, List[str]] = "default",
+        seq_len: int = 2048,
+        local_positions_groups: Union[str, List[List[str]]] = "default",
         use_separator: bool = True,
     ):
         self.image_processor = GiaImageProcessor(patch_size)
-        self.text_tokenizer = AutoTokenizer.from_pretrained("albert-base-v2")
+        self.text_tokenizer = AutoTokenizer.from_pretrained(text_tokenizer_name)
+        token_shift = self.text_tokenizer.vocab_size
         self.continuous_tokenizer = GiaContinuousTokenizer(mu, M, nb_bins, token_shift)
         self.discrete_tokenizer = GiaDiscreteTokenizer(max_value=nb_bins, token_shift=token_shift)
 
