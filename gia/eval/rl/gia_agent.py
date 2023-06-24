@@ -96,6 +96,6 @@ class GiaAgent:
         action_tokens = torch.stack(action_tokens, dim=-1)
 
         # Decode the action tokens
-        action = np.array(self.processor.tokenizer.decode_continuous(action_tokens.cpu().numpy()))
+        action = np.array(self.processor.decode_continuous(action_tokens.cpu().numpy()))
         # TODO: Clamp action to be in domain of action space?
         return action
