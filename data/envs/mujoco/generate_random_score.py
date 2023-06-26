@@ -64,6 +64,10 @@ def generate_random_score(task_name):
 
     # Save the dictionary to a file
     with open("scores_dict.json", "w") as file:
+        scores_dict = {
+            task: {agent: scores_dict[task][agent] for agent in sorted(scores_dict[task])}
+            for task in sorted(scores_dict)
+        }
         json.dump(scores_dict, file, indent=4)
 
 
