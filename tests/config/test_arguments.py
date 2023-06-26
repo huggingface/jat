@@ -5,7 +5,8 @@ import pytest
 import yaml
 
 import gia.config.arguments
-from gia.config import Arguments, parse_args
+from gia.config import Arguments
+
 
 EXEC_PATH = os.path.abspath(gia.config.arguments.__file__)
 
@@ -85,39 +86,69 @@ def cleanup_argv():
 
 
 def test_post_init_task_names(tmp_path):
-    args = Arguments(task_names="task1,task2,task3", output_dir=tmp_path)
-    assert args.task_names == ["task1", "task2", "task3"]
+    args = Arguments(task_names="mujoco,atari-pong", output_dir=tmp_path)
+    assert {*args.task_names} == {
+        "atari-pong",
+        "mujoco-ant",
+        "mujoco-halfcheetah",
+        "mujoco-hopper",
+        "mujoco-swimmer",
+        "mujoco-reacher",
+        "mujoco-pendulum",
+        "mujoco-walker",
+        "mujoco-doublependulum",
+    }
 
 
 def test_parse_args_no_arguments(tmp_path):
     # Simulate no additional arguments apart from output dir which is required
     sys.argv = [EXEC_PATH, f"--output_dir={tmp_path}"]
 
-    args = parse_args()
+    args = Arguments.parse_args()
 
-    assert args.task_names == ["all"]
+    assert len(args.task_names) > 150  # ensure that there are many tasks (currently there are 151)
 
 
 def test_parse_args_custom_arguments(tmp_path):
     # Simulate custom arguments
-    sys.argv = [EXEC_PATH, f"--output_dir={tmp_path}", "--task_names=task1,task2"]
+    sys.argv = [EXEC_PATH, f"--output_dir={tmp_path}", "--task_names=mujoco,atari-pong"]
 
-    args = parse_args()
+    args = Arguments.parse_args()
 
     assert args.output_dir == str(tmp_path)
-    assert args.task_names == ["task1", "task2"]
+    assert {*args.task_names} == {
+        "atari-pong",
+        "mujoco-ant",
+        "mujoco-halfcheetah",
+        "mujoco-hopper",
+        "mujoco-swimmer",
+        "mujoco-reacher",
+        "mujoco-pendulum",
+        "mujoco-walker",
+        "mujoco-doublependulum",
+    }
 
 
 def test_parse_args_yaml_file(tmp_path):
     # Create a temporary YAML file for testing
     yaml_file_path = os.path.join(tmp_path, "config.yaml")
     with open(yaml_file_path, "w") as yaml_file:
-        yaml.dump({"output_dir": str(tmp_path), "task_names": ["task1", "task2"]}, yaml_file)
+        yaml.dump({"output_dir": str(tmp_path), "task_names": ["mujoco", "atari-pong"]}, yaml_file)
 
     # Simulate passing a YAML file as an argument
     sys.argv = [EXEC_PATH, yaml_file_path]
 
-    args = parse_args()
+    args = Arguments.parse_args()
 
     assert args.output_dir == str(tmp_path)
-    assert args.task_names == ["task1", "task2"]
+    assert {*args.task_names} == {
+        "atari-pong",
+        "mujoco-ant",
+        "mujoco-halfcheetah",
+        "mujoco-hopper",
+        "mujoco-swimmer",
+        "mujoco-reacher",
+        "mujoco-pendulum",
+        "mujoco-walker",
+        "mujoco-doublependulum",
+    }

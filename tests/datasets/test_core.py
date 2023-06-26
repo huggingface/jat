@@ -1,26 +1,9 @@
 import random
 
 import pytest
-import torch
 from datasets import Dataset
-from torch.utils.data import DataLoader
 
-from gia.datasets.core import collate_fn, generate_prompts, load_gia_dataset, concatenate_datasets
-
-
-@pytest.mark.parametrize("split", ["all", "train", "test"])
-def test_load_gia_dataset(split):
-    dataset = load_gia_dataset("mujoco-ant", split=split)
-    assert set(dataset.keys()) == {"rewards", "continuous_observations", "continuous_actions"}
-
-    dataloader = DataLoader(dataset)
-    for idx, episode in enumerate(dataloader):
-        for t in range(10):
-            assert len(episode["continuous_observations"][t]) == 27
-            assert len(episode["continuous_actions"][t]) == 8
-            assert len(episode["rewards"][t]) == 1
-        if idx == 10:
-            break
+from gia.datasets.core import Prompter
 
 
 @pytest.fixture
@@ -31,54 +14,63 @@ def example_dataset():
 
 
 def test_num_prompts(example_dataset):
+    prompter = Prompter(example_dataset)
     num_prompts = 5
-    prompts = generate_prompts(example_dataset, num_prompts)
-    assert len(prompts) == num_prompts, "Number of generated prompts should match num_prompts"
+    prompts = prompter.generate_prompts(num_prompts)
+    assert len(prompts["text"]) == num_prompts, "Number of generated prompts should match num_prompts"
 
 
 def test_prompts_meet_min_length_requirement(example_dataset):
-    # Since the only episode is 19 steps long, the generated prompts should be at least 14 steps.
-    num_prompts = 50
     min_prompt_len = 14
-    prompts = generate_prompts(example_dataset, num_prompts, min_prompt_len=min_prompt_len, max_prompt_len=50)
-    for prompt in prompts:
-        assert len(prompt["text"]) >= min_prompt_len, "Generated prompts should not be shorter than min_prompt_len"
+    prompter = Prompter(example_dataset, min_prompt_len=min_prompt_len, max_prompt_len=50)
+    prompts = prompter.generate_prompts(num_prompts=50)
+    for prompt in prompts["text"]:
+        # Since the only episode is 19 steps long, the generated prompts should be at least 14 steps.
+        assert len(prompt) >= min_prompt_len, "Generated prompts should not be shorter than min_prompt_len"
 
 
 def test_prompts_restricted_to_episode_length(example_dataset):
-    # Since the only episode is 19 steps long, the generated prompts should be 19 steps long when min_prompt_len is
-    # set to a higher value than 19
-    num_prompts = 50
     min_prompt_len = 26
-    prompts = generate_prompts(example_dataset, num_prompts, min_prompt_len=min_prompt_len, max_prompt_len=50)
-    for prompt in prompts:
-        assert len(prompt["text"]) == 19, "Generated prompts should be 19 steps long"
+    prompter = Prompter(example_dataset, min_prompt_len=min_prompt_len, max_prompt_len=50)
+    prompts = prompter.generate_prompts(num_prompts=50)
+    for prompt in prompts["text"]:
+        # Since the only episode is 19 steps long, the generated prompts should be 19 steps long when min_prompt_len is
+        # set to a higher value than 19
+        assert len(prompt) == 19, "Generated prompts should be 19 steps long"
 
 
 def test_max_prompt_len(example_dataset):
-    num_prompts = 5
     max_prompt_len = 3
-    prompts = generate_prompts(example_dataset, num_prompts, max_prompt_len=max_prompt_len)
-    for prompt in prompts:
-        assert len(prompt["text"]) <= max_prompt_len, "Generated prompts should not exceed max_prompt_len"
+    prompter = Prompter(example_dataset, max_prompt_len=max_prompt_len)
+    prompts = prompter.generate_prompts(num_prompts=5)
+    for prompt in prompts["text"]:
+        assert len(prompt) <= max_prompt_len, "Generated prompts should not exceed max_prompt_len"
 
 
 def test_random_seed(example_dataset):
+    prompter = Prompter(example_dataset, p_end=0.5, max_prompt_len=10)
+
     random.seed(42)
     num_prompts = 5
-    prompts_1 = generate_prompts(example_dataset, num_prompts, p_end=0.5)
+    prompts_1 = prompter.generate_prompts(num_prompts)
 
     random.seed(42)
-    prompts_2 = generate_prompts(example_dataset, num_prompts, p_end=0.5)
+    prompts_2 = prompter.generate_prompts(num_prompts)
 
-    assert prompts_1.to_dict() == prompts_2.to_dict(), "Using the same random seed should generate the same prompts"
+    random.seed(43)
+    prompts_3 = prompter.generate_prompts(num_prompts)
+
+    assert prompts_1 == prompts_2, "Using the same random seed should generate the same prompts"
+    assert prompts_1 != prompts_3, "Using different random seeds should generate different prompts"
 
 
 def test_p_end(example_dataset):
-    num_prompts = 1000
     p_end = 0.8
-    prompts = generate_prompts(example_dataset, num_prompts, p_end=p_end, max_prompt_len=5)
-    count_from_end = sum(prompt["text"][-1] == example_dataset["text"][0][-1] for prompt in prompts)
+    prompter = Prompter(example_dataset, p_end=p_end, max_prompt_len=5)
+    num_prompts = 1000
+    prompts = prompter.generate_prompts(num_prompts)
+    end_element = example_dataset["text"][0][-1]
+    count_from_end = sum(prompt[-1] == end_element for prompt in prompts["text"])
     expected_count_from_end = int(num_prompts * p_end)
 
     # We allow a small tolerance in the percentage to account for randomness
@@ -89,36 +81,10 @@ def test_p_end(example_dataset):
 
 
 def test_output_structure(example_dataset):
-    prompts = generate_prompts(example_dataset, num_prompts=5)
+    prompter = Prompter(example_dataset)
 
-    assert isinstance(prompts, Dataset), "Output should be a Dataset object"
-    assert set(prompts.column_names) == set(
-        example_dataset.column_names
-    ), "Output dataset should have the same column names as the input dataset"
-    assert all(isinstance(prompt["text"], list) for prompt in prompts), "Each prompt should be a list"
+    prompts = prompter.generate_prompts(num_prompts=5)
 
-
-def test_concatenate_dataset():
-    dataset1 = Dataset.from_dict({"a": [1, 2, 3], "b": [4, 5, 6]})
-    dataset2 = Dataset.from_dict({"a": [7, 8, 9], "c": [10, 11, 12]})
-    output = concatenate_datasets([dataset1, dataset2])
-    expected_output = {"a": [1, 2, 3, 7, 8, 9], "b": [4, 5, 6, None, None, None], "c": [None, None, None, 10, 11, 12]}
-    assert output == expected_output
-
-
-def test_collate_fn():
-    batch = [
-        {"key1": [1, 2, 0], "key2": [3, 4, 5]},
-        {"key1": [6, 0, 0], "key2": [7, 8, 0]},
-    ]
-
-    output = collate_fn(batch)
-    expected_output = {
-        "key1": torch.tensor([[1, 2, 0], [6, 0, 0]]),
-        "key2": torch.tensor([[3, 4, 5], [7, 8, 0]]),
-    }
-
-    for key in output:
-        assert key in expected_output
-        for i in range(len(output[key])):
-            assert torch.all(output[key][i] == expected_output[key][i])
+    assert isinstance(prompts, dict), "Output should be a Dataset object"
+    assert "text" in prompts, "Output dataset should have the same keys as the input dataset"
+    assert all(isinstance(prompt, list) for prompt in prompts["text"]), "Each prompt should be a list"

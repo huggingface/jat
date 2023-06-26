@@ -1,349 +1,163 @@
-import numpy as np
 import pytest
 
-from gia.processing.interleaver import Interleaver
-
-PPAD = np.zeros(shape=(1, 1, 1), dtype=np.uint8)  # PAD
-P1 = np.random.randint(0, 255, (4, 16, 16), dtype=np.uint8)
-P2 = np.random.randint(0, 255, (4, 16, 16), dtype=np.uint8)
-P3 = np.random.randint(0, 255, (4, 16, 16), dtype=np.uint8)
-P4 = np.random.randint(0, 255, (4, 16, 16), dtype=np.uint8)
-
-POS_PAD = [[0.0, 0.0], [0.0, 0.0]]  # PAD
-LEFT = [[0.0, 0.0], [1.0, 0.5]]
-RIGHT = [[0.0, 0.5], [1.0, 1.0]]
+from gia.processing.interleaver import Interleaver, extend_dol, indexing_from_nested
 
 
-def test_dict_append_input_ids():
-    interleaver = Interleaver()
-    batch_data = {"input_ids": [101, 102]}
-    processed_data = {
-        "input_ids": [1, 2],
-        "local_positions": [11, 22],  # Should never be those values, but here for testing purposes
-        "patches": [PPAD, PPAD],
-        "patch_positions": [POS_PAD, POS_PAD],
-        "input_types": [0, 0],
-        "loss_mask": [0, 0],
+def test_indexing_from_nested_basic():
+    nested_dict = {"outer_key1": {"inner_key": [1, 2, 3]}, "outer_key2": {"inner_key": [4, 5, 6]}}
+    result = indexing_from_nested(nested_dict, 1)
+    expected_result = {"outer_key1": {"inner_key": 2}, "outer_key2": {"inner_key": 5}}
+    assert result == expected_result
+
+
+def test_indexing_from_nested_out_of_range():
+    nested_dict = {"outer_key1": {"inner_key": [1, 2, 3]}, "outer_key2": {"inner_key": [4, 5, 6]}}
+    result = indexing_from_nested(nested_dict, 10)
+    expected_result = None
+    assert result == expected_result
+
+
+def test_indexing_from_nested_none_support():
+    nested_dict = {
+        "outer_key1": {"inner_key1": [None, 2, 3], "inner_key2": None},
+        "outer_key2": {"inner_key": None},
+        "outer_key3": None,
     }
-    local_positions = [33, 44]
+    result = indexing_from_nested(nested_dict, 0)
+    expected_result = None
+    assert result == expected_result
 
-    interleaver._dict_append(batch_data, processed_data, local_positions, loss_mask_value=1)
+    result = indexing_from_nested(nested_dict, 1)
+    expected_result = {"outer_key1": {"inner_key": 2}}
 
-    expected_output = {
-        "input_ids": [1, 2, 101, 102],
-        "local_positions": [11, 22, 33, 44],
-        "patches": [PPAD, PPAD, PPAD, PPAD],
-        "patch_positions": [POS_PAD, POS_PAD, POS_PAD, POS_PAD],
-        "input_types": [0, 0, 0, 0],
-        "loss_mask": [0, 0, 1, 1],
-    }
-
-    # To make dicts easier to compare:
-    processed_data["patches"] = [p.tolist() for p in processed_data["patches"]]
-    expected_output["patches"] = [p.tolist() for p in expected_output["patches"]]
-
-    assert processed_data == expected_output
+    result = indexing_from_nested(nested_dict, 2)
+    expected_result = {"outer_key1": {"inner_key": 3}}
 
 
-def test_dict_append_patches_and_patch_positions():
-    interleaver = Interleaver()
-    batch_data = {"patches": [P1, P2], "patch_positions": [LEFT, RIGHT]}
-    processed_data = {
-        "input_ids": [1, 2],
-        "local_positions": [11, 22],  # Should never be those values, but here for testing purposes
-        "patches": [PPAD, PPAD],
-        "patch_positions": [POS_PAD, POS_PAD],
-        "input_types": [0, 0],
-        "loss_mask": [0, 0],
-    }
-    local_positions = [33, 44]
+def test_indexing_from_nested_type_error():
+    with pytest.raises(TypeError):
+        nested_dict = {"outer_key1": {"inner_key": [1, 2]}, "outer_key2": {"inner_key": 2}}
+        indexing_from_nested(nested_dict, 1)
 
-    interleaver._dict_append(batch_data, processed_data, local_positions, loss_mask_value=1)
 
-    expected_output = {
-        "input_ids": [1, 2, 0, 0],
-        "local_positions": [11, 22, 33, 44],
-        "patches": [PPAD, PPAD, P1, P2],
-        "patch_positions": [POS_PAD, POS_PAD, LEFT, RIGHT],
-        "input_types": [0, 0, 1, 1],
-        "loss_mask": [0, 0, 1, 1],
+def test_extend_dol_no_overlap():
+    dol = {"key1": [1, 2], "key2": [3, 4]}
+    other_dol = {"key3": [5, 6], "key4": [7, 8]}
+    extend_dol(dol, other_dol)
+    assert dol == {
+        "key1": [1, 2, None, None],
+        "key2": [3, 4, None, None],
+        "key3": [None, None, 5, 6],
+        "key4": [None, None, 7, 8],
     }
 
-    # To make dicts easier to compare:
-    processed_data["patches"] = [p.tolist() for p in processed_data["patches"]]
-    expected_output["patches"] = [p.tolist() for p in expected_output["patches"]]
 
-    assert processed_data == expected_output
+def test_extend_dol_partial_overlap():
+    dol = {"key1": [1, 2], "key2": [3, 4]}
+    other_dol = {"key1": [5, 6], "key3": [7, 8]}
+    extend_dol(dol, other_dol)
+    assert dol == {
+        "key1": [1, 2, 5, 6],
+        "key2": [3, 4, None, None],
+        "key3": [None, None, 7, 8],
+    }
 
 
-def test_interleave_episode():
-    # 3 timesteps
-    # 1 observation is composed of
-    #     2 image patches (with the associated patch_positions) and
-    #     1 discrete observations composed of 3 ints
-    st = 42
-    lppv = -1
-    interleaver = Interleaver(separator_token=st, local_position_pad_value=lppv)
+def test_extend_dol_total_overlap():
+    dol = {"key1": [1, 2], "key2": [3, 4]}
+    other_dol = {"key1": [5, 6], "key2": [7, 8]}
+    extend_dol(dol, other_dol)
+    assert dol == {"key1": [1, 2, 5, 6], "key2": [3, 4, 7, 8]}
+
+
+def test_extend_dol_with_empty_dol():
+    dol = {}
+    other_dol = {"key1": [1, 2], "key2": [3, 4]}
+    extend_dol(dol, other_dol)
+    assert dol == {"key1": [1, 2], "key2": [3, 4]}
+
+
+def test_extend_dol_with_empty_other_dol():
+    dol = {"key1": [1, 2], "key2": [3, 4]}
+    other_dol = {}
+    extend_dol(dol, other_dol)
+    assert dol == {"key1": [1, 2], "key2": [3, 4]}
+
+
+def test_interleave_episode_single_inner_key():
+    # Here, inner keys are "a", "b", ... but in reality they are "input_ids", "patches", ...
+    separator = {"a": [99]}
+    interleaver = Interleaver(separator=separator)
     sample_data = {
-        "discrete_observations": {
-            "input_ids": [[1, 2], [3, 4]],
-        },
-        "image_observations": {
-            "patches": [[P1, P2], [P3, P4]],
-            "patch_positions": [[LEFT, RIGHT], [LEFT, RIGHT]],
-        },
+        "image_observations": {"a": [[[1], [3], [5]]]},
+        "discrete_actions": {"a": [[[2], [4], [6]]]},
     }
-    expected_output = {
-        "input_ids": [0, 0, 1, 2, st, 0, 0, 3, 4, st],
-        "local_positions": [0, 1, 2, 3, lppv, 0, 1, 2, 3, lppv],
-        "patches": [P1, P2, PPAD, PPAD, PPAD, P3, P4, PPAD, PPAD, PPAD],
-        "patch_positions": [LEFT, RIGHT, POS_PAD, POS_PAD, POS_PAD, LEFT, RIGHT, POS_PAD, POS_PAD, POS_PAD],
-        "input_types": [1, 1, 0, 0, 0, 1, 1, 0, 0, 0],
-        "loss_mask": [0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
-    }
-
-    processed_data = interleaver._interleave_episode(sample_data)
-
-    # To make dicts easier to compare:
-    processed_data["patches"] = [p.tolist() for p in processed_data["patches"]]
-    expected_output["patches"] = [p.tolist() for p in expected_output["patches"]]
-
+    processed_data = interleaver(sample_data)
+    expected_output = {"a": [[1, 99, 2, 3, 99, 4, 5, 99, 6]]}
     assert processed_data == expected_output
 
 
-def test_interleave_standalone():
+def test_interleave_episode_multiple_inner_key():
+    # Here, inner keys are "a", "b", ... but in reality they are "input_ids", "patches", ...
+    separator = {"a": [99], "b": [88]}
+    interleaver = Interleaver(separator=separator)
+    sample_data = {
+        "image_observations": {"a": [[[1], [3], [5]]], "b": [[[7], [9], [11]]]},
+        "discrete_actions": {"a": [[[2], [4], [6]]], "b": [[[8], [10], [12]]]},
+    }
+    processed_data = interleaver(sample_data)
+    expected_output = {
+        "a": [[1, 99, 2, 3, 99, 4, 5, 99, 6]],
+        "b": [[7, 88, 8, 9, 88, 10, 11, 88, 12]],
+    }
+    assert processed_data == expected_output
+
+
+def test_interleave_standalone_only_images():
+    # Should just return the inner dict
     interleaver = Interleaver()
-    input_data = {
-        "text": {"input_ids": [1, 2]},
-        "images": {"patches": [P1, P2], "patch_positions": [LEFT, RIGHT]},
+    data = {"images": {"a": [[1, 2, 3]]}}
+    processed_data = interleaver(data)
+    assert processed_data == {"a": [[1, 2, 3]]}
+
+
+def test_interleave_standalone_only_text():
+    # Should just return the inner dict
+    interleaver = Interleaver()
+    data = {"text": {"a": [[1, 2, 3]]}}
+    processed_data = interleaver(data)
+    assert processed_data == {"a": [[1, 2, 3]]}
+
+
+def test_interleave_standalone_images_and_text_different_keys():
+    interleaver = Interleaver()
+    data = {
+        "images": {"a": [[1, 2, 3]]},
+        "text": {"b": [[4, 5, 6]]},
     }
-    expected_output = {
-        "input_ids": [0, 0, 1, 2],
-        "local_positions": [-1, -1, -1, -1],
-        "patches": [P1, P2, PPAD, PPAD],
-        "patch_positions": [LEFT, RIGHT, POS_PAD, POS_PAD],
-        "input_types": [1, 1, 0, 0],
-        "loss_mask": [0, 0, 1, 1],
-    }
-
-    processed_data = interleaver._interleave_standalone(input_data)
-
-    # To make dicts easier to compare:
-    processed_data["patches"] = [p.tolist() for p in processed_data["patches"]]
-    expected_output["patches"] = [p.tolist() for p in expected_output["patches"]]
-
-    assert processed_data == expected_output
-
-
-def test_is_episode():
-    # Test valid non-episode case
-    sample_data_1 = {
-        "images": {"patches": [], "patch_positions": []},
-        "text": {"input_ids": []},
-    }
-    assert not Interleaver._is_episode(sample_data_1)
-
-    # Test valid episode case
-    sample_data_2 = {
-        "image_observations": {"patches": [], "patch_positions": []},
-        "text_observations": {"input_ids": []},
-        "discrete_observations": {"input_ids": []},
-        "continuous_actions": {"input_ids": []},
-    }
-    assert Interleaver._is_episode(sample_data_2)
-
-    # Test invalid mixed case
-    sample_data_3 = {
-        "images": {"patches": [], "patch_positions": []},
-        "text_observations": {"input_ids": []},
-        "continuous_actions": {"input_ids": []},
-    }
-    with pytest.raises(ValueError):
-        Interleaver._is_episode(sample_data_3)
-
-    # Test case with extra keys
-    sample_data_4 = {
-        "images": {"patches": [], "patch_positions": []},
-        "text": {"input_ids": []},
-        "extra_key": {"input_ids": []},
-    }
-    with pytest.raises(ValueError):
-        Interleaver._is_episode(sample_data_4)
-
-
-def test_interleave_batch_episode():
-    st = 42
-    lppv = -1
-    interleaver = Interleaver(separator_token=st, local_position_pad_value=lppv)
-    input_data = {
-        "text_observations": {
-            "input_ids": [
-                None,
-                [[1, 2], [3, 4], [5, 6]],
-            ]
-        },
-        "image_observations": {
-            "patches": [
-                [[P1, P2], [P3, P4]],
-                None,
-            ],
-            "patch_positions": [
-                [[LEFT, RIGHT], [LEFT, RIGHT]],
-                None,
-            ],
-        },
-        "discrete_actions": {
-            "input_ids": [
-                [[11, 12], [13, 14]],
-                [[15, 16], [17, 18], [19, 20]],
-            ]
-        },
-    }
-    expected_output = {
-        "input_ids": [
-            [0, 0, st, 11, 12, 0, 0, st, 13, 14],
-            [1, 2, st, 15, 16, 3, 4, st, 17, 18, 5, 6, st, 19, 20],
-        ],
-        "local_positions": [
-            [0, 1, lppv, lppv, lppv, 0, 1, lppv, lppv, lppv],
-            [0, 1, lppv, lppv, lppv, 0, 1, lppv, lppv, lppv, 0, 1, lppv, lppv, lppv],
-        ],
-        "patches": [
-            [P1, P2, PPAD, PPAD, PPAD, P3, P4, PPAD, PPAD, PPAD],
-            [PPAD] * 15,
-        ],
-        "patch_positions": [
-            [LEFT, RIGHT, POS_PAD, POS_PAD, POS_PAD, LEFT, RIGHT, POS_PAD, POS_PAD, POS_PAD],
-            [POS_PAD] * 15,
-        ],
-        "input_types": [
-            [1, 1, 0, 0, 0, 1, 1, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        ],
-        "loss_mask": [
-            [0, 0, 1, 1, 1, 0, 0, 1, 1, 1],
-            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-        ],
-    }
-    processed_data = interleaver(input_data)
-
-    # To make dicts easier to compare:
-    processed_data["patches"] = [[p.tolist() for p in ep] for ep in processed_data["patches"]]
-    expected_output["patches"] = [[p.tolist() for p in ep] for ep in expected_output["patches"]]
-
-    assert processed_data == expected_output
-
-
-def test_interleave_batch_standalone():
-    st = 42
-    lppv = -1
-    interleaver = Interleaver(separator_token=st, local_position_pad_value=lppv)
-    input_data = {
-        "text": {
-            "input_ids": [None, [1, 2], [3, 4]],
-        },
-        "images": {
-            "patches": [[P1, P2], None, [P3, P4]],
-            "patch_positions": [[LEFT, RIGHT], None, [LEFT, RIGHT]],
-        },
-    }
-    expected_output = {
-        "input_ids": [
-            [0, 0],
-            [1, 2],
-            [0, 0, 3, 4],
-        ],
-        "local_positions": [
-            [lppv, lppv],
-            [lppv, lppv],
-            [lppv, lppv, lppv, lppv],
-        ],
-        "patches": [
-            [P1, P2],
-            [PPAD, PPAD],
-            [P3, P4, PPAD, PPAD],
-        ],
-        "patch_positions": [
-            [LEFT, RIGHT],
-            [POS_PAD, POS_PAD],
-            [LEFT, RIGHT, POS_PAD, POS_PAD],
-        ],
-        "input_types": [
-            [1, 1],
-            [0, 0],
-            [1, 1, 0, 0],
-        ],
-        "loss_mask": [[0, 0], [1, 1], [0, 0, 1, 1]],
+    processed_data = interleaver(data)
+    assert processed_data == {
+        "a": [[1, 2, 3, None, None, None]],
+        "b": [[None, None, None, 4, 5, 6]],
     }
 
-    processed_data = interleaver(input_data)
 
-    # To make dicts easier to compare:
-    processed_data["patches"] = [[p.tolist() for p in ep] for ep in processed_data["patches"]]
-    expected_output["patches"] = [[p.tolist() for p in ep] for ep in expected_output["patches"]]
-
-    assert processed_data == expected_output
-
-
-def test_interleave_batch_mixed():
-    st = 42
-    lppv = -1
-    interleaver = Interleaver(separator_token=st, local_position_pad_value=lppv)
-    input_data = {
-        "text": {
-            "input_ids": [
-                [1, 2],
-                None,
-            ],
-        },
-        "image_observations": {
-            "patches": [
-                None,
-                [[P1, P2], [P3, P4]],
-            ],
-            "patch_positions": [
-                None,
-                [[LEFT, RIGHT], [LEFT, RIGHT]],
-            ],
-        },
-        "continuous_actions": {
-            "input_ids": [
-                None,
-                [[11, 12], [13, 14]],
-            ],
-        },
+def test_interleave_standalone_images_and_text_same_keys():
+    interleaver = Interleaver()
+    data = {
+        "images": {"a": [[1, 2, 3]]},
+        "text": {"a": [[4, 5, 6]]},
     }
-    expected_output = {
-        "input_ids": [
-            [1, 2],
-            [0, 0, st, 11, 12, 0, 0, st, 13, 14],
-        ],
-        "local_positions": [
-            [-1, -1],
-            [0, 1, lppv, lppv, lppv, 0, 1, lppv, lppv, lppv],
-        ],
-        "patches": [
-            [PPAD, PPAD],
-            [P1, P2, PPAD, PPAD, PPAD, P3, P4, PPAD, PPAD, PPAD],
-        ],
-        "patch_positions": [
-            [POS_PAD, POS_PAD],
-            [LEFT, RIGHT, POS_PAD, POS_PAD, POS_PAD, LEFT, RIGHT, POS_PAD, POS_PAD, POS_PAD],
-        ],
-        "input_types": [
-            [0, 0],
-            [1, 1, 0, 0, 0, 1, 1, 0, 0, 0],
-        ],
-        "loss_mask": [
-            [1, 1],
-            [0, 0, 1, 1, 1, 0, 0, 1, 1, 1],
-        ],
+    processed_data = interleaver(data)
+    assert processed_data == {"a": [[1, 2, 3, 4, 5, 6]]}
+
+
+def test_allow_observations_1_timestep_longer_than_actions():
+    # useful for evaluation, where we want to infer the next action
+    interleaver = Interleaver()
+    data = {
+        "image_observations": {"a": [[[1], [3], [5]]]},
+        "discrete_actions": {"a": [[[2], [4]]]},
     }
-
-    processed_data = interleaver(input_data)
-
-    # To make dicts easier to compare:
-    processed_data["patches"] = [[p.tolist() for p in ep] for ep in processed_data["patches"]]
-    expected_output["patches"] = [[p.tolist() for p in ep] for ep in expected_output["patches"]]
-
-    assert processed_data == expected_output
+    processed_data = interleaver(data)
+    assert processed_data == {"a": [[1, 2, 3, 4, 5]]}

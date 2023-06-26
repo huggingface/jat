@@ -1,366 +1,267 @@
+import random
+
 import numpy as np
 import pytest
 
-from gia.config import Arguments
 from gia.processing import GiaProcessor
-from gia.processing.processing import GiaTokenizer
 
 
-def test_decode_continuous():
-    # Instantiate GiaProcessor
-    args = Arguments(nb_bins=1024, output_dir="./")
-    tokenizer = GiaTokenizer(args)
+def generate_data(batch_size, features):
+    output = {}
+    num_timesteps = [np.random.randint(5, 10) for _ in range(batch_size)]  # only used for episode data
+    if "text" in features:
+        words = ["lorem", "ipsum", "dolor", "sit", "amet", "consectetur", "adipiscing", "elit"]
+        vocab = [" ".join(random.choices(words, k=np.random.randint(10, 30))) for _ in range(100)]
+        output["text"] = random.choices(vocab, k=batch_size)
+    if "images" in features:
+        output["images"] = [np.random.randint(0, 255, size=(84, 84, 3), dtype=np.uint8) for _ in range(batch_size)]
+    if "text_observations" in features:
+        vocab = ["lorem", "ipsum", "dolor", "sit", "amet", "consectetur", "adipiscing", "elit"]
+        output["text_observations"] = [random.choices(vocab, k=seq_num_timeteps) for seq_num_timeteps in num_timesteps]
+    if "image_observations" in features:
+        output["image_observations"] = [
+            [np.random.randint(0, 255, size=(84, 84, 3), dtype=np.uint8) for _ in range(seq_num_timesteps)]
+            for seq_num_timesteps in num_timesteps
+        ]
+    if "discrete_observations_single" in features:
+        output["discrete_observations"] = [
+            [np.random.randint(0, 16, dtype=np.int64) for _ in range(seq_num_timesteps)]
+            for seq_num_timesteps in num_timesteps
+        ]
+    if "discrete_observations_multi" in features:
+        output["discrete_observations"] = [
+            [np.random.randint(0, 16, size=(2,), dtype=np.int64) for _ in range(seq_num_timesteps)]
+            for seq_num_timesteps in num_timesteps
+        ]
+    if "continuous_observations" in features:
+        output["continuous_observations"] = [
+            [np.random.rand(2) for _ in range(seq_num_timesteps)] for seq_num_timesteps in num_timesteps
+        ]
+    if "discrete_actions_single" in features:
+        output["discrete_actions"] = [
+            [np.random.randint(0, 16, dtype=np.int64) for _ in range(seq_num_timesteps)]
+            for seq_num_timesteps in num_timesteps
+        ]
+    if "discrete_actions_multi" in features:
+        output["discrete_actions"] = [
+            [np.random.randint(0, 16, size=(2,), dtype=np.int64) for _ in range(seq_num_timesteps)]
+            for seq_num_timesteps in num_timesteps
+        ]
+    if "continuous_actions" in features:
+        output["continuous_actions"] = [
+            [np.random.rand(2) for _ in range(seq_num_timesteps)] for seq_num_timesteps in num_timesteps
+        ]
+    if "rewards" in features:
+        output["rewards"] = [
+            [random.random() for _ in range(seq_num_timesteps)] for seq_num_timesteps in num_timesteps
+        ]
 
-    # Create sample tokens
-    x = np.linspace(-5.0, 5.0, 50).reshape(1, 25, -1).tolist()  # Convert to batch of size 1, 25 timesteps, 2 features
-
-    # Call tokenize_continuous method
-    tokens = tokenizer(continuous_observations=x)
-
-    # Compute the expected result
-    expected_result = tokenizer.decode_continuous(tokens["continuous_observations"]["input_ids"])
-
-    # Assert that the result is close to the expected result
-    np.testing.assert_allclose(x, expected_result, atol=1e-1)
-
-
-def test_tokenize_continuous():
-    args = Arguments(nb_bins=16, output_dir="./")
-    tokenizer = GiaTokenizer(args)
-    seq_len = 10
-    obs_size = 9
-    action_size = 3
-    # Generate 1 episode of random observations and actions
-    observations = (np.random.rand(1, seq_len, obs_size) * 20 - 10).tolist()  # random observations in [-10, 10]
-    actions = (np.random.rand(1, seq_len, action_size) * 20 - 10).tolist()  # random actions in [-10, 10]
-    tokens = tokenizer(continuous_observations=observations, continuous_actions=actions)
-    observations_tokens = np.array(tokens["continuous_observations"]["input_ids"])
-    actions_tokens = np.array(tokens["continuous_actions"]["input_ids"])
-    # Check that we've still one episode
-    assert observations_tokens.shape == (1, seq_len, obs_size)
-    assert actions_tokens.shape == (1, seq_len, action_size)
-    # Check that the dtype is correct
-    assert observations_tokens.dtype == np.int64
-    assert actions_tokens.dtype == np.int64
-    # Check that the tokens are shifted (caution, tokens shouldn't be the separator tokens)
-    assert np.all(observations_tokens >= tokenizer.token_shift)  # Tokens are shifted
-    assert np.all(actions_tokens >= tokenizer.token_shift)  # Tokens are shifted
-    assert np.all(observations_tokens <= args.nb_bins + tokenizer.token_shift)
-    assert np.all(actions_tokens <= args.nb_bins + tokenizer.token_shift)
-
-
-def test_tokenize_discrete():
-    args = Arguments(nb_bins=16, output_dir="./")
-    tokenizer = GiaTokenizer(args)
-    seq_len = 10
-    obs_size = 9
-    action_size = 3
-    # Generate 1 episode of random observations and actions
-    observations = np.random.randint(0, 5, (1, seq_len, obs_size)).tolist()  # random observations in [0, 5]
-    actions = np.random.randint(0, 4, (1, seq_len, action_size)).tolist()  # random actions in [0, 4]
-    tokens = tokenizer(discrete_observations=observations, discrete_actions=actions)
-    observations_tokens = np.array(tokens["discrete_observations"]["input_ids"])
-    actions_tokens = np.array(tokens["discrete_actions"]["input_ids"])
-    # Check that we've still one episode
-    assert observations_tokens.shape == (1, seq_len, obs_size)
-    assert actions_tokens.shape == (1, seq_len, action_size)
-    # Check that the dtype is correct
-    assert observations_tokens.dtype == np.int64
-    assert actions_tokens.dtype == np.int64
-    # Check that the tokens are shifted (caution, tokens shouldn't be the separator tokens)
-    assert np.all(observations_tokens >= tokenizer.token_shift)  # Tokens are shifted
-    assert np.all(actions_tokens >= tokenizer.token_shift)  # Tokens are shifted
-    assert np.all(observations_tokens <= args.nb_bins + tokenizer.token_shift)
-    assert np.all(actions_tokens <= args.nb_bins + tokenizer.token_shift)
+    return output
 
 
-def test_tokenize_text():
-    # In text-only dataset, we don't have episodes
-    # The model should handle this case
-    args = Arguments(nb_bins=16, output_dir="./")
-    tokenizer = GiaTokenizer(args)
-    texts = ["This is a test", "This is another test"]
-    tokens = tokenizer(text_observations=texts)
-    # Check that the returned object is a dict with the correct keys
-    assert isinstance(tokens, dict)
-    assert "text_observations" in tokens
-    text_tokens = tokens["text_observations"]["input_ids"]
-    # Check that we have the correct number of samples
-    assert len(text_tokens) == len(texts)
-    # Check that the dtype is correct
-    assert all(isinstance(token, int) for tokens in text_tokens for token in tokens)
-    # The two texts are different, so the tokens should be different
-    assert any(t1 != t2 for t1, t2 in zip(*text_tokens))
-    # Check the token values
-    assert all(token < tokenizer.token_shift for tokens in text_tokens for token in tokens)  # Tokens aren't shifted
+EP_DATA_CONFIGS = [
+    ["continuous_observations", "continuous_actions", "rewards"],  # mujoco and metaworld
+    ["image_observations", "discrete_actions_single", "rewards"],  # atari
+    ["text_observations", "discrete_observation_multi", "discrete_actions_single", "rewards"],  # babyai
+]
+STANDALONE_DATA_CONFIGS = [
+    ["text"],  # oscar
+    ["text", "images"],  # vqvae and conceptual caption
+]
 
 
-def test_tokenize_image():
-    # In image-only dataset, we don't have episodes
-    # The model should handle this case
-    args = Arguments(nb_bins=16, output_dir="./")
-    tokenizer = GiaTokenizer(args)
-    images = [np.random.randint(0, 255, (3, 32, 32), dtype=np.uint8) for _ in range(2)]
-    tokens = tokenizer(image_observations=images)
-    # Check that the returned object is a dict with the correct keys
-    assert isinstance(tokens, dict)
-    assert "image_observations" in tokens
-    patches = tokens["image_observations"]["patches"]
-    patch_positions = tokens["image_observations"]["patch_positions"]
-    # Check that we have the correct number of samples
-    assert len(patches) == len(images)
-    assert len(patch_positions) == len(images)
-    # Check that the dtype is correct
-    for ep_idx in range(len(images)):
-        for t in range(len(patches[ep_idx])):
-            assert isinstance(patches[ep_idx][t], np.ndarray)
-            assert patches[ep_idx][t].dtype == np.uint8
-            assert patches[ep_idx][t].shape == (4, 16, 16)
-            # Check that position looks like [[x1, y1], [x2, y2]
-            assert isinstance(patch_positions[ep_idx][t], list)
-            assert len(patch_positions[ep_idx][t]) == 2
-            assert all(isinstance(position, list) for position in patch_positions[ep_idx][t])
-            assert all(len(position) == 2 for position in patch_positions[ep_idx][t])
-            # Check that x1 < x2 and y1 < y2
-            assert patch_positions[ep_idx][t][0][0] < patch_positions[ep_idx][t][1][0]
-            assert patch_positions[ep_idx][t][0][1] < patch_positions[ep_idx][t][1][1]
-
-    # The two images are different, so their patches should be different
-    assert any(np.any(p1 != p2) for p1, p2 in zip(*patches))
-    # But they have the size, so the positions should be the same
-    assert all(p1 == p2 for p1, p2 in zip(*patch_positions))
-
-
-def test_tokenize_mixed_batch():
-    args = Arguments(nb_bins=16, output_dir="./")
-    tokenizer = GiaTokenizer(args)
-    continuous_observations = [
-        [[0.1, 0.2], [0.3, 0.4]],
-        None,
-    ]
-    discrete_observations = [
-        None,
-        [[1, 2], [3, 4]],
-    ]
-    continuous_actions = [
-        [[0.5, 0.6], [0.7, 0.8]],
-        [[0.9, 1.0], [1.1, 1.2]],
-    ]
-
-    tokens = tokenizer(
-        continuous_observations=continuous_observations,
-        discrete_observations=discrete_observations,
-        continuous_actions=continuous_actions,
-    )
-    # Check that we've still two episodes
-    assert len(tokens["continuous_observations"]["input_ids"]) == 2
-    assert len(tokens["discrete_observations"]["input_ids"]) == 2
-    assert len(tokens["continuous_actions"]["input_ids"]) == 2
-    # Check that there are still None values
-    assert tokens["continuous_observations"]["input_ids"][1] is None
-    assert tokens["discrete_observations"]["input_ids"][0] is None
-    # Check the the sequence length is correct
-    assert len(tokens["continuous_observations"]["input_ids"][0]) == 2
-    assert len(tokens["discrete_observations"]["input_ids"][1]) == 2
-    assert len(tokens["continuous_actions"]["input_ids"][0]) == 2
-    assert len(tokens["continuous_actions"]["input_ids"][1]) == 2
-
-
-# Fixture for data
-@pytest.fixture
-def data():
-    return {
-        "continuous_observations": [
-            [[0.1, 0.2], [0.3, 0.4]],
-            None,
-        ],
-        "discrete_observations": [
-            None,
-            [[1, 2, 3], [4, 5, 6]],
-        ],
-        "continuous_actions": [
-            [[0.5, 0.6], [0.7, 0.8]],
-            [[0.9, 1.0], [1.1, 1.2]],
-        ],
-        "rewards": [
-            [1.0, 2.0],
-            [3.0, 4.0],
-        ],
-    }
-
-
-def test_gia_processor_padding_default(data):
-    args = Arguments(nb_bins=16, output_dir="./")
-    processor = GiaProcessor(args=args)
-    out = processor(**data)
+@pytest.mark.parametrize("features", EP_DATA_CONFIGS + STANDALONE_DATA_CONFIGS)
+@pytest.mark.parametrize("seq_len", [512, 1024])
+def test_gia_processor_padding_max_length_none(features, seq_len):
+    processor = GiaProcessor(seq_len=seq_len)
+    data = generate_data(2, features)
+    out = processor(**data, padding="max_length", max_length=None)
 
     for sequences in out.values():
-        assert len(sequences) == 2
-        assert len(sequences[0]) == args.seq_len
-        assert len(sequences[1]) == args.seq_len
+        assert all(len(sequence) == seq_len for sequence in sequences)
 
 
-def test_gia_processor_padding_true(data):
-    args = Arguments(nb_bins=16, output_dir="./")
-    processor = GiaProcessor(args=args)
-    out = processor(**data, padding=True)
+@pytest.mark.parametrize("features", EP_DATA_CONFIGS + STANDALONE_DATA_CONFIGS)
+@pytest.mark.parametrize("max_length", [512, 1024])
+def test_gia_processor_padding_max_length_value(features, max_length):
+    processor = GiaProcessor()
+    data = generate_data(2, features)
+    out = processor(**data, padding="max_length", max_length=max_length)
+
     for sequences in out.values():
-        assert len(sequences) == 2
-        assert len(sequences[0]) == 10 + 2  # 2 for the separator tokens
-        assert len(sequences[1]) == 10 + 2
+        assert all(len(sequence) == max_length for sequence in sequences)
 
 
-def test_gia_processor_padding_longest(data):
-    args = Arguments(nb_bins=16, output_dir="./")
-    processor = GiaProcessor(args=args)
-    out = processor(**data, padding="longest")
+@pytest.mark.parametrize("features", EP_DATA_CONFIGS + STANDALONE_DATA_CONFIGS)
+def test_gia_processor_padding_true(features):
+    processor = GiaProcessor()
+    data = generate_data(2, features)
+    out = processor(**data, padding=True)  # equivalent to padding="longest"
+
+    seq_len = None  # check that all sequences have the same length
     for sequences in out.values():
-        assert len(sequences[0]) == 12  # 2 for the separator tokens
-        assert len(sequences[1]) == 12
+        if seq_len is None:
+            seq_len = len(sequences[0])
+        assert all(len(sequence) == seq_len for sequence in sequences)
 
 
-def test_gia_processor_padding_max_length_no_value(data):
-    args = Arguments(nb_bins=16, output_dir="./")
-    processor = GiaProcessor(args=args)
-    out = processor(**data, padding="max_length")
+@pytest.mark.parametrize("features", EP_DATA_CONFIGS + STANDALONE_DATA_CONFIGS)
+def test_gia_processor_padding_false(features):
+    processor = GiaProcessor()
+    data = generate_data(5, features)
+    out = processor(**data, padding=False)  # equivalent to padding="do_not_pad"
+
+    # Check that length is consistent across keys but not across batch_idx
+    seq_len = []
     for sequences in out.values():
-        assert len(sequences[0]) == args.seq_len
-        assert len(sequences[1]) == args.seq_len
+        for batch_idx in range(len(sequences)):
+            if len(seq_len) <= batch_idx:
+                seq_len.append(len(sequences[batch_idx]))
+            assert len(sequences[batch_idx]) == seq_len[batch_idx]
+    # very low chance that all the 5 sequences have the same length
+    assert not all(seq_len[0] == seq_len[batch_idx] for batch_idx in range(len(seq_len)))
 
 
-def test_gia_processor_padding_max_length_with_value(data):
-    args = Arguments(nb_bins=16, output_dir="./")
-    processor = GiaProcessor(args=args)
-    out = processor(**data, padding="max_length", max_length=14)
+@pytest.mark.parametrize("features", EP_DATA_CONFIGS + STANDALONE_DATA_CONFIGS)
+def test_gia_processor_truncation_residual_no_need(features):
+    processor = GiaProcessor()
+    data = generate_data(2, features)
+    out = processor(**data, truncation="residual", max_length=1024)
+    out_no_truncation = processor(**data, truncation=False, max_length=1024)
+
+    # We need to iterate since some values are arrays
+    assert out.keys() == out_no_truncation.keys()
+    for key in out.keys():
+        assert len(out[key]) == len(out_no_truncation[key])
+        for batch_idx in range(len(out[key])):
+            assert len(out[key][batch_idx]) == len(out_no_truncation[key][batch_idx])
+            for val, val_no_truncation in zip(out[key][batch_idx], out_no_truncation[key][batch_idx]):
+                if isinstance(val, np.ndarray):
+                    assert np.all(val == val_no_truncation)
+                else:
+                    assert val == val_no_truncation
+
+
+@pytest.mark.parametrize("features", EP_DATA_CONFIGS + STANDALONE_DATA_CONFIGS)
+def test_gia_processor_truncation_residual_with_need(features):
+    processor = GiaProcessor()
+    data = generate_data(2, features)
+    max_length = 10
+    out = processor(**data, truncation="residual", max_length=max_length)
+    out_no_truncation = processor(**data, truncation=False)
+
+    assert out.keys() == out_no_truncation.keys()
+    for key in out.keys():
+        assert len(out[key]) > len(out_no_truncation[key])  # batch size should have increased
+        # Check that the sequence as been truncated to the max_length
+        assert len(out[key][0]) == max_length
+        # Check that the first max_length values are the same as the non-truncated sequence
+        for idx in range(max_length):
+            val = out[key][0][idx]
+            val_no_truncation = out_no_truncation[key][0][idx]
+            if isinstance(val, np.ndarray):
+                assert np.all(val == val_no_truncation)
+            else:
+                assert val == val_no_truncation
+        # Check that the next values are in the second sequence
+        for idx in range(max_length):
+            val = out[key][1][idx]
+            val_no_truncation = out_no_truncation[key][0][idx + max_length]
+            if isinstance(val, np.ndarray):
+                assert np.all(val == val_no_truncation)
+            else:
+                assert val == val_no_truncation
+
+
+@pytest.mark.parametrize("features", EP_DATA_CONFIGS + STANDALONE_DATA_CONFIGS)
+def test_gia_processor_truncation_true(features):
+    processor = GiaProcessor()
+    data = generate_data(2, features)
+    max_length = 10
+    out = processor(**data, truncation=True, max_length=max_length)
+    out_no_truncation = processor(**data, truncation=False)
+
+    assert out.keys() == out_no_truncation.keys()
+    for key in out.keys():
+        assert len(out[key]) == 2  # batch size should be the same
+        # Check that the sequence as been truncated to the max_length
+        assert all(len(sequence) <= max_length for sequence in out[key])
+        # Check that the first max_length values are the same as the non-truncated sequence
+        for batch_idx in range(len(out[key])):
+            for idx in range(max_length):
+                val = out[key][batch_idx][idx]
+                val_no_truncation = out_no_truncation[key][batch_idx][idx]
+                if isinstance(val, np.ndarray):
+                    assert np.all(val == val_no_truncation)
+                else:
+                    assert val == val_no_truncation
+
+
+@pytest.mark.parametrize("features", EP_DATA_CONFIGS + STANDALONE_DATA_CONFIGS)
+def test_gia_processor_truncation_false(features):
+    # To test this one, we don't pad
+    processor = GiaProcessor()
+    data = generate_data(5, features)
+    out = processor(**data, truncation=False, padding=False)
+
+    # Seq len should vary across batch_idx (but should be consistent across keys)
+    seq_len = []
     for sequences in out.values():
-        assert len(sequences[0]) == 14
-        assert len(sequences[1]) == 14
+        for batch_idx in range(len(sequences)):
+            if len(seq_len) <= batch_idx:
+                seq_len.append(len(sequences[batch_idx]))
+            assert len(sequences[batch_idx]) == seq_len[batch_idx]
+    # very low chance that all the 5 sequences have the same length
+    assert not all(seq_len[0] == seq_len[batch_idx] for batch_idx in range(len(seq_len)))
 
 
-def test_gia_processor_padding_false(data):
-    args = Arguments(nb_bins=16, output_dir="./")
-    processor = GiaProcessor(args=args)
-    out = processor(**data, padding=False)
-    for sequences in out.values():
-        assert len(sequences[0]) == 8 + 2  # 2 for the separator tokens
-        assert len(sequences[1]) == 10 + 2
+def test_gia_processor_local_positions_singleton_single_modality():
+    processor = GiaProcessor(local_positions_groups=[["continuous_observations"]])  # only text
+    data = generate_data(2, ["continuous_observations"])
+    out = processor(**data, truncation=False, padding=False)
+
+    for sequences in out["local_positions"]:  # Check that the local positions are [0, 1, None, 0, 1, None, ...]
+        assert all(val == 0 for val in sequences[0::3])  # values have 2 components
+        assert all(val == 1 for val in sequences[1::3])
+        assert all(val is None for val in sequences[2::3])  # separator
 
 
-def test_gia_processor_padding_do_not_pad(data):
-    args = Arguments(nb_bins=16, output_dir="./")
-    processor = GiaProcessor(args=args)
-    out = processor(**data, padding="do_not_pad")
-    for sequences in out.values():
-        assert len(sequences[0]) == 8 + 2  # 2 for the separator tokens
-        assert len(sequences[1]) == 10 + 2
+def test_gia_processor_local_positions_singleton_multi_modality():
+    processor = GiaProcessor(local_positions_groups=[["continuous_observations"]])  # only text
+    data = generate_data(2, ["continuous_observations", "discrete_actions_single"])
+    out = processor(**data, truncation=False, padding=False)
+
+    # Check that the local positions are [0, 1, None,  None, 0, 1, None, ...]
+    for sequences in out["local_positions"]:
+        assert all(val == 0 for val in sequences[0::4])
+        assert all(val == 1 for val in sequences[1::4])
+        assert all(val is None for val in sequences[2::4])  # action
+        assert all(val is None for val in sequences[3::4])  # separator
 
 
-def test_gia_processor_truncation_default(data):
-    args = Arguments(nb_bins=16, output_dir="./")
-    processor = GiaProcessor(args=args)
-    out = processor(**data)
-    for sequences in out.values():
-        assert len(sequences) == 2
-        assert len(sequences[0]) == args.seq_len
-        assert len(sequences[1]) == args.seq_len
+def test_gia_processor_local_positions_non_singleton_multi_modality():
+    processor = GiaProcessor(local_positions_groups=[["discrete_observations", "continuous_observations"]])
+    data = generate_data(2, ["discrete_observations_single", "continuous_observations", "discrete_actions_single"])
+    out = processor(**data, truncation=False, padding=False)
+
+    # Check that the local positions are [0, 1, 2, None, 0, 1, 2, None, ...]
+    for sequences in out["local_positions"]:
+        assert all(val == 0 for val in sequences[0::5])  # discrete observation
+        assert all(val == 1 for val in sequences[1::5])  # continuous observations have 2 components
+        assert all(val == 2 for val in sequences[2::5])
+        assert all(val is None for val in sequences[3::5])  # action
+        assert all(val is None for val in sequences[4::5])  # separator
 
 
-def test_gia_processor_truncation_residual_no_value(data):
-    args = Arguments(nb_bins=16, output_dir="./")
-    processor = GiaProcessor(args=args)
-    out = processor(**data, truncation="residual")
-    for sequences in out.values():
-        assert len(sequences) == 2
-        assert len(sequences[0]) == args.seq_len
-        assert len(sequences[1]) == args.seq_len
+def test_gia_processor_mask_loss_modalities():
+    processor = GiaProcessor(mask_loss_modalities=["continuous_observations"])
+    data = generate_data(2, ["discrete_observations_single", "continuous_observations", "discrete_actions_single"])
+    out = processor(**data, truncation=False, padding=False)
 
-
-def test_gia_processor_truncation_residual_with_value(data):
-    args = Arguments(nb_bins=16, output_dir="./")
-    processor = GiaProcessor(args=args)
-    out = processor(**data, truncation="residual", max_length=10)
-    for sequences in out.values():
-        assert len(sequences) == 3
-        assert len(sequences[0]) == 10
-        assert len(sequences[1]) == 10
-        assert len(sequences[2]) == 10
-
-
-def test_gia_processor_truncation_true_no_value(data):
-    args = Arguments(nb_bins=16, output_dir="./")
-    processor = GiaProcessor(args=args)
-    out = processor(**data, truncation=True)
-    for sequences in out.values():
-        assert len(sequences) == 2
-        assert len(sequences[0]) == args.seq_len
-        assert len(sequences[1]) == args.seq_len
-
-
-def test_gia_processor_truncation_true_with_value(data):
-    args = Arguments(nb_bins=16, output_dir="./")
-    processor = GiaProcessor(args=args)
-    out = processor(**data, truncation=True, max_length=9)
-    for sequences in out.values():
-        assert len(sequences) == 2
-        assert len(sequences[0]) == 9
-        assert len(sequences[1]) == 9
-
-
-def test_gia_processor_truncation_max_length_no_value(data):
-    args = Arguments(nb_bins=16, output_dir="./")
-    processor = GiaProcessor(args=args)
-    out = processor(**data, truncation="max_length")
-    for sequences in out.values():
-        assert len(sequences) == 2
-        assert len(sequences[0]) == args.seq_len
-        assert len(sequences[1]) == args.seq_len
-
-
-def test_gia_processor_truncation_max_length_with_value(data):
-    args = Arguments(nb_bins=16, output_dir="./")
-    processor = GiaProcessor(args=args)
-    out = processor(**data, truncation="max_length", max_length=11)
-    for sequences in out.values():
-        assert len(sequences) == 2
-        assert len(sequences[0]) == 11
-        assert len(sequences[1]) == 11
-    assert out["attention_mask"] == [
-        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0],
-        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-    ]
-
-
-def test_gia_processor_truncation_false(data):
-    args = Arguments(nb_bins=16, output_dir="./")
-    processor = GiaProcessor(args=args)
-    out = processor(**data, truncation=False)
-    for sequences in out.values():
-        assert len(sequences) == 2
-        assert len(sequences[0]) == args.seq_len
-        assert len(sequences[1]) == args.seq_len
-
-
-def test_gia_processor_truncation_do_not_truncate(data):
-    args = Arguments(nb_bins=16, output_dir="./")
-    processor = GiaProcessor(args=args)
-    out = processor(**data, truncation="do_not_truncate")
-    for sequences in out.values():
-        assert len(sequences) == 2
-        assert len(sequences[0]) == args.seq_len
-        assert len(sequences[1]) == args.seq_len
-
-
-def test_gia_processor_truncate_residual_and_pad(data):
-    args = Arguments(nb_bins=16, output_dir="./")
-    processor = GiaProcessor(args=args)
-    out = processor(**data, truncation="residual", padding="max_length", max_length=11)
-    for sequences in out.values():
-        assert len(sequences) == 3
-        assert len(sequences[0]) == 11
-        assert len(sequences[1]) == 11
-        assert len(sequences[2]) == 11
-    assert out["attention_mask"] == [
-        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0],
-        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    ]
+    # Check that the mask is [None, False, False, True, None, ...]
+    for sequences in out["loss_mask"]:
+        assert all(val is None for val in sequences[0::5])  # discrete observation
+        assert all(not val for val in sequences[1::5])
+        assert all(not val for val in sequences[2::5])  # continuous observations have 2 components
+        assert all(val for val in sequences[3::5])  # action (not masked by default)
+        assert all(val is None for val in sequences[4::5])  # separator

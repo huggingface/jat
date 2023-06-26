@@ -1,3 +1,3 @@
-from .utils import ufloat_decoder, ufloat_encoder
+from .utils import logger, ufloat_decoder, ufloat_encoder
 
-__all__ = ["ufloat_decoder", "ufloat_encoder"]
+__all__ = ["logger", "ufloat_decoder", "ufloat_encoder"]

@@ -99,7 +99,7 @@ def create_mujoco_dataset(cfg: Config):
     actor_critic.model_to_device(device)
 
     policy_id = cfg.policy_index
-    name_prefix = dict(latest="checkpoint", best="best")[cfg.load_checkpoint_kind]
+    name_prefix = {"latest": "checkpoint", "best": "best"}[cfg.load_checkpoint_kind]
     checkpoints = Learner.get_checkpoints(Learner.checkpoint_dir(cfg, policy_id), f"{name_prefix}_*")
     checkpoint_dict = Learner.load_checkpoint(checkpoints, device)
     actor_critic.load_state_dict(checkpoint_dict["model"])
