@@ -17,4 +17,3 @@ def ufloat_decoder(dct):
 
 logger = logging.get_logger("gia")
 logger.setLevel(logging.INFO)
-
