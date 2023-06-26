@@ -26,6 +26,10 @@ class DatasetArguments:
             )
         },
     )
+    text_tokenizer_name: str = field(
+        default="bert-base-cased",
+        metadata={"help": "The name of the tokenizer to use for text observations."},
+    )
     use_separator: bool = field(
         default=True, metadata={"help": "Whether to include a separator token between observations and actions."}
     )
