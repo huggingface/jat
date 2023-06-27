@@ -16,7 +16,7 @@ ENV_NAMES = [
     "atari-amidar",
     "atari-assault",
     "atari-asterix",
-    "atari-asteroid",
+    "atari-asteroids",
     "atari-atlantis",
     "atari-bankheist",
     "atari-battlezone",
@@ -42,14 +42,14 @@ ENV_NAMES = [
     "atari-jamesbond",
     "atari-kangaroo",
     "atari-krull",
-    "atari-kongfumaster",
-    "atari-montezuma",
+    "atari-kungfumaster",
+    "atari-montezumarevenge",
     "atari-mspacman",
     "atari-namethisgame",
     "atari-phoenix",
     "atari-pitfall",
     "atari-pong",
-    "atari-privateye",
+    "atari-privateeye",
     "atari-qbert",
     "atari-riverraid",
     "atari-roadrunner",
@@ -59,7 +59,7 @@ ENV_NAMES = [
     "atari-solaris",
     "atari-spaceinvaders",
     "atari-stargunner",
-    "atari-surround",
+    # "atari-surround", # Not in the dataset
     "atari-tennis",
     "atari-timepilot",
     "atari-tutankham",
@@ -174,7 +174,7 @@ ENV_NAMES = [
 for env_name in tqdm(ENV_NAMES):
     tqdm.write(f"Downloading expert scores for {env_name}")
 
-    dataset = load_dataset("gia-project/gia-dataset", env_name)
+    dataset = load_dataset("gia-project/gia-dataset", env_name, writer_batch_size=1)
     # Initialize the variables
     rewards = dataset["train"]["rewards"] + dataset["test"]["rewards"]
     episode_sum_rewards = [np.sum(r) for r in rewards]

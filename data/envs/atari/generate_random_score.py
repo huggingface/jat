@@ -17,7 +17,7 @@ TASK_NAMES = [
     "atari-amidar",
     "atari-assault",
     "atari-asterix",
-    "atari-asteroid",
+    "atari-asteroids",
     "atari-atlantis",
     "atari-bankheist",
     "atari-battlezone",
@@ -43,14 +43,14 @@ TASK_NAMES = [
     "atari-jamesbond",
     "atari-kangaroo",
     "atari-krull",
-    "atari-kongfumaster",
-    "atari-montezuma",
+    "atari-kungfumaster",
+    "atari-montezumarevenge",
     "atari-mspacman",
     "atari-namethisgame",
     "atari-phoenix",
     "atari-pitfall",
     "atari-pong",
-    "atari-privateye",
+    "atari-privateeye",
     "atari-qbert",
     "atari-riverraid",
     "atari-roadrunner",
@@ -71,7 +71,6 @@ TASK_NAMES = [
     "atari-yarsrevenge",
     "atari-zaxxon",
 ]
-
 TOT_NUM_TIMESTEPS = 1_000_000
 
 
@@ -120,6 +119,10 @@ def generate_random_score(task_name):
 
     # Save the dictionary to a file
     with open("scores_dict.json", "w") as file:
+        scores_dict = {
+            task: {agent: scores_dict[task][agent] for agent in sorted(scores_dict[task])}
+            for task in sorted(scores_dict)
+        }
         json.dump(scores_dict, file, indent=4)
 
 
