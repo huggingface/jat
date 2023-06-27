@@ -177,7 +177,7 @@ def load_and_process_dataset(
     """
 
     dataset_dict = {
-        task_name: load_dataset("gia-project/gia-dataset", task_name, split=split)
+        task_name: load_dataset("gia-project/gia-dataset", task_name, split=split, writer_batch_size=1)
         for task_name in data_args.task_names
     }
     prompters = {
@@ -210,7 +210,8 @@ def load_and_process_dataset(
             partial(prompt_and_process, prompter=prompters.get(task_name)),
             remove_columns=dataset.column_names,
             batched=True,
-            batch_size=20,  # lower this from 1000 to 20 avoid OOM
+            batch_size=1,  # lower this from 1000 to 20 avoid OOM
+            writer_batch_size=1,
             num_proc=data_args.preprocessing_num_workers,
             load_from_cache_file=not data_args.overwrite_cache,
         )
