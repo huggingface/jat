@@ -19,6 +19,13 @@ def clamp(x, min_value, max_value):
     return max(min(x, max_value), min_value)
 
 
+def nested_like(x, val):
+    if isinstance(x, list):
+        return [nested_like(x_i, val) for x_i in x]
+    else:
+        return val
+
+
 class GiaImageProcessor:
     def __init__(self, patch_size: int = 16) -> None:
         self.patch_size = patch_size
@@ -314,7 +321,7 @@ class GiaProcessor:
             output = self.image_processor(images)
             patches = output["patches"]
             patch_positions = output["patch_positions"]
-            input_types = [[[1] * len(val) for val in seq] for seq in patches]
+            input_types = [[1] * len(val) for val in patches]
             batch_encoding["images"] = {
                 "patches": patches,
                 "patch_positions": patch_positions,
@@ -367,9 +374,7 @@ class GiaProcessor:
         # Add the loss mask
         for modality in batch_encoding:
             if modality in self.mask_loss_modalities:
-                batch_encoding[modality]["loss_mask"] = [
-                    [[False] * len(val) for val in seq] for seq in batch_encoding[modality]["input_types"]
-                ]
+                batch_encoding[modality]["loss_mask"] = nested_like(batch_encoding[modality]["input_types"], False)
 
         # Add the local positions
         self.local_positions_adder(batch_encoding)

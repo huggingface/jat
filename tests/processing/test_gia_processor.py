@@ -314,7 +314,7 @@ def test_gia_processor_local_positions_non_singleton_multi_modality():
         assert all(val is None for val in sequences[5::6])  # separator
 
 
-def test_gia_processor_mask_loss_modalities():
+def test_gia_processor_mask_loss_modalities_episode():
     processor = GiaProcessor(mask_loss_modalities=["continuous_observations"])
     data = generate_data(2, ["discrete_observations", "continuous_observations", "discrete_actions"])
     out = processor(**data, truncation=False, padding=False)
@@ -327,3 +327,14 @@ def test_gia_processor_mask_loss_modalities():
         assert all(not val for val in sequences[3::6])  # continuous observations have 2 components
         assert all(val for val in sequences[4::6])  # action (not masked by default)
         assert all(val is None for val in sequences[5::6])  # separator
+
+
+def test_gia_processor_mask_loss_modalities_standalone():
+    processor = GiaProcessor(mask_loss_modalities=["text"])
+    data = generate_data(2, ["text", "images"])
+    out = processor(**data, truncation=False, padding=False)
+
+    # Check that the mask is [None, False, None, ...]
+    for sequences in out["loss_mask"]:
+        assert all(val is None for val in sequences[:36])  # image (84*84 corresponds to 36 patches)
+        assert all(not val for val in sequences[36:])  # text (maske)
