@@ -192,11 +192,11 @@ def load_and_process_dataset(
         data_args.text_tokenizer_name,
         data_args.mu,
         data_args.M,
-        config.nb_bins,
+        data_args.nb_bins,
         data_args.mask_loss_modalities,
         config.seq_len,
         data_args.local_positions_groups,
-        config.use_separator,
+        data_args.use_separator,
     )
 
     def prompt_and_process(example, prompter):
