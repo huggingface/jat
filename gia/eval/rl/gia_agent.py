@@ -14,13 +14,14 @@ class GiaAgent:
         model: GiaModel,
         obs_space,
         action_space,
+        use_separator: bool = True,
     ):
         self.model = model
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         self._num_obs_tokens = obs_space.shape[1]
         self._num_act_tokens = action_space.shape[1]
-        self._tokens_per_step = self._num_obs_tokens + self._num_act_tokens + int(self.model.config.use_separator)
+        self._tokens_per_step = self._num_obs_tokens + self._num_act_tokens + int(use_separator)
         self._int_per_seq = (self.model.config.seq_len // self._tokens_per_step) - 1
 
         dataset = load_dataset("gia-project/gia-dataset", dataset_name, split="test")
