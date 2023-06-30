@@ -72,7 +72,7 @@ class GiaConfig(GPTNeoConfig):
 
     def __init__(
         self,
-        vocab_size: int = 30_021,
+        vocab_size: int = 31_025,
         seq_len: int = 2048,
         patch_size: int = 16,
         image_vocab_size: int = 128,
