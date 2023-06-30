@@ -6,7 +6,7 @@ ENVS=(
     atari_amidar
     atari_assault
     atari_asterix
-    atari_asteroid
+    atari_asteroids  # (Might raise an error due to name change, see https://huggingface.co/datasets/gia-project/gia-dataset/discussions/23)
     atari_atlantis
     atari_bankheist
     atari_battlezone
@@ -32,14 +32,14 @@ ENVS=(
     atari_jamesbond
     atari_kangaroo
     atari_krull
-    atari_kongfumaster
-    atari_montezuma
+    atari_kungfumaster  # (Might raise an error due to name change, see https://huggingface.co/datasets/gia-project/gia-dataset/discussions/21)
+    atari_montezumarevenge  # (Might raise an error due to name change, see https://huggingface.co/datasets/gia-project/gia-dataset/discussions/24)
     atari_mspacman
     atari_namethisgame
     atari_phoenix
     atari_pitfall
     atari_pong
-    atari_privateye
+    atari_privateeye  # (Might raise an error due to name change, see https://huggingface.co/datasets/gia-project/gia-dataset/discussions/22)
     atari_qbert
     atari_riverraid
     atari_roadrunner
