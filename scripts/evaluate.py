@@ -31,9 +31,9 @@ def main():
                 "step": step,
                 "result": result,
             }
-
+            os.makedirs(os.path.join(args.output_dir, "evals", task), exist_ok=True)
             output_path = os.path.join(args.output_dir, "evals", task, f"eval_{checkpoint}.json")
-            with open(output_path) as fp:
+            with open(output_path,"w") as fp:
                 json.dump(data, fp)
 
 
