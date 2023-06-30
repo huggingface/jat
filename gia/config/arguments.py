@@ -27,7 +27,7 @@ class DatasetArguments:
         },
     )
     text_tokenizer_name: str = field(
-        default="bert-base-cased",
+        default="albert-base-v2",
         metadata={"help": "The name of the tokenizer to use for text observations."},
     )
     use_separator: bool = field(

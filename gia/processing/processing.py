@@ -139,7 +139,7 @@ class GiaProcessor:
     Args:
         patch_size (`int`, *optional*, defaults to 16):
             Size of the patches to extract from image observations.
-        text_tokenizer_name (`str`, *optional*, default to `"bert-base-cased"`):
+        text_tokenizer_name (`str`, *optional*, default to `"albert-base-v2"`):
             Name of the pretrained tokenizer for text to use.
         mu (`float`, *optional*, default to 100.0):
             μ parameter for the μ-law companding of continuous observations and actions.
@@ -162,7 +162,7 @@ class GiaProcessor:
     def __init__(
         self,
         patch_size: int = 16,
-        text_tokenizer_name: str = "bert-base-cased",
+        text_tokenizer_name: str = "albert-base-v2",
         mu: float = 100.0,
         M: float = 256.0,
         nb_bins: int = 1024,
