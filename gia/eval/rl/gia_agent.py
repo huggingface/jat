@@ -10,21 +10,22 @@ from gia.processing import GiaProcessor
 class GiaAgent:
     def __init__(
         self,
-        task: str,
+        dataset_name: str,
         model: GiaModel,
         obs_space,
         action_space,
         use_separator: bool = True,
+        deterministic: bool = True,
     ):
         self.model = model
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
+        self.deterministic = deterministic
         self._num_obs_tokens = obs_space.shape[1]
         self._num_act_tokens = action_space.shape[1]
         self._tokens_per_step = self._num_obs_tokens + self._num_act_tokens + int(use_separator)
         self._int_per_seq = (self.model.config.seq_len // self._tokens_per_step) - 1
 
-        dataset = load_dataset("gia-project/gia-dataset", task, split="test")
+        dataset = load_dataset("gia-project/gia-dataset", dataset_name, split="test")
         self.prompter = Prompter(
             dataset,
             min_prompt_len=self._int_per_seq,
@@ -75,8 +76,11 @@ class GiaAgent:
             output = self.model(**processed, use_cache=True, past_key_values=self._past_key_values)
             self._past_key_values = output.past_key_values
             action_logits = output.logits[:, -1, self.token_shift :]
-
-            action_token = torch.argmax(action_logits, -1) + self.token_shift
+            if self.deterministic:
+                action_token = torch.argmax(action_logits, -1)
+            else:
+                action_token = torch.multinomial(torch.softmax(action_logits, dim=1), num_samples=1).squeeze(1)
+            action_token += self.token_shift
             action_tokens.append(action_token)
 
             processed["input_ids"] = action_token[None, :]
