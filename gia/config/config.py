@@ -27,6 +27,9 @@ class GiaConfig(GPTNeoConfig):
 
 
     Args:
+        vocab_size (`int`, *optional*, defaults to 31_025):
+            Vocabulary size of the GPT Neo model. Defines the number of different tokens that can be represented by
+            the [`inputs_ids`] passed when calling [`GiaModel`].
         seq_len (`int`, *optional*, defaults to 2048):
             The length (number of tokens) of a sequence.
         patch_size (`int`, *optional*, defaults to 16):
@@ -37,14 +40,8 @@ class GiaConfig(GPTNeoConfig):
             Number of groups for the Residual Attention Block.
         num_res_channels (`int`, *optional*, defaults to 64):
             Number of residual channels for the Residual Attention Block.
-        text_vocab_size (`int`, *optional*, defaults to 30_000):
-            Vocabulary size for the text tokens.
-        nb_bins (`int`, *optional*, defaults to 1024):
-            Number of bins for the discretization of continuous values.
         max_local_position (`int`, *optional*, defaults to 512):
             Maximum number of local positions to encode.
-        use_separator (`bool`, *optional*, defaults to True):
-            Whether to include a separator token between observations and actions.
         hidden_size (`int`, *optional*, defaults to 2048):
             Dimensionality of the encoder layers and the pooler layer.
         num_layers (`int`, *optional*, defaults to 24):
@@ -75,15 +72,13 @@ class GiaConfig(GPTNeoConfig):
 
     def __init__(
         self,
+        vocab_size: int = 31_025,
         seq_len: int = 2048,
         patch_size: int = 16,
         image_vocab_size: int = 128,
         num_groups: int = 32,
         num_res_channels: int = 64,
-        text_vocab_size: int = 30_000,
-        nb_bins: int = 1024,
         max_local_position: int = 512,
-        use_separator: bool = True,
         hidden_size: int = 2048,
         num_layers: int = 24,
         num_heads: int = 16,
@@ -101,15 +96,7 @@ class GiaConfig(GPTNeoConfig):
         self.image_vocab_size = image_vocab_size
         self.num_groups = num_groups
         self.num_res_channels = num_res_channels
-        self.text_vocab_size = text_vocab_size
-        self.nb_bins = nb_bins
         self.max_local_position = max_local_position
-        self.use_separator = use_separator
-
-        if self.use_separator:
-            vocab_size = self.text_vocab_size + self.nb_bins + 1
-        else:
-            vocab_size = self.text_vocab_size + self.nb_bins
 
         super().__init__(
             vocab_size=vocab_size,
@@ -138,22 +125,6 @@ class GiaConfig(GPTNeoConfig):
     def seq_len(self, value):
         self.max_position_embeddings = value
 
-    @property
-    def vocab_size(self):
-        if self.use_separator:
-            return self.text_vocab_size + self.nb_bins + 1
-        else:
-            return self.text_vocab_size + self.nb_bins
-
-    @vocab_size.setter
-    def vocab_size(self, value):
-        if value != self.vocab_size:
-            raise ValueError(
-                "vocab_size is a derived attribute that is the sum of text_vocab_size and nb_bins, plus one if using "
-                "a separator token. It cannot be set directly. Please set text_vocab_size, nb_bins, and use_separator "
-                "instead."
-            )
-
     def to_dict(self):
         """
         Serializes this instance to a Python dictionary. Override the default [`~PretrainedConfig.to_dict`].
@@ -172,8 +143,6 @@ class GiaConfig(GPTNeoConfig):
     def from_args(args: Arguments) -> "GiaConfig":
         config = GiaConfig.from_pretrained("gia-project/gia")
         config.patch_size = args.patch_size
-        config.nb_bins = args.nb_bins
-        config.use_separator = args.use_separator
         # TODO add other args
         return config
 
