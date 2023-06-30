@@ -14,14 +14,6 @@ def is_slurm_available() -> bool:
         return False
 
 
-def launch_evaluation(args: Arguments, checkpoint_path: str):
-    assert is_slurm_available()
-
-    for task in args.task_names:
-        pass
-        # launch eval job
-
-
 # TODO: A nice use case for structural pattern matching?!
 EVALUATORS = {
     "mujoco": GymEvaluator,

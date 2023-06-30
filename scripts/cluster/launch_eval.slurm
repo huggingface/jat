@@ -12,16 +12,11 @@ source /fsx/ed/miniconda3/etc/profile.d/conda.sh
 
 conda activate gia
 echo $1
+# these are set by the train script and are inherited, causing the eval to think it is running in a distributed setting
 echo "LOCAL RANK" $LOCAL_RANK
-echo "PMI_SIZE" $PMI_SIZE
-echo "OMPI_COMM_WORLD_SIZE" $OMPI_COMM_WORLD_SIZE
-echo "MV2_COMM_WORLD_SIZE" $MV2_COMM_WORLD_SIZE
 echo "WORLD_SIZE" $WORLD_SIZE
 
 unset LOCAL_RANK
-unset PMI_SIZE
-unset OMPI_COMM_WORLD_SIZE
-unset MV2_COMM_WORLD_SIZE
 unset WORLD_SIZE
 # export LOCAL_RANK=-1 # workaround for a bug with torch distributed
 python /fsx/ed/work/gia/scripts/evaluate.py $1

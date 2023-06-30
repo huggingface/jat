@@ -11,7 +11,7 @@ class RLEvaluator(Evaluator):
     def _build_env(self) -> VectorEnv:  # TODO: maybe just a gym.Env ?
         raise NotImplementedError
 
-    def _evaluate(self, model: GiaModel):
+    def _evaluate(self, model: GiaModel) -> float:
         env = self._build_env()
         gia_agent = GiaAgent(self.task, model, env.observation_space, env.action_space)
 

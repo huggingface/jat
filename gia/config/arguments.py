@@ -159,13 +159,7 @@ class EvalArguments:
     )
     eval_checkpoints: Optional[str] = field(
         default=None,
-        metadata={
-            "help": (
-                "Comma-separated list of tasks (or prefixes, e.g. 'mujuco') to load."
-                "See the available tasks in https://huggingface.co/datasets/gia-project/gia-dataset. "
-                "If 'all', load all the tasks. Defaults to 'all'."
-            )
-        },
+        metadata={"help": ("Comma-separated list of checkpointsto load and evaluate")},
     )
     auto_eval: bool = field(
         default=True, metadata={"help": "Whether to launch eval jobs while training on the cluster"}

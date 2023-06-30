@@ -10,8 +10,8 @@ class Evaluator:
         self.task = task
 
     @torch.no_grad()
-    def evaluate(self, model: GiaModel):
+    def evaluate(self, model: GiaModel) -> float:
         return self._evaluate(model)
 
-    def _evaluate(self):
+    def _evaluate(self, model: GiaModel) -> float:
         raise NotImplementedError
