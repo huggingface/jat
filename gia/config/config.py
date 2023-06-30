@@ -27,7 +27,7 @@ class GiaConfig(GPTNeoConfig):
 
 
     Args:
-        vocab_size (`int`, *optional*, defaults to 30_021):
+        vocab_size (`int`, *optional*, defaults to 31_025):
             Vocabulary size of the GPT Neo model. Defines the number of different tokens that can be represented by
             the [`inputs_ids`] passed when calling [`GiaModel`].
         seq_len (`int`, *optional*, defaults to 2048):
