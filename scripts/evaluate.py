@@ -3,15 +3,20 @@ import json
 
 import torch
 
-from gia import GiaConfig, GiaModel
+from transformers import AutoConfig, AutoModel
 from gia.config import Arguments
 from gia.eval.utils import get_evaluator
 
 
 def main():
     args = Arguments.parse_args()
-    config = GiaConfig.from_args(args)
-    model = GiaModel(config).to("cuda")
+    config = AutoConfig.from_pretrained(
+        args.config_name or args.model_name_or_path,
+        cache_dir=args.cache_dir,
+        revision=args.model_revision,
+        use_auth_token=True if args.use_auth_token else None,
+    )
+    model = AutoModel.from_config(config=config).to("cuda")
 
     for checkpoint in args.eval_checkpoints:
         step = int(checkpoint.split("-")[-1])
@@ -33,7 +38,7 @@ def main():
             }
             os.makedirs(os.path.join(args.output_dir, "evals", task), exist_ok=True)
             output_path = os.path.join(args.output_dir, "evals", task, f"eval_{checkpoint}.json")
-            with open(output_path,"w") as fp:
+            with open(output_path, "w") as fp:
                 json.dump(data, fp)
 
 
