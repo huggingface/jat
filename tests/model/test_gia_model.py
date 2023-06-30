@@ -48,7 +48,7 @@ def test_gia_model(test_mode, input_mode):
         assert output.loss.item() > 0.0
     else:  # 'patches'
         assert output.loss is None
-    assert output.logits.shape == (2, 32, 30_000 + 1024 + 1)
+    assert output.logits.shape == (2, 32, config.vocab_size)
     assert output.past_key_values is not None
 
 
@@ -106,7 +106,7 @@ def test_gia_model_accelerate_compat():
     for batch in dataloader:
         output = model(**batch)
         assert output.loss.item() > 0.0
-        assert output.logits.shape == (2, 32, 30_000 + 1024 + 1)
+        assert output.logits.shape == (2, 32, config.vocab_size)
 
 
 def test_gia_model_trainer_compat():
