@@ -1,9 +1,9 @@
-import os
 import json
+import os
 
 import torch
-
 from transformers import AutoConfig, AutoModel
+
 from gia.config import Arguments
 from gia.eval.utils import get_evaluator
 

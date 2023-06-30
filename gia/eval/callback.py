@@ -2,13 +2,10 @@ import glob
 import json
 import subprocess
 
-import wandb
-
-from transformers.trainer_callback import TrainerControl, TrainerState
-from transformers.training_args import TrainingArguments
 from accelerate import Accelerator
 from transformers import TrainerCallback, TrainerControl, TrainerState, TrainingArguments
 
+import wandb
 from gia.config import Arguments
 from gia.eval.utils import is_slurm_available
 

@@ -1,6 +1,5 @@
 import subprocess
 
-from gia.config.arguments import Arguments
 from gia.eval.language_modeling.language_modeling_evaluator import LanguageModelingEvaluator
 from gia.eval.rl import GymEvaluator
 
