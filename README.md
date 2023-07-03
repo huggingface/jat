@@ -33,9 +33,11 @@ As this script relies on HuggingFace's [Trainer](https://huggingface.co/docs/tra
 ```bash
 python script/train.py --output_dir=./output \
                        --num_train_epochs=4 \
-                       --evaluation_strategy=steps \
-                       --prediction_loss_only=True \
-                       --eval_steps=100 \
-                       --max_eval_samples=64 # number of test samples to compute the loss on
+                       --evaluation_strategy=steps \  # perform evaluation on test datasets every n *steps*
+                       --prediction_loss_only=True \  # ask Trainer to only compute prediction loss to optimize evaluation
+                       --eval_steps=100 \  # evaluate every 100 *steps* (depending on evaluation_strategy)
+                       --max_eval_samples=64 \  # number of test samples to compute the loss on
+                       --per_device_train_batch_size=8  # training batch size per GPU/TPU core/CPU 
+                       --per_device_eval_batch_size=8  # evaluation batch size per GPU/TPU core/CPU 
 ```
 
