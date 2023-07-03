@@ -68,7 +68,7 @@ def needs_prompt(task_name: str) -> bool:
     """
     is_atari = task_name.startswith("atari")
     is_babyai = task_name.startswith("babyai")
-    is_conceptual_captions = task_name == "conceptual_captions"
+    is_conceptual_captions = task_name == "conceptual-captions"
     is_metaworld = task_name.startswith("metaworld")
     is_mujoco = task_name.startswith("mujoco")
     if is_atari or is_babyai or is_metaworld or is_mujoco:
