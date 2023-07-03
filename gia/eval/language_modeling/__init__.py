@@ -1,6 +1,4 @@
-from .conceptual_captions_evaluator import ConceptualCaptionsEvaluator
-from .ok_vqa_evaluator import OKVQAEvaluator
-from .oscar_evaluator import OscarEvaluator
+from .language_modeling_evaluator import LanguageModelingEvaluator
 
 
-__all__ = ["ConceptualCaptionsEvaluator", "OKVQAEvaluator", "OscarEvaluator"]
+__all__ = ["LanguageModelingEvaluator"]

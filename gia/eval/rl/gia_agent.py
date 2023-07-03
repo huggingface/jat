@@ -10,7 +10,7 @@ from gia.processing import GiaProcessor
 class GiaAgent:
     def __init__(
         self,
-        dataset_name: str,
+        task: str,
         model: GiaModel,
         obs_space,
         action_space,
@@ -25,7 +25,7 @@ class GiaAgent:
         self._tokens_per_step = self._num_obs_tokens + self._num_act_tokens + int(use_separator)
         self._int_per_seq = (self.model.config.seq_len // self._tokens_per_step) - 1
 
-        dataset = load_dataset("gia-project/gia-dataset", dataset_name, split="test")
+        dataset = load_dataset("gia-project/gia-dataset", task, split="test")
         self.prompter = Prompter(
             dataset,
             min_prompt_len=self._int_per_seq,
