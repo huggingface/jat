@@ -3,7 +3,7 @@ import os
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 from transformers import HfArgumentParser, TrainingArguments
 
@@ -25,6 +25,14 @@ class DatasetArguments:
                 "If 'all', load all the tasks. Defaults to 'all'."
             )
         },
+    )
+    train_split: str = field(
+        default="train",
+        metadata={"help": ("The train split, defaults to 'train', select a subset with train[:100] or ...")},
+    )
+    test_split: str = field(
+        default="test",
+        metadata={"help": ("The test split, defaults to 'test', select a subset with test[:100] or ...")},
     )
     use_separator: bool = field(
         default=True, metadata={"help": "Whether to include a separator token between observations and actions."}
@@ -150,10 +158,49 @@ class EvalArguments:
             "help": "The number of test batches to evaluate. If -1 (default), the full test set will be evaluated."
         },
     )
+    eval_checkpoints: Optional[str] = field(
+        default=None,
+        metadata={"help": ("Comma-separated list of checkpointsto load and evaluate")},
+    )
+    auto_eval: bool = field(
+        default=True, metadata={"help": "Whether to launch eval jobs while training on the cluster"}
+    )
 
 
 @dataclass
-class Arguments(DatasetArguments, ModelArguments, EvalArguments, TrainingArguments):
+class WandBArguments:
+    wandb_enabled: bool = field(
+        default=True,
+        metadata={"help": ("Whether to enable or disable WandB.")},
+    )
+    wandb_tags: Optional[List[str]] = field(
+        default=None,
+        metadata={"help": ("Tags to group and filter runs on Weights and Biases.")},
+    )
+    wandb_project: Optional[str] = field(
+        default="gia",
+        metadata={"help": ("The project to store runs under.")},
+    )
+    wandb_entity: Optional[str] = field(
+        default="gia",
+        metadata={"help": ("The entity to store runs under.")},
+    )
+    wandb_run_group: Optional[str] = field(
+        default="tr_00_some-descriptor",
+        metadata={"help": ("Group multiple runs under this group name.")},
+    )
+    wandb_run_id: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": (
+                "Set this to a globally unique string (per project) corresponding to a single run of your script."
+            )
+        },
+    )
+
+
+@dataclass
+class Arguments(DatasetArguments, ModelArguments, EvalArguments, WandBArguments, TrainingArguments):
     def save(self) -> None:
         os.makedirs(self.output_dir, exist_ok=True)
         out_path = Path(self.output_dir) / "args.json"
@@ -177,6 +224,21 @@ class Arguments(DatasetArguments, ModelArguments, EvalArguments, TrainingArgumen
             self.local_positions_groups = self.local_positions_groups.split(",")
         if self.max_prompt_len is None:
             self.max_prompt_len = self.seq_len
+        if self.eval_checkpoints is not None:
+            if "," in self.eval_checkpoints:
+                self.eval_checkpoints = self.eval_checkpoints.split(",")
+            else:
+                self.eval_checkpoints = [self.eval_checkpoints]
+
+        if self.wandb_enabled:
+            # skip  Trainrt wandb init
+            os.environ["WANDB_ENTITY"] = self.wandb_entity
+            os.environ["WANDB_PROJECT"] = self.wandb_project
+            os.environ["WANDB_RUN_GROUP"] = self.wandb_run_group
+            if self.wandb_run_id is not None:
+                os.environ["WANDB_RUN_ID"] = self.wandb_run_id
+            if self.wandb_tags is not None:
+                os.environ["WANDB_TAGS"] = ",".join(tag for tag in self.wandb_tags)
 
     @staticmethod
     def parse_args() -> "Arguments":

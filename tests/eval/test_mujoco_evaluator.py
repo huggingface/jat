@@ -1,6 +1,6 @@
 from gia import GiaConfig, GiaModel
 from gia.config.arguments import Arguments
-from gia.eval.mujoco_evaluator import MujocoEvaluator
+from gia.eval.rl.gym_evaluator import GymEvaluator
 
 
 def test_mujoco_evaluator():
@@ -9,7 +9,5 @@ def test_mujoco_evaluator():
 
     args = Arguments(output_dir="tmp", n_episodes=2, task_names="mujoco-doublependulum")
 
-    evaluator = MujocoEvaluator(args)
-    evaluator.env_names = ["InvertedDoublePendulum-v4"]
-    evaluator.data_filepaths = ["mujoco-doublependulum"]
+    evaluator = GymEvaluator(args, "mujoco-doublependulum")
     evaluator.evaluate(model)

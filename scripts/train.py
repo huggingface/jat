@@ -7,6 +7,8 @@ from transformers import AutoConfig, AutoModel, Trainer
 
 from gia.config import Arguments
 from gia.datasets import GiaDataCollator, load_and_process_dataset
+from gia.eval.callback import EvaluateCheckpointCallback
+from gia.eval.utils import is_slurm_available
 
 
 def main():
@@ -21,9 +23,9 @@ def main():
     model = AutoModel.from_config(config=config)
 
     # Load, prompt and process the datasets
-    train_datasets = load_and_process_dataset(args, "train", config)
+    train_datasets = load_and_process_dataset(args, args.train_split, config)
     train_dataset = concatenate_datasets(list(train_datasets.values()))
-    test_datasets = load_and_process_dataset(args, "test", config)
+    test_datasets = load_and_process_dataset(args, args.test_split, config)
     if args.max_eval_samples is not None:
         test_datasets = {
             task_name: dataset.select(range(args.max_eval_samples)) for task_name, dataset in test_datasets.items()
@@ -36,6 +38,7 @@ def main():
         data_collator=GiaDataCollator(),
         train_dataset=train_dataset,
         eval_dataset=test_datasets,
+        callbacks=[EvaluateCheckpointCallback] if args.auto_eval and is_slurm_available() else [],
     )
     trainer.train()
 

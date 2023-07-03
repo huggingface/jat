@@ -1,8 +1,17 @@
+import torch
+
+from gia.config.arguments import Arguments
 from gia.model import GiaModel
 
 
 class Evaluator:
-    task: str
+    def __init__(self, args: Arguments, task: str) -> None:
+        self.args = args
+        self.task = task
 
-    def evaluate(model: GiaModel):
+    @torch.no_grad()
+    def evaluate(self, model: GiaModel) -> float:
+        return self._evaluate(model)
+
+    def _evaluate(self, model: GiaModel) -> float:
         raise NotImplementedError
