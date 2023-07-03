@@ -26,6 +26,10 @@ class DatasetArguments:
             )
         },
     )
+    text_tokenizer_name: str = field(
+        default="albert-base-v2",
+        metadata={"help": "The name of the tokenizer to use for text observations."},
+    )
     train_split: str = field(
         default="train",
         metadata={"help": ("The train split, defaults to 'train', select a subset with train[:100] or ...")},

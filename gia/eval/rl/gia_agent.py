@@ -35,7 +35,6 @@ class GiaAgent:
 
         self.processor = GiaProcessor()
         self.collator = GiaDataCollator()
-        self.token_shift = self.processor.tokenizer.token_shift
 
     def reset(self) -> None:
         prompt = self.prompter.generate_prompts(1)
@@ -74,9 +73,8 @@ class GiaAgent:
         for i in range(self._num_act_tokens):
             output = self.model(**processed, use_cache=True, past_key_values=self._past_key_values)
             self._past_key_values = output.past_key_values
-            action_logits = output.logits[:, -1, self.token_shift :]
-
-            action_token = torch.argmax(action_logits, -1) + self.token_shift
+            action_logits = output.logits[:, -1]
+            action_token = torch.argmax(action_logits, dim=1)
             action_tokens.append(action_token)
 
             processed["input_ids"] = action_token[None, :]
@@ -94,9 +92,9 @@ class GiaAgent:
                 (k[:, :, self._tokens_per_step :], v[:, :, self._tokens_per_step :])
                 for (k, v) in self._past_key_values
             ]
-        action_tokens = torch.stack(action_tokens, dim=-1)
+        action_tokens = torch.stack(action_tokens, dim=-1).cpu().tolist()
 
         # Decode the action tokens
-        action = np.array(self.processor.tokenizer.decode_continuous(action_tokens.cpu().numpy()))
+        action = np.array(self.processor.decode_continuous(action_tokens))
         # TODO: Clamp action to be in domain of action space?
         return action

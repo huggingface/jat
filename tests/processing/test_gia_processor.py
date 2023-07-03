@@ -3,66 +3,126 @@ import random
 import numpy as np
 import pytest
 
-from gia.processing import GiaProcessor
+from gia.processing.processing import GiaContinuousTokenizer, GiaDiscreteTokenizer, GiaImageProcessor, GiaProcessor
+
+
+def test_continuous_tokenizer():
+    tokenizer = GiaContinuousTokenizer()
+    input_data = [[-0.8, 0.5, 0.2], [0.1, -0.3, 0.7]]
+    output = tokenizer(input_data)
+    assert isinstance(output, dict)
+    assert "input_ids" in output
+    assert isinstance(output["input_ids"], list)
+    assert len(output["input_ids"]) == len(input_data)
+    for i in range(len(input_data)):
+        assert len(output["input_ids"][i]) == len(input_data[i])
+
+
+def test_decode_continuous():
+    tokenizer = GiaContinuousTokenizer()
+    tokens = [[256, 512, 768]]
+    decoded = tokenizer.decode(tokens)
+    assert isinstance(decoded, list)
+    assert len(decoded) == 1
+    assert isinstance(decoded[0], list)
+    assert all(isinstance(d, float) for d in decoded[0])
+    assert decoded[0][0] < 1.0
+    assert abs(decoded[0][1]) < 1e-4
+    assert decoded[0][2] > 1.0
+
+
+def test_discrete_tokenizer():
+    tokenizer = GiaDiscreteTokenizer(token_shift=10)
+    input_data = [[0, 1, 2], [3, 4, 5]]
+    output = tokenizer(input_data)
+    assert isinstance(output, dict)
+    assert "input_ids" in output
+    assert isinstance(output["input_ids"], list)
+    assert len(output["input_ids"]) == len(input_data)
+    for i in range(len(input_data)):
+        assert len(output["input_ids"][i]) == len(input_data[i])
+        assert output["input_ids"][i][0] == 10 + input_data[i][0]
+
+
+def test_decode_discrete():
+    tokenizer = GiaDiscreteTokenizer(token_shift=10)
+    tokens = [[256, 512, 768]]
+    decoded = tokenizer.decode(tokens)
+    assert decoded == [[246, 502, 758]]  # tokens - tokens_shift
+
+
+def test_image_processor():
+    processor = GiaImageProcessor()
+    data = np.random.randint(0, 255, (10, 32, 32, 2), dtype=np.uint8).tolist()
+    features = processor(data)
+    assert isinstance(features, dict)
+    assert "patches" in features
+    assert "patch_positions" in features
+    assert isinstance(features["patches"], list)
+    assert isinstance(features["patch_positions"], list)
+    for batch_idx in range(len(data)):
+        assert len(features["patches"][batch_idx]) == len(features["patch_positions"][batch_idx])
+        for patch_idx in range(len(features["patches"][batch_idx])):
+            assert features["patches"][batch_idx][patch_idx].shape == (4, 16, 16)
+            assert len(features["patch_positions"][batch_idx][patch_idx]) == 2
+            assert len(features["patch_positions"][batch_idx][patch_idx][0]) == 2
+            assert len(features["patch_positions"][batch_idx][patch_idx][1]) == 2
+
+
+def test_extract_patches():
+    processor = GiaImageProcessor(patch_size=3)
+    arr = np.arange(2 * 9 * 6 * 3, dtype=np.uint8).reshape(2, 9, 6, 3)  # B, H, W, C
+    batch_patches = processor(arr.tolist())["patches"]
+    arr = arr.transpose(0, 3, 1, 2)  # C, H, W
+    for batch_idx in range(len(batch_patches)):
+        patches = batch_patches[batch_idx]
+        np.testing.assert_equal(patches[0][:3], arr[batch_idx, :, 0:3, 0:3])
+        np.testing.assert_equal(patches[0][:3], arr[batch_idx, :, 0:3, 0:3])
+        np.testing.assert_equal(patches[1][:3], arr[batch_idx, :, 0:3, 3:6])
+        np.testing.assert_equal(patches[2][:3], arr[batch_idx, :, 3:6, 0:3])
+        np.testing.assert_equal(patches[3][:3], arr[batch_idx, :, 3:6, 3:6])
+        np.testing.assert_equal(patches[4][:3], arr[batch_idx, :, 6:9, 0:3])
+        np.testing.assert_equal(patches[5][:3], arr[batch_idx, :, 6:9, 3:6])
+        for patch in patches:  # pad to have 4 channels
+            np.testing.assert_equal(patch[3], np.zeros((3, 3), dtype=np.uint8))
 
 
 def generate_data(batch_size, features):
     output = {}
-    num_timesteps = [np.random.randint(5, 10) for _ in range(batch_size)]  # only used for episode data
+    seq_lens = [np.random.randint(5, 10) for _ in range(batch_size)]  # only used for episode data
     if "text" in features:
         words = ["lorem", "ipsum", "dolor", "sit", "amet", "consectetur", "adipiscing", "elit"]
         vocab = [" ".join(random.choices(words, k=np.random.randint(10, 30))) for _ in range(100)]
         output["text"] = random.choices(vocab, k=batch_size)
     if "images" in features:
-        output["images"] = [np.random.randint(0, 255, size=(84, 84, 3), dtype=np.uint8) for _ in range(batch_size)]
+        output["images"] = [np.random.randint(0, 255, size=(84, 84, 3)).tolist() for _ in range(batch_size)]
     if "text_observations" in features:
         vocab = ["lorem", "ipsum", "dolor", "sit", "amet", "consectetur", "adipiscing", "elit"]
-        output["text_observations"] = [random.choices(vocab, k=seq_num_timeteps) for seq_num_timeteps in num_timesteps]
+        output["text_observations"] = [random.choices(vocab, k=seq_len) for seq_len in seq_lens]
     if "image_observations" in features:
         output["image_observations"] = [
-            [np.random.randint(0, 255, size=(84, 84, 3), dtype=np.uint8) for _ in range(seq_num_timesteps)]
-            for seq_num_timesteps in num_timesteps
+            np.random.randint(0, 255, size=(seq_len, 84, 84, 3)).tolist() for seq_len in seq_lens
         ]
-    if "discrete_observations_single" in features:
+    if "discrete_observations" in features:
         output["discrete_observations"] = [
-            [np.random.randint(0, 16, dtype=np.int64) for _ in range(seq_num_timesteps)]
-            for seq_num_timesteps in num_timesteps
-        ]
-    if "discrete_observations_multi" in features:
-        output["discrete_observations"] = [
-            [np.random.randint(0, 16, size=(2,), dtype=np.int64) for _ in range(seq_num_timesteps)]
-            for seq_num_timesteps in num_timesteps
+            np.random.randint(0, 16, size=(seq_len, 2)).tolist() for seq_len in seq_lens
         ]
     if "continuous_observations" in features:
-        output["continuous_observations"] = [
-            [np.random.rand(2) for _ in range(seq_num_timesteps)] for seq_num_timesteps in num_timesteps
-        ]
-    if "discrete_actions_single" in features:
-        output["discrete_actions"] = [
-            [np.random.randint(0, 16, dtype=np.int64) for _ in range(seq_num_timesteps)]
-            for seq_num_timesteps in num_timesteps
-        ]
-    if "discrete_actions_multi" in features:
-        output["discrete_actions"] = [
-            [np.random.randint(0, 16, size=(2,), dtype=np.int64) for _ in range(seq_num_timesteps)]
-            for seq_num_timesteps in num_timesteps
-        ]
+        output["continuous_observations"] = [np.random.rand(seq_len, 2).tolist() for seq_len in seq_lens]
+    if "discrete_actions" in features:
+        output["discrete_actions"] = [np.random.randint(0, 16, size=(seq_len,)).tolist() for seq_len in seq_lens]
     if "continuous_actions" in features:
-        output["continuous_actions"] = [
-            [np.random.rand(2) for _ in range(seq_num_timesteps)] for seq_num_timesteps in num_timesteps
-        ]
+        output["continuous_actions"] = [np.random.rand(seq_len, 2).tolist() for seq_len in seq_lens]
     if "rewards" in features:
-        output["rewards"] = [
-            [random.random() for _ in range(seq_num_timesteps)] for seq_num_timesteps in num_timesteps
-        ]
+        output["rewards"] = [np.random.rand(seq_len).tolist() for seq_len in seq_lens]
 
     return output
 
 
 EP_DATA_CONFIGS = [
     ["continuous_observations", "continuous_actions", "rewards"],  # mujoco and metaworld
-    ["image_observations", "discrete_actions_single", "rewards"],  # atari
-    ["text_observations", "discrete_observation_multi", "discrete_actions_single", "rewards"],  # babyai
+    ["image_observations", "discrete_actions", "rewards"],  # atari
+    ["text_observations", "discrete_observation", "discrete_actions", "rewards"],  # babyai
 ]
 STANDALONE_DATA_CONFIGS = [
     ["text"],  # oscar
@@ -228,7 +288,7 @@ def test_gia_processor_local_positions_singleton_single_modality():
 
 def test_gia_processor_local_positions_singleton_multi_modality():
     processor = GiaProcessor(local_positions_groups=[["continuous_observations"]])  # only text
-    data = generate_data(2, ["continuous_observations", "discrete_actions_single"])
+    data = generate_data(2, ["continuous_observations", "discrete_actions"])
     out = processor(**data, truncation=False, padding=False)
 
     # Check that the local positions are [0, 1, None,  None, 0, 1, None, ...]
@@ -241,27 +301,40 @@ def test_gia_processor_local_positions_singleton_multi_modality():
 
 def test_gia_processor_local_positions_non_singleton_multi_modality():
     processor = GiaProcessor(local_positions_groups=[["discrete_observations", "continuous_observations"]])
-    data = generate_data(2, ["discrete_observations_single", "continuous_observations", "discrete_actions_single"])
+    data = generate_data(2, ["discrete_observations", "continuous_observations", "discrete_actions"])
     out = processor(**data, truncation=False, padding=False)
 
     # Check that the local positions are [0, 1, 2, None, 0, 1, 2, None, ...]
     for sequences in out["local_positions"]:
-        assert all(val == 0 for val in sequences[0::5])  # discrete observation
-        assert all(val == 1 for val in sequences[1::5])  # continuous observations have 2 components
-        assert all(val == 2 for val in sequences[2::5])
-        assert all(val is None for val in sequences[3::5])  # action
-        assert all(val is None for val in sequences[4::5])  # separator
+        assert all(val == 0 for val in sequences[0::6])  # discrete observations have 2 components
+        assert all(val == 1 for val in sequences[1::6])
+        assert all(val == 2 for val in sequences[2::6])  # continuous observations have 2 components
+        assert all(val == 3 for val in sequences[3::6])
+        assert all(val is None for val in sequences[4::6])  # action
+        assert all(val is None for val in sequences[5::6])  # separator
 
 
-def test_gia_processor_mask_loss_modalities():
+def test_gia_processor_mask_loss_modalities_episode():
     processor = GiaProcessor(mask_loss_modalities=["continuous_observations"])
-    data = generate_data(2, ["discrete_observations_single", "continuous_observations", "discrete_actions_single"])
+    data = generate_data(2, ["discrete_observations", "continuous_observations", "discrete_actions"])
     out = processor(**data, truncation=False, padding=False)
 
     # Check that the mask is [None, False, False, True, None, ...]
     for sequences in out["loss_mask"]:
-        assert all(val is None for val in sequences[0::5])  # discrete observation
-        assert all(not val for val in sequences[1::5])
-        assert all(not val for val in sequences[2::5])  # continuous observations have 2 components
-        assert all(val for val in sequences[3::5])  # action (not masked by default)
-        assert all(val is None for val in sequences[4::5])  # separator
+        assert all(val is None for val in sequences[0::6])  # discrete observations have 2 components
+        assert all(val is None for val in sequences[1::6])
+        assert all(not val for val in sequences[2::6])
+        assert all(not val for val in sequences[3::6])  # continuous observations have 2 components
+        assert all(val for val in sequences[4::6])  # action (not masked by default)
+        assert all(val is None for val in sequences[5::6])  # separator
+
+
+def test_gia_processor_mask_loss_modalities_standalone():
+    processor = GiaProcessor(mask_loss_modalities=["text"])
+    data = generate_data(2, ["text", "images"])
+    out = processor(**data, truncation=False, padding=False)
+
+    # Check that the mask is [None, False, None, ...]
+    for sequences in out["loss_mask"]:
+        assert all(val is None for val in sequences[:36])  # image (84*84 corresponds to 36 patches)
+        assert all(not val for val in sequences[36:])  # text (maske)
