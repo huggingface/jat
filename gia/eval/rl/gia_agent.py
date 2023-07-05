@@ -1,8 +1,9 @@
-from typing import Optional
+from typing import Optional, Tuple
 
 import numpy as np
 import torch
 from gymnasium import spaces
+from torch import Tensor
 
 from gia.datasets import GiaDataCollator, Prompter
 from gia.model.gia_model import GiaModel
@@ -10,7 +11,7 @@ from gia.processing import GiaProcessor
 
 
 class GiaAgent:
-    """
+    r"""
     An RL agent that uses Gia to generate actions.
 
     Warning:
@@ -19,13 +20,20 @@ class GiaAgent:
         want to reset the agent to generate actions based on the initial prompt, you need to call the `reset` method.
 
     Args:
-        model (GiaModel): The GiaModel to use for action generation
-        processor (GiaProcessor): The GiaProcessor to use for processing observations
-        collator (GiaDataCollator): The GiaDataCollator to use for collating processed observations
-        observation_space (spaces.Space): The observation space
-        action_space (spaces.Space): The action space
-        prompter (Optional[Prompter], optional): The Prompter to use for generating prompts. Defaults to None.
-        deterministic (bool, optional): Whether to use deterministic action generation. Defaults to False.
+        model (`GiaModel`):
+            The GiaModel to use for action generation.
+        processor (`GiaProcessor`):
+            The GiaProcessor to use for processing observations.
+        collator (`GiaDataCollator`):
+            The GiaDataCollator to use for collating processed observations.
+        observation_space (`spaces.Space`):
+            The observation space.
+        action_space (`spaces.Space`):
+            The action space.
+        prompter (`Prompter`, *optional*, defaults to None):
+            The Prompter to use for generating prompts. When None, the agent will not use prompts. Defaults to None.
+        deterministic (`bool`, *optional*, defaults to False):
+            Whether to use deterministic action generation. Defaults to False.
     """
 
     def __init__(
@@ -62,7 +70,9 @@ class GiaAgent:
         else:
             raise TypeError("Unsupported action space")
 
-    def _truncate_past_key_values(self, past_key_values):
+    def _truncate_past_key_values(
+        self, past_key_values: Tuple[Tuple[Tensor, Tensor], ...]
+    ) -> Tuple[Tuple[Tensor, Tensor], ...]:
         return tuple((k[:, :, -self._max_length :], v[:, :, -self._max_length :]) for (k, v) in past_key_values)
 
     def reset(self, num_envs: int = 1) -> None:
