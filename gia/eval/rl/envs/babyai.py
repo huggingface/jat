@@ -57,16 +57,13 @@ class BabyAIWrapper(ObservationWrapper):
         super().__init__(env)
         n_image = self.observation_space["image"].high.flatten()
         n_direction = self.observation_space["direction"].n
-        self.observation_space = spaces.Dict(
-            {
-                "text_observations": env.observation_space.spaces["mission"],
-                "discrete_observations": spaces.MultiDiscrete([n_direction, *n_image]),
-            }
+        self.observation_space = spaces.Tuple(
+            (
+                env.observation_space.spaces["mission"],
+                spaces.MultiDiscrete([n_direction, *n_image]),
+            )
         )
 
     def observation(self, observation: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
         discrete_observations = np.append(observation["direction"], observation["image"].flatten())
-        return {
-            "text_observations": observation["mission"],
-            "discrete_observations": discrete_observations,
-        }
+        return observation["mission"], discrete_observations
