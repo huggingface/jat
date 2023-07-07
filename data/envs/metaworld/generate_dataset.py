@@ -142,7 +142,8 @@ def create_dataset(cfg: Config, dataset_size: int = 100_000, split: str = "train
 
             # Actions shape should be [num_agents, num_actions] even if it's [1, 1]
             actions = preprocess_actions(env_info, actions)
-
+            # Clamp actions to be in the range of the action space
+            actions = np.clip(actions, env.action_space.low, env.action_space.high)
             rnn_states = policy_outputs["new_rnn_states"]
             dataset["continuous_observations"][-1].append(observations["obs"].cpu().numpy()[0])
             dataset["continuous_actions"][-1].append(actions[0])
