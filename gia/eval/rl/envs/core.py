@@ -176,7 +176,8 @@ def make(task_name: str, num_envs: int = 1):
         env = gym.vector.SyncVectorEnv([env_func] * num_envs)
 
     elif task_name.startswith("metaworld"):
-        import gym
+        import gymnasium as gym
+        import metaworld
 
         env_id = TASK_TO_ENV_MAPPING[task_name]
         env = gym.vector.SyncVectorEnv([lambda: gym.make(env_id)] * num_envs)
