@@ -130,7 +130,6 @@ def add_dataset_to_hub(
             ignore_patterns=[".git/*"],
             repo_type="dataset",
             revision=revision,
-            create_pr=True,
         )
 
 

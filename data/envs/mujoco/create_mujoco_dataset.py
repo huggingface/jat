@@ -236,8 +236,12 @@ def create_mujoco_dataset(cfg: Config):
                     time.sleep(0.05)
 
                 if all(finished_episode):  # only 1 env
-                    dataset_continuous_observations.append(np.array(ep_continuous_observations).astype(np.float32))
-                    dataset_continuous_actions.append(np.array(ep_continuous_actions).astype(np.float32))
+                    dataset_continuous_observations.append(
+                        np.squeeze(np.array(ep_continuous_observations).astype(np.float32), axis=1)
+                    )
+                    dataset_continuous_actions.append(
+                        np.squeeze(np.array(ep_continuous_actions).astype(np.float32), axis=1)
+                    )
                     dataset_rewards.append(np.array(ep_rewards).astype(np.float32))
                     ep_continuous_observations = []
                     ep_continuous_actions = []
@@ -280,6 +284,7 @@ def create_mujoco_dataset(cfg: Config):
         continuous_actions=dataset_continuous_actions,
         rewards=dataset_rewards,
         push_to_hub=cfg.push_to_hub,
+        revision=task,
     )
 
 
