@@ -90,13 +90,16 @@ def test_post_init_task_names(tmp_path):
     assert {*args.task_names} == {
         "atari-pong",
         "mujoco-ant",
+        "mujoco-doublependulum",
         "mujoco-halfcheetah",
         "mujoco-hopper",
-        "mujoco-swimmer",
-        "mujoco-reacher",
+        "mujoco-humanoid",
         "mujoco-pendulum",
+        "mujoco-pusher",
+        "mujoco-reacher",
+        "mujoco-standup",
+        "mujoco-swimmer",
         "mujoco-walker",
-        "mujoco-doublependulum",
     }
 
 
@@ -119,13 +122,16 @@ def test_parse_args_custom_arguments(tmp_path):
     assert {*args.task_names} == {
         "atari-pong",
         "mujoco-ant",
+        "mujoco-doublependulum",
         "mujoco-halfcheetah",
         "mujoco-hopper",
-        "mujoco-swimmer",
-        "mujoco-reacher",
+        "mujoco-humanoid",
         "mujoco-pendulum",
+        "mujoco-pusher",
+        "mujoco-reacher",
+        "mujoco-standup",
+        "mujoco-swimmer",
         "mujoco-walker",
-        "mujoco-doublependulum",
     }
 
 
@@ -144,11 +150,14 @@ def test_parse_args_yaml_file(tmp_path):
     assert {*args.task_names} == {
         "atari-pong",
         "mujoco-ant",
+        "mujoco-doublependulum",
         "mujoco-halfcheetah",
         "mujoco-hopper",
-        "mujoco-swimmer",
-        "mujoco-reacher",
+        "mujoco-humanoid",
         "mujoco-pendulum",
+        "mujoco-pusher",
+        "mujoco-reacher",
+        "mujoco-standup",
+        "mujoco-swimmer",
         "mujoco-walker",
-        "mujoco-doublependulum",
     }
