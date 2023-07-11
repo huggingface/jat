@@ -170,20 +170,28 @@ ENV_NAMES = [
     "mujoco-walker",
 ]
 
+PATH = "gia/eval/rl"
+FILENAME = "scores_dict.json"
 
 for env_name in tqdm(ENV_NAMES):
     tqdm.write(f"Downloading expert scores for {env_name}")
 
-    dataset = load_dataset("gia-project/gia-dataset", env_name, writer_batch_size=1)
+    dataset = load_dataset(
+        "gia-project/gia-dataset",
+        env_name,
+        writer_batch_size=1,
+        download_mode="force_redownload",
+        verification_mode="no_checks",
+    )
     # Initialize the variables
     rewards = dataset["train"]["rewards"] + dataset["test"]["rewards"]
     episode_sum_rewards = [np.sum(r) for r in rewards]
 
     # Load the scores dictionary
-    if not os.path.exists("scores_dict.json"):
+    if not os.path.exists(f"{PATH}/{FILENAME}"):
         scores_dict = {}
     else:
-        with open("scores_dict.json", "r") as file:
+        with open(f"{PATH}/{FILENAME}", "r") as file:
             scores_dict = json.load(file)
 
     # Add the expert scores to the dictionary
@@ -192,7 +200,7 @@ for env_name in tqdm(ENV_NAMES):
     scores_dict[env_name]["expert"] = {"mean": np.mean(episode_sum_rewards), "std": np.std(episode_sum_rewards)}
 
     # Save the dictionary to a file
-    with open("scores_dict.json", "w") as file:
+    with open(f"{PATH}/{FILENAME}", "w") as file:
         scores_dict = {
             task: {agent: scores_dict[task][agent] for agent in sorted(scores_dict[task])}
             for task in sorted(scores_dict)
