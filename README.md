@@ -25,3 +25,17 @@ See [GIA Dataset](https://huggingface.co/datasets/gia-project/gia-dataset)
 ### GIA model
 
 TODO: write this section
+
+### Training
+A training script is provided: [train.py](scripts/train.py).
+
+As this script relies on HuggingFace's [Trainer](https://huggingface.co/docs/transformers/v4.30.0/en/main_classes/trainer), [TrainingArguments](https://huggingface.co/docs/transformers/v4.30.0/en/main_classes/trainer#transformers.TrainingArguments) can be passed to the script. For example, if one wants to have a test loss computed on 64 samples of each task every 100 training steps::
+```bash
+python script/train.py --output_dir=./output \
+                       --num_train_epochs=4 \
+                       --evaluation_strategy=steps \
+                       --prediction_loss_only=True \
+                       --eval_steps=100 \
+                       --max_eval_samples=64 # number of test samples to compute the loss on
+```
+
