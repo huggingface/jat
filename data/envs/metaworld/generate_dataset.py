@@ -30,7 +30,7 @@ def make_custom_env(
 
 
 # most of this function is redundant as it is copied from sample.enjoy.enjoy
-def create_dataset(cfg: Config, dataset_size: int = 100_000, split: str = "train") -> None:
+def create_dataset(cfg: Config) -> None:
     cfg = load_from_checkpoint(cfg)
     eval_env_frameskip: int = cfg.env_frameskip if cfg.eval_env_frameskip is None else cfg.eval_env_frameskip
     assert (
@@ -68,6 +68,7 @@ def create_dataset(cfg: Config, dataset_size: int = 100_000, split: str = "train
     rnn_states = torch.zeros([env.num_agents, get_rnn_size(cfg)], dtype=torch.float32, device=device)
 
     # Run the environment
+    dataset_size = 1_600_000 + 160_000
     progress_bar = tqdm(total=dataset_size)
     num_timesteps = 0
     with torch.no_grad():
@@ -113,16 +114,21 @@ def create_dataset(cfg: Config, dataset_size: int = 100_000, split: str = "train
 
     repo_path = f"datasets/{cfg.experiment[:-3]}"
     os.makedirs(repo_path, exist_ok=True)
-    file = f"{repo_path}/{split}"
-    np.savez_compressed(f"{file}.npz", **dataset)
+
+    _dataset = {key: value[:16_000] for key, value in dataset.items()}
+    file = f"{repo_path}/train"
+    np.savez_compressed(f"{file}.npz", **_dataset)
+
+    _dataset = {key: value[16_000:] for key, value in dataset.items()}
+    file = f"{repo_path}/test"
+    np.savez_compressed(f"{file}.npz", **_dataset)
 
 
 def main() -> int:
     parser, _ = parse_sf_args(argv=None, evaluation=True)
     cfg = parse_full_cfg(parser)
     register_env(cfg.env, make_custom_env)
-    status = create_dataset(cfg, dataset_size=1_600_000, split="train")
-    status = create_dataset(cfg, dataset_size=160_000, split="test")
+    status = create_dataset(cfg)
     return status
 
 
