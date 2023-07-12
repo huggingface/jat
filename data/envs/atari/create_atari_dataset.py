@@ -19,7 +19,8 @@ from sample_factory.model.model_utils import get_rnn_size
 from sample_factory.utils.attr_dict import AttrDict
 from sample_factory.utils.typing import Config
 from sample_factory.utils.utils import log
-from sf_examples.atari.train_atari import parse_atari_args, register_atari_components
+from sf_examples.envpool.atari.train_envpool_atari import parse_atari_args, register_atari_components
+from gia.datasets.to_hub import add_dataset_to_hub
 
 
 def generate_dataset_card(
@@ -76,6 +77,7 @@ def create_atari_dataset(cfg: Config):
     log.debug(f"Using frameskip {cfg.env_frameskip} and {render_action_repeat=} for evaluation")
 
     cfg.num_envs = 1
+    cfg.env_agents = 1
 
     render_mode = "human"
     if cfg.save_video:
@@ -125,25 +127,16 @@ def create_atari_dataset(cfg: Config):
 
     env.action_space.n
 
-    class AtariEnvDataset:
-        def __init__(self, num_frames):
-            self.observations = np.zeros((num_frames, *obs["obs"].shape), dtype=np.uint8)  # uint8
-            self.actions = np.zeros((num_frames, 1))  # uint8
-            self.dones = np.zeros((num_frames, 1))  # bool
-            self.rewards = np.zeros((num_frames, 1))  # float32
-
-        def to_dict(self):
-            return {
-                "observations": self.observations,
-                "actions": self.actions,
-                "dones": self.dones,
-                "rewards": self.rewards,
-            }
-
-    dataset = AtariEnvDataset(cfg.max_num_frames)
+    dataset_image_observations = []
+    dataset_rewards = []
+    dataset_discrete_actions = []
+    ep_image_observations = []
+    ep_rewards = []
+    ep_discrete_actions = []
 
     with torch.no_grad():
         while not max_frames_reached(num_frames):
+            obs = {k: v[0] for k, v in obs.items()}
             normalized_obs = prepare_and_normalize_obs(actor_critic, obs)
 
             if not cfg.no_render:
@@ -169,17 +162,16 @@ def create_atari_dataset(cfg: Config):
 
                 # store s in buffer
                 if num_frames < cfg.max_num_frames:
-                    dataset.observations[num_frames] = obs["obs"].cpu().numpy()
+                    ep_image_observations.append(obs["obs"].cpu().numpy())
 
-                obs, rew, terminated, truncated, infos = env.step(actions)
+                obs, rew, terminated, truncated, infos = env.step([actions])
 
                 dones = make_dones(terminated, truncated)
 
                 # store a,r, d in buffer
                 if num_frames < cfg.max_num_frames:
-                    dataset.actions[num_frames] = actions
-                    dataset.dones[num_frames] = dones
-                    dataset.rewards[num_frames] = rew
+                    ep_rewards.append(rew.item())
+                    ep_discrete_actions.append(actions)
 
                 infos = [{} for _ in range(env_info.num_agents)] if infos is None else infos
 
@@ -229,6 +221,13 @@ def create_atari_dataset(cfg: Config):
                     time.sleep(0.05)
 
                 if all(finished_episode):
+                    dataset_image_observations.append(np.squeeze(np.array(ep_image_observations), axis=1))
+                    dataset_discrete_actions.append(np.squeeze(np.array(ep_discrete_actions).astype(np.int64), axis=1))
+                    dataset_rewards.append(np.array(ep_rewards).astype(np.float32))
+                    ep_image_observations = []
+                    ep_discrete_actions = []
+                    ep_rewards = []
+
                     finished_episode = [False] * env.num_agents
                     avg_episode_rewards_str, avg_true_objective_str = "", ""
                     for agent_i in range(env.num_agents):
@@ -258,22 +257,16 @@ def create_atari_dataset(cfg: Config):
 
     env.close()
 
-    # if cfg.save_video:
-    #     if cfg.fps > 0:
-    #         fps = cfg.fps
-    #     else:
-    #         fps = 30
-    #     generate_replay_video(experiment_dir(cfg=cfg), video_frames, fps)
-
-    if cfg.push_to_hub:
-        repo_path = f"{cfg.train_dir}/datasets/{cfg.experiment}"
-        os.makedirs(repo_path, exist_ok=True)
-
-        with open(f"{repo_path}/dataset.npy", "wb") as f:
-            np.save(f, dataset.to_dict())
-
-        generate_dataset_card(repo_path, cfg.env, cfg.experiment, cfg.hf_repository)
-        push_to_hf(repo_path, cfg.hf_repository)
+    task = cfg.env.split("_")[1]
+    add_dataset_to_hub(
+        "atari",
+        task,
+        image_observations=dataset_image_observations,
+        discrete_actions=dataset_discrete_actions,
+        rewards=dataset_rewards,
+        push_to_hub=cfg.push_to_hub,
+        revision=task,
+    )
 
 
 def main():
