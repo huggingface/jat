@@ -1,13 +1,16 @@
-from typing import Optional, Tuple
+from typing import List, Tuple
 
 import numpy as np
 import torch
+from datasets import load_dataset
 from gymnasium import spaces
 from torch import Tensor
 
 from gia.datasets import GiaDataCollator, Prompter
 from gia.model.gia_model import GiaModel
 from gia.processing import GiaProcessor
+
+from .envs.core import get_task_names, make
 
 
 class GiaAgent:
@@ -20,10 +23,18 @@ class GiaAgent:
         want to reset the agent to generate actions based on the initial prompt, you need to call the `reset` method.
 
     Args:
-        model (`GiaModel`):
-            The GiaModel to use for action generation.
-        processor (`GiaProcessor`):
-            The GiaProcessor to use for processing observations.
+        pretrained_model_name_or_path (`str` or `os.PathLike`):
+            Can be either:
+
+                - A string, the *model id* of a pretrained model configuration hosted inside a model repo on
+                    huggingface.co.
+                - A path to a *directory* containing a configuration file saved using the
+                    [`~PretrainedConfig.save_pretrained`] method, or the [`~PreTrainedModel.save_pretrained`] method,
+                    e.g., `./my_model_directory/`.
+                - A path or url to a saved configuration JSON *file*, e.g.,
+                    `./my_model_directory/configuration.json`.
+        task_name (`str`):
+            The environment id. Check the available task names with `GiaAgent.get_available_task_names()`.
         collator (`GiaDataCollator`):
             The GiaDataCollator to use for collating processed observations.
         observation_space (`spaces.Space`):
@@ -40,44 +51,76 @@ class GiaAgent:
         self,
         model: GiaModel,
         processor: GiaProcessor,
-        collator: GiaDataCollator,
-        observation_space: spaces.Space,
-        action_space: spaces.Space,
-        prompter: Optional[Prompter] = None,
+        task_name: str,
+        num_envs: int = 1,
+        use_prompt: bool = True,
+        p_prompt: float = 0.25,
+        p_end: float = 0.1,
+        min_prompt_len: int = 1,
+        max_prompt_len: int = 1024,
         deterministic: bool = False,
     ) -> None:
-        self.model = model
-        self.prompter = prompter
         self.processor = processor
-        self.collator = collator
-        self.observation_space = observation_space
-        self.action_space = action_space
-        self.deterministic = deterministic
-        self.device = next(model.parameters()).device
-        self._max_length = self.model.config.max_position_embeddings - 10
+        self.model = model
 
-        if isinstance(observation_space, spaces.Box):
+        if use_prompt:
+            dataset = load_dataset("gia-project/gia-dataset", task_name, split="test", writer_batch_size=1)
+            self.prompter = Prompter(dataset, p_prompt, p_end, min_prompt_len, max_prompt_len)
+        else:
+            self.prompter = None
+
+        self.collator = GiaDataCollator()
+
+        self.num_envs = num_envs
+
+        # Get observation and action space (support both envpool and gymnasium synchronous envs)
+        env = make(task_name)
+        if hasattr(env, "single_observation_space"):
+            self.observation_space = env.single_observation_space
+        else:
+            self.observation_space = env.observation_space
+
+        if hasattr(env, "single_action_space"):
+            self.action_space = env.single_action_space
+        else:
+            self.action_space = env.action_space
+
+        self.deterministic = deterministic
+        self.device = next(self.model.parameters()).device
+        self._max_length = self.model.config.max_position_embeddings - 10  # TODO: check this
+
+        if isinstance(self.observation_space, spaces.Box):
             self._observation_key = "continuous_observations"
-        elif isinstance(observation_space, spaces.MultiDiscrete):
+        elif isinstance(self.observation_space, spaces.MultiDiscrete):
             self._observation_key = "discrete_observations"
         else:
             raise TypeError("Unsupported observation space")
 
-        if isinstance(action_space, spaces.Box):
-            self._num_act_tokens = action_space.shape[0]
-        elif isinstance(action_space, spaces.Discrete):
+        if isinstance(self.action_space, spaces.Box):
+            self._num_act_tokens = self.action_space.shape[0]
+        elif isinstance(self.action_space, spaces.Discrete):
             self._num_act_tokens = 1
         else:
             raise TypeError("Unsupported action space")
+
+    @staticmethod
+    def get_available_task_names() -> List[str]:
+        """
+        Returns the available task names.
+
+        Returns:
+            List[str]: The available task names.
+        """
+        return get_task_names()
 
     def _truncate_past_key_values(
         self, past_key_values: Tuple[Tuple[Tensor, Tensor], ...]
     ) -> Tuple[Tuple[Tensor, Tensor], ...]:
         return tuple((k[:, :, -self._max_length :], v[:, :, -self._max_length :]) for (k, v) in past_key_values)
 
-    def reset(self, num_envs: int = 1) -> None:
+    def reset(self) -> None:
         if self.prompter is not None:
-            prompts = self.prompter.generate_prompts(num_envs)
+            prompts = self.prompter.generate_prompts(self.num_envs)
             processed_prompt = self.processor(
                 **prompts,
                 padding=False,
@@ -85,9 +128,11 @@ class GiaAgent:
                 truncation_side="left",
                 max_length=self._max_length,
             )
-
             processed_prompt = self.collator(
-                [{key: processed_prompt[key][ep_idx] for key in processed_prompt.keys()} for ep_idx in range(num_envs)]
+                [
+                    {key: processed_prompt[key][ep_idx] for key in processed_prompt.keys()}
+                    for ep_idx in range(self.num_envs)
+                ]
             )
             for key in processed_prompt.keys():
                 processed_prompt[key] = processed_prompt[key].to(self.device)
