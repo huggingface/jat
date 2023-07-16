@@ -2,10 +2,10 @@ import numpy as np
 import pytest
 
 from gia.eval.rl import make
-from gia.eval.rl.envs.core import TASK_TO_ENV_MAPPING
+from gia.eval.rl.envs.core import get_task_names
 
 
-@pytest.mark.parametrize("task_name", TASK_TO_ENV_MAPPING.keys())
+@pytest.mark.parametrize("task_name", get_task_names())
 def test_make(task_name: str):
     num_envs = 2
     env = make(task_name, num_envs=num_envs)
