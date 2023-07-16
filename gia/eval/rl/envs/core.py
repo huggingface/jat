@@ -158,6 +158,16 @@ TASK_TO_ENV_MAPPING = {
 }
 
 
+def get_task_names():
+    """
+    Get all the environment ids.
+
+    Returns:
+        list: List of environment ids
+    """
+    return list(TASK_TO_ENV_MAPPING.keys())
+
+
 def make(task_name: str, num_envs: int = 1):
     if task_name.startswith("atari") or task_name.startswith("mujoco"):
         import envpool
@@ -177,12 +187,12 @@ def make(task_name: str, num_envs: int = 1):
 
     elif task_name.startswith("metaworld"):
         import gymnasium as gym
-        import metaworld
+        import metaworld  # noqa
 
         env_id = TASK_TO_ENV_MAPPING[task_name]
         env = gym.vector.SyncVectorEnv([lambda: gym.make(env_id)] * num_envs)
 
     else:
-        raise ValueError(f"Unknown task name: {task_name}")
+        raise ValueError(f"Unknown task name: {task_name}. Available task names: {get_task_names()}")
 
     return env
