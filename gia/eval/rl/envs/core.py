@@ -1,61 +1,74 @@
+import gymnasium as gym
+import numpy as np
+from gymnasium import Env, ObservationWrapper, spaces
+from sample_factory.envs.env_wrappers import (
+    ClipRewardEnv,
+    EpisodicLifeEnv,
+    FireResetEnv,
+    MaxAndSkipEnv,
+    NoopResetEnv,
+    NumpyObsWrapper,
+)
+
+
 TASK_TO_ENV_MAPPING = {
-    "atari-alien": "Alien-v5",
-    "atari-amidar": "Amidar-v5",
-    "atari-assault": "Assault-v5",
-    "atari-asterix": "Asterix-v5",
-    "atari-asteroids": "Asteroids-v5",
-    "atari-atlantis": "Atlantis-v5",
-    "atari-bankheist": "BankHeist-v5",
-    "atari-battlezone": "BattleZone-v5",
-    "atari-beamrider": "BeamRider-v5",
-    "atari-berzerk": "Berzerk-v5",
-    "atari-bowling": "Bowling-v5",
-    "atari-boxing": "Boxing-v5",
-    "atari-breakout": "Breakout-v5",
-    "atari-centipede": "Centipede-v5",
-    "atari-choppercommand": "ChopperCommand-v5",
-    "atari-crazyclimber": "CrazyClimber-v5",
-    "atari-defender": "Defender-v5",
-    "atari-demonattack": "DemonAttack-v5",
-    "atari-doubledunk": "DoubleDunk-v5",
-    "atari-enduro": "Enduro-v5",
-    "atari-fishingderby": "FishingDerby-v5",
-    "atari-freeway": "Freeway-v5",
-    "atari-frostbite": "Frostbite-v5",
-    "atari-gopher": "Gopher-v5",
-    "atari-gravitar": "Gravitar-v5",
-    "atari-hero": "Hero-v5",
-    "atari-icehockey": "IceHockey-v5",
-    "atari-jamesbond": "Jamesbond-v5",
-    "atari-kangaroo": "Kangaroo-v5",
-    "atari-krull": "Krull-v5",
-    "atari-kungfumaster": "KungFuMaster-v5",
-    "atari-montezumarevenge": "MontezumaRevenge-v5",
-    "atari-mspacman": "MsPacman-v5",
-    "atari-namethisgame": "NameThisGame-v5",
-    "atari-phoenix": "Phoenix-v5",
-    "atari-pitfall": "Pitfall-v5",
-    "atari-pong": "Pong-v5",
-    "atari-privateeye": "PrivateEye-v5",
-    "atari-qbert": "Qbert-v5",
-    "atari-riverraid": "Riverraid-v5",
-    "atari-roadrunner": "RoadRunner-v5",
-    "atari-robotank": "Robotank-v5",
-    "atari-seaquest": "Seaquest-v5",
-    "atari-skiing": "Skiing-v5",
-    "atari-solaris": "Solaris-v5",
-    "atari-spaceinvaders": "SpaceInvaders-v5",
-    "atari-stargunner": "StarGunner-v5",
-    "atari-surround": "Surround-v5",
-    "atari-tennis": "Tennis-v5",
-    "atari-timepilot": "TimePilot-v5",
-    "atari-tutankham": "Tutankham-v5",
-    "atari-upndown": "UpNDown-v5",
-    "atari-venture": "Venture-v5",
-    "atari-videopinball": "VideoPinball-v5",
-    "atari-wizardofwor": "WizardOfWor-v5",
-    "atari-yarsrevenge": "YarsRevenge-v5",
-    "atari-zaxxon": "Zaxxon-v5",
+    "atari-alien": "Alien-v4",
+    "atari-amidar": "Amidar-v4",
+    "atari-assault": "Assault-v4",
+    "atari-asterix": "Asterix-v4",
+    "atari-asteroids": "Asteroids-v4",
+    "atari-atlantis": "Atlantis-v4",
+    "atari-bankheist": "BankHeist-v4",
+    "atari-battlezone": "BattleZone-v4",
+    "atari-beamrider": "BeamRider-v4",
+    "atari-berzerk": "Berzerk-v4",
+    "atari-bowling": "Bowling-v4",
+    "atari-boxing": "Boxing-v4",
+    "atari-breakout": "Breakout-v4",
+    "atari-centipede": "Centipede-v4",
+    "atari-choppercommand": "ChopperCommand-v4",
+    "atari-crazyclimber": "CrazyClimber-v4",
+    "atari-defender": "Defender-v4",
+    "atari-demonattack": "DemonAttack-v4",
+    "atari-doubledunk": "DoubleDunk-v4",
+    "atari-enduro": "Enduro-v4",
+    "atari-fishingderby": "FishingDerby-v4",
+    "atari-freeway": "Freeway-v4",
+    "atari-frostbite": "Frostbite-v4",
+    "atari-gopher": "Gopher-v4",
+    "atari-gravitar": "Gravitar-v4",
+    "atari-hero": "Hero-v4",
+    "atari-icehockey": "IceHockey-v4",
+    "atari-jamesbond": "Jamesbond-v4",
+    "atari-kangaroo": "Kangaroo-v4",
+    "atari-krull": "Krull-v4",
+    "atari-kungfumaster": "KungFuMaster-v4",
+    "atari-montezumarevenge": "MontezumaRevenge-v4",
+    "atari-mspacman": "MsPacman-v4",
+    "atari-namethisgame": "NameThisGame-v4",
+    "atari-phoenix": "Phoenix-v4",
+    "atari-pitfall": "Pitfall-v4",
+    "atari-pong": "Pong-v4",
+    "atari-privateeye": "PrivateEye-v4",
+    "atari-qbert": "Qbert-v4",
+    "atari-riverraid": "Riverraid-v4",
+    "atari-roadrunner": "RoadRunner-v4",
+    "atari-robotank": "Robotank-v4",
+    "atari-seaquest": "Seaquest-v4",
+    "atari-skiing": "Skiing-v4",
+    "atari-solaris": "Solaris-v4",
+    "atari-spaceinvaders": "SpaceInvaders-v4",
+    "atari-stargunner": "StarGunner-v4",
+    "atari-surround": "ALE/Surround-v5",
+    "atari-tennis": "Tennis-v4",
+    "atari-timepilot": "TimePilot-v4",
+    "atari-tutankham": "Tutankham-v4",
+    "atari-upndown": "UpNDown-v4",
+    "atari-venture": "Venture-v4",
+    "atari-videopinball": "VideoPinball-v4",
+    "atari-wizardofwor": "WizardOfWor-v4",
+    "atari-yarsrevenge": "YarsRevenge-v4",
+    "atari-zaxxon": "Zaxxon-v4",
     "babyai-action-obj-door": "BabyAI-ActionObjDoor-v0",
     "babyai-blocked-unlock-pickup": "BabyAI-BlockedUnlockPickup-v0",
     "babyai-boss-level-no-unlock": "BabyAI-BossLevelNoUnlock-v0",
@@ -168,31 +181,104 @@ def get_task_names():
     return list(TASK_TO_ENV_MAPPING.keys())
 
 
-def make(task_name: str, num_envs: int = 1):
-    if task_name.startswith("atari") or task_name.startswith("mujoco"):
-        import envpool
+class AtariDictObservationWrapper(ObservationWrapper):
+    def __init__(self, env):
+        super().__init__(env)
+        self.observation_space = spaces.Dict(
+            {"image_observations": spaces.Box(low=0, high=255, shape=(84, 84, 4), dtype=np.uint8)}
+        )
 
-        env = envpool.make(TASK_TO_ENV_MAPPING[task_name], "gymnasium", num_envs=num_envs)
+    def observation(self, observation):
+        observations = np.transpose(observation, (1, 2, 0))  # make channel last
+        return {"image_observations": observations}
+
+
+def make_atari(task_name: str):
+    kwargs = {"frameskip": 1, "repeat_action_probability": 0.0}
+    if task_name == "atari-montezumarevenge":
+        kwargs["max_episode_steps"] = 18_000
+    env = gym.make(TASK_TO_ENV_MAPPING[task_name], **kwargs)
+    env = gym.wrappers.RecordEpisodeStatistics(env)
+    env = NoopResetEnv(env, noop_max=30)
+    env = MaxAndSkipEnv(env, skip=4)
+    env = EpisodicLifeEnv(env)
+    if "FIRE" in env.unwrapped.get_action_meanings():
+        env = FireResetEnv(env)
+    env = ClipRewardEnv(env)
+    env = gym.wrappers.ResizeObservation(env, (84, 84))
+    env = gym.wrappers.GrayScaleObservation(env)
+    env = gym.wrappers.FrameStack(env, num_stack=4)
+    env = NumpyObsWrapper(env)
+    env = AtariDictObservationWrapper(env)
+    return env
+
+
+class BabyAIDictObservationWrapper(ObservationWrapper):
+    """
+    Wrapper for BabyAI environments.
+
+    Flatten the image and direction observations and concatenate them.
+    """
+
+    def __init__(self, env: Env) -> None:
+        super().__init__(env)
+        n_image = self.observation_space["image"].high.flatten()
+        n_direction = self.observation_space["direction"].n
+        self.observation_space = spaces.Dict(
+            {
+                "text_observations": env.observation_space.spaces["mission"],
+                "discrete_observations": spaces.MultiDiscrete([n_direction, *n_image]),
+            }
+        )
+
+    def observation(self, observation):
+        discrete_observations = np.append(observation["direction"], observation["image"].flatten())
+        return {
+            "text_observations": observation["mission"],
+            "discrete_observations": discrete_observations,
+        }
+
+
+def make_babyai(task_name: str):
+    env = gym.make(TASK_TO_ENV_MAPPING[task_name])
+    env = BabyAIDictObservationWrapper(env)
+    return env
+
+
+class ContinuousObservationDictWrapper(ObservationWrapper):
+    def __init__(self, env):
+        super().__init__(env)
+        self.observation_space = spaces.Dict({"continuous_observations": env.observation_space})
+
+    def observation(self, observation):
+        return {"continuous_observations": observation}
+
+
+def make_metaworld(task_name: str):
+    import metaworld  # noqa
+
+    env = gym.make(TASK_TO_ENV_MAPPING[task_name])
+    env = ContinuousObservationDictWrapper(env)
+    return env
+
+
+def make_mujoco(task_name: str):
+    env = gym.make(TASK_TO_ENV_MAPPING[task_name])
+    env = ContinuousObservationDictWrapper(env)
+    return env
+
+
+def make(task_name: str):
+    if task_name.startswith("atari"):
+        return make_atari(task_name)
 
     elif task_name.startswith("babyai"):
-        import gymnasium as gym
-
-        from gia.eval.rl.envs.babyai import BabyAIWrapper
-
-        def env_func():
-            return BabyAIWrapper(gym.make(TASK_TO_ENV_MAPPING[task_name]))
-
-        env_id = TASK_TO_ENV_MAPPING[task_name]
-        env = gym.vector.SyncVectorEnv([env_func] * num_envs)
+        return make_babyai(task_name)
 
     elif task_name.startswith("metaworld"):
-        import gymnasium as gym
-        import metaworld  # noqa
+        return make_metaworld(task_name)
 
-        env_id = TASK_TO_ENV_MAPPING[task_name]
-        env = gym.vector.SyncVectorEnv([lambda: gym.make(env_id)] * num_envs)
-
+    elif task_name.startswith("mujoco"):
+        return make_mujoco(task_name)
     else:
         raise ValueError(f"Unknown task name: {task_name}. Available task names: {get_task_names()}")
-
-    return env
