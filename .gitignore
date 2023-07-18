@@ -140,3 +140,5 @@ debug_cache/
 wandb/
 runs/
 logs/
+
+train_dir/

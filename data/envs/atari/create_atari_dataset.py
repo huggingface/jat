@@ -265,7 +265,6 @@ def create_atari_dataset(cfg: Config):
         discrete_actions=dataset_discrete_actions,
         rewards=dataset_rewards,
         push_to_hub=cfg.push_to_hub,
-        revision=task,
     )
 
 
