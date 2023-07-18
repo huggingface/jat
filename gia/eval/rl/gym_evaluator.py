@@ -1,7 +1,7 @@
 import gym
 from gym.vector.vector_env import VectorEnv
 
-from gia.eval.mappings import TASK_TO_ENV_MAPPING
+# from gia.eval.mappings import TASK_TO_ENV_MAPPING
 from gia.eval.rl.rl_evaluator import RLEvaluator
 
 
