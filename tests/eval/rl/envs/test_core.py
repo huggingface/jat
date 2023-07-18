@@ -5,16 +5,19 @@ from gia.eval.rl import make
 from gia.eval.rl.envs.core import get_task_names
 
 
+OBS_KEYS = {"discrete_observations", "continuous_observations", "image_observations", "text_observations"}
+
+
 @pytest.mark.parametrize("task_name", get_task_names())
 def test_make(task_name: str):
-    num_envs = 2
-    env = make(task_name, num_envs=num_envs)
+    env = make(task_name)
     observation, info = env.reset()
     for _ in range(10):
-        action_space = env.single_action_space if hasattr(env, "single_action_space") else env.action_space
-        action = np.array([action_space.sample() for _ in range(num_envs)])
+        action = np.array(env.action_space.sample())
         observation, reward, terminated, truncated, info = env.step(action)
-        assert reward.shape == (num_envs,)
-        assert terminated.shape == (num_envs,)
-        assert truncated.shape == (num_envs,)
+        assert isinstance(info, dict)
+        assert set(observation.keys()).issubset(OBS_KEYS)
+        assert isinstance(reward, float)
+        assert isinstance(terminated, bool)
+        assert isinstance(truncated, bool)
         assert isinstance(info, dict)
