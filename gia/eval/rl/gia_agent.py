@@ -73,27 +73,16 @@ class GiaAgent:
 
         self.num_envs = num_envs
 
-        # Get observation and action space (support both envpool and gymnasium synchronous envs)
+        # Get observation and action space
         env = make(task_name)
-        if hasattr(env, "single_observation_space"):
-            self.observation_space = env.single_observation_space
-        else:
-            self.observation_space = env.observation_space
-
-        if hasattr(env, "single_action_space"):
-            self.action_space = env.single_action_space
-        else:
-            self.action_space = env.action_space
+        self.observation_space = env.observation_space
+        self.action_space = env.action_space
 
         self.deterministic = deterministic
         self.device = next(self.model.parameters()).device
-        self._max_length = self.model.config.max_position_embeddings - 10  # TODO: check this
+        self._max_length = self.model.config.max_position_embeddings - 200  # TODO: check this
 
-        if isinstance(self.observation_space, spaces.Box):
-            self._observation_key = "continuous_observations"
-        elif isinstance(self.observation_space, spaces.MultiDiscrete):
-            self._observation_key = "discrete_observations"
-        else:
+        if not isinstance(self.observation_space, spaces.Dict):
             raise TypeError("Unsupported observation space")
 
         if isinstance(self.action_space, spaces.Box):
@@ -152,13 +141,17 @@ class GiaAgent:
             np.ndarray: The next action
         """
         # Turn into episode
-        num_envs = observations.shape[0]
-        observations = np.expand_dims(observations, axis=1).tolist()
+        for key, value in observations.items():
+            if isinstance(value, np.ndarray):
+                observations[key] = np.expand_dims(value, axis=1).tolist()
+            elif isinstance(value, (list, tuple)):
+                observations[key] = [[v] for v in value]
+            else:
+                raise TypeError(f"Unsupported type for {key}")
 
         # Process observations
-        inputs = {self._observation_key: observations}
         processed = self.processor(
-            **inputs,
+            **observations,
             padding=False,
             truncation="max_length",
             truncation_side="left",
@@ -166,6 +159,7 @@ class GiaAgent:
         )
 
         # Process and move to device
+        num_envs = len(processed["input_types"])
         processed = self.collator(
             [{key: processed[key][ep_idx] for key in processed.keys()} for ep_idx in range(num_envs)]
         )
@@ -210,5 +204,5 @@ class GiaAgent:
             actions = actions.squeeze(axis=1)
 
             # Clip the action if necessary (decoded actions are between 0 and num_bins)
-            actions = np.clip(actions, a_min=0, a_max=self.action_space.n)
+            actions = np.clip(actions, a_min=0, a_max=self.action_space.n - 1)
         return actions
