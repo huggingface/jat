@@ -5,8 +5,6 @@ from collections import deque
 import numpy as np
 import torch
 from huggingface_hub import HfApi, repocard, upload_folder
-from gia.datasets.to_hub import add_dataset_to_hub
-
 from sample_factory.algo.learning.learner import Learner
 from sample_factory.algo.sampling.batched_sampling import preprocess_actions
 from sample_factory.algo.utils.action_distributions import argmax_actions
@@ -22,6 +20,8 @@ from sample_factory.utils.attr_dict import AttrDict
 from sample_factory.utils.typing import Config
 from sample_factory.utils.utils import log
 from sf_examples.mujoco.train_mujoco import parse_mujoco_cfg, register_mujoco_components
+
+from gia.datasets.to_hub import add_dataset_to_hub
 
 
 def generate_dataset_card(
