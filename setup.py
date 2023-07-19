@@ -65,19 +65,22 @@ REQUIRED_PKGS = [
     "torch",
     "huggingface_hub>=0.10",  # For sharing objects, environments & trained RL policies
     "transformers",
-    "gym==0.26.2",  # For RL action spaces and API
-    "hydra-core",
+    "gymnasium",  # For RL action spaces and API
     "accelerate",
     "wandb",
     "datasets @ git+https://github.com/qgallouedec/datasets.git@speedup-sequence-of-sequece-of-array",
-    "opencv-python",
     "Pillow",
 ]
 
 
 DEV_REQUIRE = []
 
-TESTS_REQUIRE = ["pytest", "pytest-xdist", "gym[mujoco]==0.26.2"]
+TESTS_REQUIRE = [
+    "pytest",
+    "pytest-xdist",
+    "gymnasium[mujoco]==0.26.2",
+    "git+https://github.com/qgallouedec/Metaworld@gym2.6_register",
+]
 
 QUALITY_REQUIRE = ["black[jupyter]~=22.0", "ruff", "pyyaml>=5.3.1"]
 
