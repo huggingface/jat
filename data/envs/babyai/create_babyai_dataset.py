@@ -8,7 +8,7 @@ from bot_agent import Bot
 from utils.env_wrappers import AddRGBImgPartialObsWrapper
 
 
-def create_babyai_dataset(name_env, saving_path, max_num_frames=100000, test_set_percentage=5):
+def create_babyai_dataset(name_env, saving_path, max_num_episodes=100000, test_set_percentage=5):
     env = gym.make(name_env)
     env = AddRGBImgPartialObsWrapper(env)  # add rgb image to obs
 
@@ -48,23 +48,25 @@ def create_babyai_dataset(name_env, saving_path, max_num_frames=100000, test_set
     print("Starting trajectories generation")
     obs, policy = reset_env_and_policy(env)
     dataset.reset_episode()
-    for i in range(max_num_frames):
-        try:
-            action = policy.replan()
-            obs, r, done, _, infos = env.step(action)
-            dataset.add_step(obs, int(action), r)
-        except Exception:
-            dataset.reset_episode(append_new=i < max_num_frames - 1)
-            done = True
+    n_steps = 0
+    for i in range(max_num_episodes):
+        done = False
+        while not done:
+            try:
+                action = policy.replan()
+                obs, r, done, _, infos = env.step(action)
+                dataset.add_step(obs, int(action), r)
+            except Exception:
+                done = True
 
-        if done:
-            obs, policy = reset_env_and_policy(env)
+            if done:
+                obs, policy = reset_env_and_policy(env)
+                dataset.reset_episode(append_new=i < max_num_episodes - 1)
 
-        if done or i == max_num_frames - 1:
-            dataset.reset_episode(append_new=i < max_num_frames - 1)
+            n_steps += 1
 
     env.close()
-    print("Finished generation")
+    print(f"Finished generation. Generated {n_steps} transitions.")
 
     print("Saving...")
     dataset_size = len(dataset)
@@ -84,7 +86,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--name_env", type=str)
     parser.add_argument("--saving_path", type=str)
-    parser.add_argument("--max_num_frames", default=100000, type=int)
+    parser.add_argument("--max_num_episodes", default=100000, type=int)
     parser.add_argument("--test_set_percentage", default=5, type=int)
     args = parser.parse_args()
 
