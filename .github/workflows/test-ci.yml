@@ -26,13 +26,13 @@ jobs:
       run: |
         # $CONDA is an environment variable pointing to the root of the miniconda directory
         echo $CONDA/bin >> $GITHUB_PATH
-        export LD_LIBRARY_PATH="/home/runner/.mujoco/mujoco210/bin:${LD_LIBRARY_PATH}"
+        echo "LD_LIBRARY_PATH=$HOME/.mujoco/mujoco210:$LD_LIBRARY_PATH" >> $GITHUB_ENV
     - name: Install conda env & dependencies
       run: |
         conda install python=${{ matrix.python-version }}
         pip install -e '.[dev,test]'
         conda list
-    - name: Additional step for MuJoCo instalation
+    - name: Additional step for MuJoCo installation
       run: |
         url="https://mujoco.org/download/mujoco210-linux-x86_64.tar.gz"
         target_folder=~/.mujoco
