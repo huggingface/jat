@@ -61,15 +61,16 @@ from setuptools import find_packages
 __version__ = "0.0.1.dev0"  # expected format is one of x.y.z.dev0, or x.y.z.rc1 or x.y.z (no to dashes, yes to dots)
 
 REQUIRED_PKGS = [
-    "numpy",
-    "torch",
-    "huggingface_hub>=0.10",  # For sharing objects, environments & trained RL policies
-    "transformers",
-    "gymnasium",  # For RL action spaces and API
     "accelerate",
-    "wandb",
     "datasets @ git+https://github.com/qgallouedec/datasets.git@speedup-sequence-of-sequece-of-array",
+    "gymnasium",  # For RL action spaces and API
+    "huggingface_hub>=0.10",  # For sharing objects, environments & trained RL policies
+    "numpy",
+    "opencv-python",
     "Pillow",
+    "torch",
+    "transformers",
+    "wandb",
 ]
 
 
