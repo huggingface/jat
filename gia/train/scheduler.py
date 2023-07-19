@@ -8,7 +8,7 @@ def _get_cosine_schedule_with_linear_warmup_lr_lambda(
 ):
     if current_step < num_warmup_steps:
         return float(current_step) / float(max(1, num_warmup_steps))
-    elif num_warmup_steps < current_step < num_warmup_steps + num_decay_steps:
+    elif num_warmup_steps <= current_step < num_warmup_steps + num_decay_steps:
         progress = float(current_step - num_warmup_steps) / float(max(1, num_decay_steps))
         return final_value + (1.0 - final_value) * 0.5 * (1.0 + math.cos(math.pi * progress))
     elif num_warmup_steps + num_decay_steps < current_step:
