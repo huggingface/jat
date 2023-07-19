@@ -67,7 +67,6 @@ REQUIRED_PKGS = [
     "huggingface_hub>=0.10",  # For sharing objects, environments & trained RL policies
     "numpy",
     "opencv-python",
-    "Pillow",
     "torch",
     "transformers",
     "wandb",
