@@ -36,7 +36,7 @@ def main():
     # Load the trainer
     optimizer = AdamW(model.parameters(), lr=args.learning_rate, betas=(0.9, 0.95), eps=args.adam_epsilon)
     scheduler = get_cosine_schedule_with_linear_warmup(
-        optimizer, num_warmup_steps=15_000, num_decay_steps=1_000_000, final_value=1e-5
+        optimizer, num_warmup_steps=15_000, num_decay_steps=1_000_000, final_value=0.1
     )
     trainer = Trainer(
         model,
