@@ -41,6 +41,7 @@ jobs:
         curl -o "$tar_filename" "$url"
         tar -xzf "$tar_filename" -C "$target_folder"
         rm "$tar_filename"
+        pip install free-mujoco-py
     - name: Check quality
       run: |
         make quality
