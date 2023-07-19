@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, List
 
 import gymnasium as gym
 import numpy as np
@@ -174,7 +174,7 @@ TASK_TO_ENV_MAPPING = {
 }
 
 
-def get_task_names():
+def get_task_names() -> List[str]:
     """
     Get all the environment ids.
 
@@ -196,7 +196,7 @@ class AtariDictObservationWrapper(ObservationWrapper):
         return {"image_observations": observations}
 
 
-def make_atari(task_name: str, **kwargs):
+def make_atari(task_name: str, **kwargs) -> Env:
     kwargs = {"frameskip": 1, "repeat_action_probability": 0.0, **kwargs}
     if task_name == "atari-montezumarevenge":
         kwargs["max_episode_steps"] = 18_000
@@ -247,7 +247,7 @@ class FloatRewardWrapper(RewardWrapper):
         return float(reward)
 
 
-def make_babyai(task_name: str, **kwargs):
+def make_babyai(task_name: str, **kwargs) -> Env:
     env = gym.make(TASK_TO_ENV_MAPPING[task_name], **kwargs)
     env = BabyAIDictObservationWrapper(env)
     env = FloatRewardWrapper(env)
@@ -263,7 +263,7 @@ class ContinuousObservationDictWrapper(ObservationWrapper):
         return {"continuous_observations": observation}
 
 
-def make_metaworld(task_name: str, **kwargs):
+def make_metaworld(task_name: str, **kwargs) -> Env:
     import metaworld  # noqa
 
     env = gym.make(TASK_TO_ENV_MAPPING[task_name], **kwargs)
@@ -271,7 +271,7 @@ def make_metaworld(task_name: str, **kwargs):
     return env
 
 
-def make_mujoco(task_name: str, **kwargs):
+def make_mujoco(task_name: str, **kwargs) -> Env:
     env = gym.make(TASK_TO_ENV_MAPPING[task_name], **kwargs)
     env = ContinuousObservationDictWrapper(env)
     return env
