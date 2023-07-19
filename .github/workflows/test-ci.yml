@@ -29,7 +29,7 @@ jobs:
     - name: Install conda env & dependencies
       run: |
        conda install python=${{ matrix.python-version }}
-       pip install --upgrade setuptools
+       pip install setuptools==57.1.0
        pip install -e '.[dev,test]'
        conda list
     - name: Check quality
