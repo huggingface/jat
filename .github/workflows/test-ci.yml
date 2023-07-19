@@ -40,6 +40,7 @@ jobs:
         curl -o "$tar_filename" "$url"
         tar -xzf "$tar_filename" -C "$target_folder"
         rm "$tar_filename"
+        export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/runner/.mujoco/mujoco210/bin
     - name: Check quality
       run: |
         make quality
