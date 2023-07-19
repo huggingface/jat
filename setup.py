@@ -76,10 +76,11 @@ REQUIRED_PKGS = [
 DEV_REQUIRE = []
 
 TESTS_REQUIRE = [
-    "pytest",
-    "pytest-xdist",
     "gymnasium[atari,mujoco]",
     "metaworld @ git+https://github.com/qgallouedec/Metaworld@gym2.6_register",
+    "minigrid",
+    "pytest-xdist",
+    "pytest",
 ]
 
 QUALITY_REQUIRE = ["black[jupyter]~=22.0", "ruff", "pyyaml>=5.3.1"]
