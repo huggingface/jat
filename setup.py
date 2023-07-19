@@ -78,7 +78,7 @@ DEV_REQUIRE = []
 TESTS_REQUIRE = [
     "pytest",
     "pytest-xdist",
-    "gymnasium[mujoco]==0.26.2",
+    "gymnasium[atari,mujoco]",
     "metaworld @ git+https://github.com/qgallouedec/Metaworld@gym2.6_register",
 ]
 
