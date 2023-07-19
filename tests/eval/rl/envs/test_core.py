@@ -1,0 +1,22 @@
+import numpy as np
+import pytest
+
+from gia.eval.rl.envs.core import get_task_names, make
+
+
+OBS_KEYS = {"discrete_observations", "continuous_observations", "image_observations", "text_observations"}
+
+
+@pytest.mark.parametrize("task_name", get_task_names())
+def test_make(task_name):
+    env = make(task_name)
+    observation, info = env.reset()
+    for _ in range(10):
+        action = np.array(env.action_space.sample())
+        observation, reward, terminated, truncated, info = env.step(action)
+        assert isinstance(info, dict)
+        assert set(observation.keys()).issubset(OBS_KEYS)
+        assert isinstance(reward, float)
+        assert isinstance(terminated, bool)
+        assert isinstance(truncated, bool)
+        assert isinstance(info, dict)
