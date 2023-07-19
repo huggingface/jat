@@ -54,6 +54,6 @@ ENVS=(
 )
 
 for ENV in "${ENVS[@]}"; do
-    python -m sample_factory.huggingface.load_from_hub -r qgallouedec/sample-factory-$ENV-v2
-    python generate_dataset.py --env $ENV-v2 --experiment sample-factory-$ENV-v2 --train_dir=./train_dir
+    python -m sample_factory.huggingface.load_from_hub -r qgallouedec/$ENV-v2
+    python generate_dataset.py --env $ENV-v2 --experiment $ENV-v2 --train_dir=./train_dir
 done
