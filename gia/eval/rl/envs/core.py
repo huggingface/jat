@@ -3,7 +3,8 @@ from typing import Dict
 import gymnasium as gym
 import numpy as np
 from gymnasium import Env, ObservationWrapper, RewardWrapper, spaces
-from sample_factory.envs.env_wrappers import (
+
+from .wrappers import (
     ClipRewardEnv,
     EpisodicLifeEnv,
     FireResetEnv,
