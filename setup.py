@@ -79,7 +79,7 @@ TESTS_REQUIRE = [
     "pytest",
     "pytest-xdist",
     "gymnasium[mujoco]==0.26.2",
-    "git+https://github.com/qgallouedec/Metaworld@gym2.6_register",
+    "metaworld @ git+https://github.com/qgallouedec/Metaworld@gym2.6_register",
 ]
 
 QUALITY_REQUIRE = ["black[jupyter]~=22.0", "ruff", "pyyaml>=5.3.1"]
