@@ -32,7 +32,7 @@ class DatasetArguments:
             The probability of including a prompt at the beginning of a sequence.
         p_end (`float`, *optional*, defaults to 0.5):
            The probability of taking a prompt from the end of an episode.
-        min_prompt_len (`int`, *optional*, defaults to 10):
+        min_prompt_len (`int`, *optional*, defaults to 16):
             The minimum length of a prompt (as number of tokens).
         max_prompt_len (`int`, *optional*, defaults to 1024):
             The minimum length of a prompt (as number of tokens).
@@ -113,7 +113,7 @@ class DatasetArguments:
         metadata={"help": "The probability of taking a prompt from the end of an episode. Defaults to `0.5`."},
     )
     min_prompt_len: int = field(
-        default=10,
+        default=16,
         metadata={"help": "The minimum length of a prompt (as number of tokens). Defaults to `10`."},
     )
     max_prompt_len: int = field(
