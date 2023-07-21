@@ -76,7 +76,7 @@ REQUIRED_PKGS = [
 DEV_REQUIRE = []
 
 TESTS_REQUIRE = [
-    "free-mujoco-py"
+    "free-mujoco-py",
     "gymnasium[accept-rom-license,atari, mujoco]",
     "metaworld @ git+https://github.com/qgallouedec/Metaworld@gym2.6_register",
     "minigrid",
