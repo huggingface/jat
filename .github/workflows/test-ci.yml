@@ -25,7 +25,7 @@ jobs:
     - name: Install MuJoCo dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y libosmesa6-dev libgl1-mesa-glx libstdc++6
+        sudo apt-get install -y libosmesa6-dev libgl1-mesa-glx
     - name: Update path
       run: |
         echo $CONDA/bin >> $GITHUB_PATH
@@ -42,6 +42,7 @@ jobs:
     - name: Install conda env & dependencies
       run: |
         conda install python=${{ matrix.python-version }}
+        conda install libgcc=5.2.0
         pip install -e '.[dev,test]'
         conda list
     - name: Check quality
