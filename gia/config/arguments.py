@@ -16,52 +16,52 @@ class DatasetArguments:
     Arguments related to the dataset.
 
     Parameters:
-        task_names (`str`, *optional*):
+        task_names (`str`, *optional*, defaults to `"all"`):
             Comma-separated list of tasks (or prefixes, e.g. `"mujuco"`) to load.
             See the available tasks in https://huggingface.co/datasets/gia-project/gia-dataset.
-            If `"all"`, load all the tasks. Defaults to `"all"`.
-        text_tokenizer_name (`str`, *optional*):
-            The name of the tokenizer to use for text observations. Defaults to `"albert-base-v2"`.
-        train_split (`str`, *optional*):
-            The train split. Select a subset with, e.g. `"train[:100]"` or `"train[:10%]"`. Defaults to `"train"`.
-        test_split (`str`, *optional*):
-            The test split. Select a subset with, e.g. `"test[:100]"` or `"test[:10%]"`. Defaults to `"test"`.
-        use_separator (`bool`, *optional*):
-            Whether to include a separator token between observations and actions. Defaults to `True`.
-        p_prompt (`float`, *optional*):
-            The probability of including a prompt at the beginning of a sequence. Defaults to `0.25`.
-        p_end (`float`, *optional*):
-           The probability of taking a prompt from the end of an episode. Defaults to `0.5`.
-        min_prompt_len (`int`, *optional*):
-            The minimum length of a prompt (as number of tokens). Defaults to `10`.
-        max_prompt_len (`int`, *optional*):
-            The minimum length of a prompt (as number of tokens). Defaults to `1024`.
-        patch_size (`int`, *optional*):
-            The size of the patches to extract from image observations. Defaults to `16`.
-        mu (`float`, *optional*):
-            The μ parameter for the μ-law companding of continuous values. Defaults to `100`.
-        M (`float`, *optional*):
-            The M parameter for the μ-law companding of continuous values. Defaults to `256`.
-        nb_bins (`int`, *optional*):
-            The number of bins for the discretization of continuous values. Defaults to `1024`.
-        overwrite_cache (`bool`, *optional*):
-            Whether to overwrite the cached datasets. Defaults to `False`.
-        preprocessing_num_workers (`int`, *optional*):
-            The number of processes to use for the preprocessing. Defaults to `None`.
-        pad_to_max_length (`bool`, *optional*):
+            If `"all"`, load all the tasks.
+        text_tokenizer_name (`str`, *optional*, defaults to `"albert-base-v2"`):
+            The name of the tokenizer to use for text observations.
+        train_split (`str`, *optional*, defaults to `"train"`):
+            The train split. Select a subset with, e.g. `"train[:100]"` or `"train[:10%]"`.
+        test_split (`str`, *optional*, defaults to `"test"`):
+            The test split. Select a subset with, e.g. `"test[:100]"` or `"test[:10%]"`.
+        use_separator (`bool`, *optional*, defaults to `True`):
+            Whether to include a separator token between observations and actions.
+        p_prompt (`float`, *optional*, defaults to 0.25):
+            The probability of including a prompt at the beginning of a sequence.
+        p_end (`float`, *optional*, defaults to 0.5):
+           The probability of taking a prompt from the end of an episode.
+        min_prompt_len (`int`, *optional*, defaults to 10):
+            The minimum length of a prompt (as number of tokens).
+        max_prompt_len (`int`, *optional*, defaults to 1024):
+            The minimum length of a prompt (as number of tokens).
+        patch_size (`int`, *optional*, defaults to 16):
+            The size of the patches to extract from image observations.
+        mu (`float`, *optional*, defaults to 100):
+            The μ parameter for the μ-law companding of continuous values.
+        M (`float`, *optional*, defaults to 256):
+            The M parameter for the μ-law companding of continuous values.
+        nb_bins (`int`, *optional*, defaults to 1024):
+            The number of bins for the discretization of continuous values.
+        overwrite_cache (`bool`, *optional*, defaults to `False`):
+            Whether to overwrite the cached datasets.
+        preprocessing_num_workers (`int`, *optional*, defaults to `None`):
+            The number of processes to use for the preprocessing.
+        pad_to_max_length (`bool`, *optional*, defaults to `False`):
             Whether to pad all samples to model maximum sentence length.
             If False, will pad the samples dynamically when batching to the maximum length in the batch. More
             efficient on GPU but very bad for TPU.
-        max_eval_samples (`int`, *optional*):
+        max_eval_samples (`int`, *optional*, defaults to `None`):
             For debugging purposes or quicker training, truncate the number of evaluation examples to this value if
-            set. Defaults to `None`.
-        mask_loss_modalities (`str`, *optional*):
-            The modalities to mask for the loss computation. Defaults to `"default"` which means all modalities except
+            set.
+        mask_loss_modalities (`str`, *optional*, defaults to `"default"`):
+            The modalities to mask for the loss computation. `"default"` means all modalities except
             text and actions. Specify as a comma-separated list of modalities. For example,
             `"continuous_observations,discrete_actions"` will only mask the continuous observations and discrete
             actions.
-        local_positions_groups (`str`, *optional*):
-            The groups of modalities for which to add local positions. Defaults to `"default"`, which means a single
+        local_positions_groups (`str`, *optional*, defaults to `"default"`):
+            The groups of modalities for which to add local positions. `"default"` means a single
             group containing all observations modalities (text, images, discrete and continuous observations).
             Specify as a comma-separated list of groups. For example,
             `"text_observations,image_observations"` will add local positions to only text and image observations.
