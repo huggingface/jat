@@ -41,7 +41,7 @@ jobs:
         echo "LD_LIBRARY_PATH=$HOME/.mujoco/mujoco210/bin:$LD_LIBRARY_PATH" >> $GITHUB_ENV
     - name: Install conda env & dependencies
       run: |
-        conda install python=${{ matrix.python-version }} libstdcxx-ng=12
+        conda install python=${{ matrix.python-version }}
         pip install -e '.[dev,test]'
         conda list
     - name: Check quality
