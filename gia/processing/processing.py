@@ -66,6 +66,7 @@ class GiaImageProcessor:
         patch_size (`int`, *optional*, defaults to 16):
             The size of the patches to extract from image observations.
     """
+
     def __init__(self, patch_size: int = 16) -> None:
         self.patch_size = patch_size
 
