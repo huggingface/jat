@@ -12,7 +12,7 @@ from gia.datasets import get_task_name_list
 
 @dataclass
 class DatasetArguments:
-    """
+    r"""
     Arguments related to the dataset.
 
     Parameters:
@@ -190,7 +190,7 @@ class DatasetArguments:
 
 @dataclass
 class ModelArguments:
-    """
+    r"""
     Arguments pertaining to which model/config/tokenizer we are going to trained from.
 
     Parameters:
@@ -248,7 +248,7 @@ class ModelArguments:
 
 @dataclass
 class EvalArguments:
-    """
+    r"""
     Arguments for evaluation.
 
     auto_eval (`bool`, *optional*):

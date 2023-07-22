@@ -23,7 +23,7 @@ def get_cosine_schedule_with_linear_warmup(
     final_value: float = 0.1,
     last_epoch: int = -1,
 ) -> LambdaLR:
-    """
+    r"""
     Create a schedule with a learning rate that warms up linearly, then decays using the cosine schedule.
 
     Args:
