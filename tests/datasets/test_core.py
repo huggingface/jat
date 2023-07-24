@@ -41,14 +41,14 @@ def test_prompts_restricted_to_episode_length(example_dataset):
 
 def test_max_prompt_len(example_dataset):
     max_prompt_len = 3
-    prompter = Prompter(example_dataset, max_prompt_len=max_prompt_len)
+    prompter = Prompter(example_dataset, min_prompt_len=2, max_prompt_len=max_prompt_len)
     prompts = prompter.generate_prompts(num_prompts=5)
     for prompt in prompts["text"]:
         assert len(prompt) <= max_prompt_len, "Generated prompts should not exceed max_prompt_len"
 
 
 def test_random_seed(example_dataset):
-    prompter = Prompter(example_dataset, p_end=0.5, max_prompt_len=10)
+    prompter = Prompter(example_dataset, p_end=0.5, min_prompt_len=2, max_prompt_len=10)
 
     random.seed(42)
     num_prompts = 5
@@ -66,7 +66,7 @@ def test_random_seed(example_dataset):
 
 def test_p_end(example_dataset):
     p_end = 0.8
-    prompter = Prompter(example_dataset, p_end=p_end, max_prompt_len=5)
+    prompter = Prompter(example_dataset, p_end=p_end, min_prompt_len=2, max_prompt_len=5)
     num_prompts = 1000
     prompts = prompter.generate_prompts(num_prompts)
     end_element = example_dataset["text"][0][-1]
