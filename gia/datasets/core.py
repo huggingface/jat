@@ -13,18 +13,20 @@ T = TypeVar("T", List, np.ndarray)
 
 
 def get_task_name_list(task_names: Union[str, List[str]]) -> List[str]:
-    """
+    r"""
     Get the list of task names from a list of task names or prefixes.
 
     Args:
-        task_names (Union[str, List[str]]): Name or list of names or prefixes of the tasks to load. See the
-            available tasks in https://huggingface.co/datasets/gia-project/gia-dataset
+        task_names (`Union[str, List[str]]`):
+            Name or list of names or prefixes of the tasks to load. See the available tasks in
+            https://huggingface.co/datasets/gia-project/gia-dataset
 
     Raises:
-        ValueError: If a task name is not found in the dataset.
+        `ValueError`: If a task name is not found in the dataset.
 
     Returns:
-        List[str]: List of task names.
+        task_name_list (`List[str]`):
+            List of task names.
 
     Example:
         >>> get_task_name_list(["mujoco", "atari-pong"])
@@ -57,14 +59,16 @@ def get_task_name_list(task_names: Union[str, List[str]]) -> List[str]:
 
 
 def needs_prompt(task_name: str) -> bool:
-    """
+    r"""
     Check if the task needs prompt. Usually, tasks that need prompt are RL ones.
 
     Args:
-        task_name (str): Name of the task.
+        task_name (`str`):
+            Name of the task.
 
     Returns:
-        bool: True if the task needs prompt, False otherwise.
+        needs_prompt (`bool`):
+            `True` if the task needs prompt, `False` otherwise.
     """
     is_atari = task_name.startswith("atari")
     is_babyai = task_name.startswith("babyai")
@@ -81,15 +85,20 @@ def needs_prompt(task_name: str) -> bool:
 
 
 class Prompter:
-    """
+    r"""
     Prompter class to generate prompts for a dataset.
 
     Args:
-        dataset (Dataset): Dataset to prompt.
-        p_prompt (float, optional): Probability of including a prompt at the beginning of a sequence. Defaults to 0.25.
-        p_end (float, optional): Probability of taking a prompt from the end of an episode. Defaults to 0.1.
-        min_prompt_len (int, optional): Minimum length of a prompt. Defaults to 1.
-        max_prompt_len (int, optional): Maximum length of a prompt. Defaults to 1024.
+        dataset (`Dataset`):
+            Dataset to prompt.
+        p_prompt (`float`, *optional*, defaults to 0.25):
+            Probability of including a prompt at the beginning of a sequence.
+        p_end (`float`, *optional*, defaults to 0.1):
+            Probability of taking a prompt from the end of an episode.
+        min_prompt_len (`int`, *optional*, defaults to 16):
+            Minimum length of a prompt. Defaults to 16.
+        max_prompt_len (`int`, *optional*, defaults to 1024):
+            Maximum length of a prompt. Defaults to 1024.
     """
 
     def __init__(
@@ -97,7 +106,7 @@ class Prompter:
         dataset: Dataset,
         p_prompt: float = 0.25,
         p_end: float = 0.1,
-        min_prompt_len: int = 1,
+        min_prompt_len: int = 16,
         max_prompt_len: int = 1024,
     ) -> None:
         self.dataset = dataset
@@ -111,14 +120,16 @@ class Prompter:
         self.max_prompt_len = max_prompt_len
 
     def generate_prompts(self, num_prompts: int) -> Dict[str, List]:
-        """
+        r"""
         Generate prompts for the dataset.
 
         Args:
-            num_prompts (int): Number of prompts to generate.
+            num_prompts (`int`):
+                Number of prompts to generate.
 
         Returns:
-            Dict[str, List]: Dictionary of prompts.
+            prompts (`Dict[str, List]`):
+                Dictionary of prompts.
         """
         prompt_ep_idxs = random.choices(range(len(self.dataset)), k=num_prompts)
         from_ends = random.choices([True, False], k=num_prompts, weights=[self.p_end, 1 - self.p_end])
@@ -134,6 +145,7 @@ class Prompter:
 
     @staticmethod
     def _cat(x: T, y: T) -> T:
+        """Helper function for concatenation."""
         if isinstance(x, list) and isinstance(y, list):
             return x + y
         elif isinstance(x, np.ndarray) and isinstance(y, np.ndarray):
@@ -143,13 +155,15 @@ class Prompter:
 
     def prompt(self, examples: Dict[str, List]) -> Dict[str, List]:
         """
-        Prompt the examples.
+        Prompt (concat a prompt left) the examples.
 
         Args:
-            examples (Dict[str, List]): Examples to prompt.
+            examples (`Dict[str, List]`):
+                Examples to prompt.
 
         Returns:
-            Dict[str, List]: Prompted examples.
+            prompted (`Dict[str, List]`):
+                Prompted examples.
         """
         num_examples = len(examples[next(iter(examples))])
         to_prompt_idxs = [idx for idx in range(num_examples) if random.random() < self.p_prompt]
@@ -160,20 +174,19 @@ class Prompter:
         return examples
 
 
-def load_and_process_dataset(
-    data_args,
-    split: str,
-    config,
-) -> Dict[str, Dataset]:
-    """
+def load_and_process_dataset(data_args, split: str, config) -> Dict[str, Dataset]:
+    r"""
     Load, prompt and process the dataset.
 
     Args:
-        data_args (DatasetArguments): Dataset arguments.
-        split (str): Split of the dataset to load.
+        data_args (`DatasetArguments`):
+            Dataset arguments.
+        split (`str`):
+            Split of the dataset to load.
 
     Returns:
-        Dataset: Processed dataset.
+        dataset_dict (`Dict[str, Dataset]`):
+            Dict of processed datasets. Each key is a task name.
     """
 
     dataset_dict = {

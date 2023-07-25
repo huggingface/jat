@@ -2,17 +2,20 @@ from typing import Any, Dict, List, Optional
 
 
 def indexing_from_nested(nested_dict: Dict, index: int) -> Dict:
-    """
-    Extracts the index-th element from each sequence in the nested dictionary.
+    r"""
+    Extract the index-th element from each sequence in the nested dictionary.
 
     Args:
-        nested_dict: A nested dictionary where the innermost
-            values are lists of elements, which can be None or any other type.
-        index (int): The index of the element to be extracted from each list in the nested dictionary.
+        nested_dict (`Dict`):
+            A nested dictionary where the innermost values are lists of elements, which can be `None` or any other
+            type.
+        index (`int`):
+            The index of the element to be extracted from each list in the nested dictionary.
 
     Returns:
-        A nested dictionary with the same structure as the input dictionary,
-            containing only the extracted index-th elements, excluding None values.
+        nested_dict (`Dict`):
+            A nested dictionary with the same structure as the input dictionary, containing only the extracted
+            index-th elements, excluding `None` values.
 
     Example:
         >>> nested_dict = {"outer_key1": {"inner_key": [1, 2, 3]},
@@ -39,20 +42,19 @@ def indexing_from_nested(nested_dict: Dict, index: int) -> Dict:
 
 
 def extend_dol(dol: Dict[str, List[Any]], other_dol: Dict[str, List[Any]]) -> None:
-    """
-    Extends the lists in a dictionary (dict of list, abbreviated dol) with corresponding lists from another dictionary
+    r"""
+    Extend the lists in a dictionary (dict of list, abbreviated dol) with corresponding lists from another dictionary
     (other_dol).
 
-    Args:
-        dol (Dict[str, List[Any]]): A dictionary where the values are lists. All lists within the dol should have the
-            same length.
-        other_dol (Dict[str, List[Any]]): Another dictionary with the same structure, where the values are lists to
-            extend the corresponding lists in dol.
+    This function modifies the input `dol` in-place by extending its lists with the corresponding lists from
+    `other_dol`. If a key is missing in `other_dol`, the corresponding list in `dol` is extended with `None` values.
 
-    Returns:
-        None: This function modifies the input 'dol' in-place by extending its lists with the corresponding lists from
-            'other_dol'. If a key is missing in 'other_dol', the corresponding list in 'dol' is extended with None
-            values.
+    Args:
+        dol (`Dict[str, List[Any]]`):
+            A dictionary where the values are lists. All lists within the dol should have the same length.
+        other_dol (`Dict[str, List[Any]]`):
+            Another dictionary with the same structure, where the values are lists to extend the corresponding lists
+            in `dol`.
 
     Example:
         >>> dol = {"key1": [1, 2],
@@ -64,7 +66,7 @@ def extend_dol(dol: Dict[str, List[Any]], other_dol: Dict[str, List[Any]]) -> No
          "key2": [5, 6, None, None, None]}
     """
 
-    def get_length(dol) -> int:
+    def get_length(dol: Dict) -> int:
         if dol:
             return len(next(iter(dol.values())))
         return 0
@@ -81,17 +83,15 @@ def extend_dol(dol: Dict[str, List[Any]], other_dol: Dict[str, List[Any]]) -> No
 
 
 class Interleaver:
-    """
-    Interleaver is a class that interleaves a batch of data into a unified dictionary of data lists.
-
-    Important:
-        For memory efficiency, we use the same pad object for all patches and positions.
+    r"""
+    Class that interleaves a batch of data into a unified dictionary of data lists.
 
     Example:
         In this example, the batch is composed of one standalone sample and one episode sample.
         The standalone sample is composed of two tokens of text.
         The episode sample is composed of two timesteps. The observations at each timestep are composed of
-        two image patches (with the associated positions) and one discrete observation composed of 2 ints.
+        two image patches (with the associated positions) and one discrete observation composed of 2 integers.
+
         >>> interleaver = Interleaver()
         >>> batch_data = {
         ...     "text":                  {"input_ids":       [[1, 2], None]},
@@ -143,19 +143,21 @@ class Interleaver:
 
     @classmethod
     def _is_episode(cls, sample_data: Dict[str, Dict[str, Any]]) -> bool:
-        """
-        Determines if the keys of the sample_data dictionary follow the episode format. Keys can be either in
-        ["images", "text"] or in ["image_observations", "text_observations", "discrete_observations",
-        "continuous_observations", "discrete_actions", "continuous_actions"]. They can't be in both.
+        r"""
+        Determine if the keys of the sample_data dictionary follow the episode format. Keys can be either in
+        `["images", "text"]` or in `["image_observations", "text_observations", "discrete_observations",
+        "continuous_observations", "discrete_actions", "continuous_actions"]`. They can't be in both.
 
         Args:
-            sample_data (Dict[str, Dict[str, Any]]): A dictionary containing sample data with specific keys.
+            sample_data (`Dict[str, Dict[str, Any]]`):
+                A dictionary containing sample data with specific keys.
 
         Returns:
-            bool: True if the keys follow the episode format, False otherwise.
+            is_episode (`bool`):
+                `True` if the keys follow the episode format, `False` otherwise.
 
         Raises:
-            ValueError: If the keys are mixed and do not follow the expected format.
+            `ValueError`: If the keys are mixed and do not follow the expected format.
         """
         key_set = set(sample_data.keys())
         if key_set.issubset(cls.EPISODE_KEYS):
@@ -166,22 +168,23 @@ class Interleaver:
             raise ValueError("Keys are mixed and do not follow the expected format.")
 
     def _interleave_episode(self, episode_data: Dict[str, Dict[str, Any]]) -> Dict[str, List[Any]]:
-        """
-        Interleaves an episode's data into a unified dictionary of data lists, thereby converting data stored
+        r"""
+        Interleave an episode's data into a unified dictionary of data lists, thereby converting data stored
         in different categories into a time-sequenced format.
 
         Args:
-            episode_data (Dict[str, Dict[str, Any]]): A dictionary containing a single episode's data, categorized
-            by type. At the first level, keys must be "input_ids", "patches", "patch_positions". At the second level,
-            keys must be "text_observations", "image_observations", "discrete_observations", "continuous_observations",
-            "discrete_actions", and "continuous_actions".
+            episode_data (`Dict[str, Dict[str, Any]]`):
+                A dictionary containing a single episode's data, categorized by type. At the first level, keys must be
+                in `"text_observations"`, `"image_observations"`, `"discrete_observations"`,
+                `"continuous_observations"`, `"discrete_actions"`, and `"continuous_actions"`.
 
         Returns:
-            Dict[str, List[Any]]: A dictionary containing the interleaved episode data. The keys are "input_ids",
-            "patches",  "patch_positions", "input_types", and "loss_mask". Each key corresponds to a list, where each
-            list item represents data from a specific time step.
+            interleaved (`Dict[str, List[Any]]`):
+                A dictionary containing the interleaved episode data. Each key corresponds to a list, where each
+                list item represents data from a specific time step.
 
         Example:
+            In practive, we use `"input_ids"`, `"patches"` as second-level keys.
             >>> episode_data = {"image_observations": {"a": [0, 1], "b": [2, 3]},
             ...                 "discrete_actions": {"a": [[1, 2], [3, 4]], "c": [[5, 6], [7, 8]]}}
             >>> _interleave_episode(episode_data)
@@ -191,7 +194,7 @@ class Interleaver:
 
         Note:
             The function assumes that all data sequences in the provided episode have the same length.
-            It will raise an assertion error if this is not the case.
+            It will raise an `AssertionError` error if this is not the case.
         """
         output = {}
 
@@ -240,20 +243,21 @@ class Interleaver:
         return output
 
     def _interleave_standalone(self, standalone_data: Dict[str, Dict[str, Any]]) -> Dict[str, List[Any]]:
-        """
+        r"""
         Interleaves standalone data, such as images or text, into a unified dictionary of data lists.
 
         Args:
-            data (Dict[str, Dict[str, Any]]): A dictionary containing data categorized by type. The first level keys
-                can be "images" or "text". The second level keys can be "input_ids", "patches", "patch_positions", etc.
+            data (`Dict[str, Dict[str, Any]]`):
+                A dictionary containing data categorized by type. The first level keys must be in  `"images"` and
+                `"text"`.
 
         Returns:
-            dict: A dictionary containing the interleaved data. The keys are "input_ids", "patches", "patch_positions",
-                "input_types", and "loss_mask". Each key corresponds to a list of data points.
+            interleaved (`Dict`):
+                A dictionary containing the interleaved data. Each key corresponds to a list of data points.
 
         Example:
             >>> standalone_data = {"images": {"patches": [P1, P2], "patch_positions": [LEFT, RIGHT]},
-                        "text": {"input_ids": [1, 2]}
+                                   "text": {"input_ids": [1, 2]}
             >>> _interleave_standalone(standalone_data)
             {'input_ids': [0, 0, 1, 2],
              'patches': [P1, P2, None, None],
@@ -266,6 +270,17 @@ class Interleaver:
         return output
 
     def __call__(self, batch_data: Dict[str, Dict[str, Any]]) -> Dict[str, List[Any]]:
+        r"""
+        Interleave data.
+
+        Args:
+            batch_data (`Dict[str, Dict[str, Any]]`):
+                Batch data as dict of dict.
+
+        Returns:
+            interleaved_batched_data (`Dict[str, List[Any]]`):
+                A dict of list, containing the interleaved data.
+        """
         output = {}
 
         # Get the batch size
