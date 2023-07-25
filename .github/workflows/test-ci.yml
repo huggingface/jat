@@ -44,6 +44,7 @@ jobs:
         conda install python=${{ matrix.python-version }}
         conda install libgcc
         strings /usr/lib/x86_64-linux-gnu/libstdc++.so.6 | grep GLIBCXX
+        strings /usr/share/miniconda/bin/../lib/libstdc++.so.6 | grep GLIBCXX 
         pip install -e '.[dev,test]'
         conda list
     - name: Check quality
