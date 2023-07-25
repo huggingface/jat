@@ -42,7 +42,7 @@ jobs:
     - name: Install conda env & dependencies
       run: |
         conda install python=${{ matrix.python-version }}
-        conda install --update-all
+        conda install libgcc==7.2.0
         strings /usr/lib/x86_64-linux-gnu/libstdc++.so.6 | grep GLIBCXX
         strings /usr/share/miniconda/bin/../lib/libstdc++.so.6 | grep GLIBCXX
         pip install -e '.[dev,test]'
