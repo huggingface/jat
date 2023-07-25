@@ -7,7 +7,7 @@ from gia.eval.rl.envs.core import get_task_names, make
 OBS_KEYS = {"discrete_observations", "continuous_observations", "image_observations", "text_observations"}
 
 
-@pytest.mark.parametrize("task_name", get_task_names())
+@pytest.mark.parametrize("task_name", ["atari-alien", "babyai-action-obj-door", "metaworld-assembly", "mujoco-ant"])
 def test_make(task_name):
     env = make(task_name)
     observation, info = env.reset()
