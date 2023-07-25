@@ -15,11 +15,43 @@ ImageType = List[List[List[int]]]
 T = TypeVar("T")
 
 
-def clamp(x, min_value, max_value):
+def clamp(x: float, min_value: float, max_value: float) -> float:
+    r"""
+    Clamp a float.
+
+    Args:
+        x (`float`):
+            Value to be clamped.
+        min_value (`float`):
+            Min value.
+        max_value (`float`):
+            Max value.
+
+    Returns:
+        float: The clamped value
+    """
     return max(min(x, max_value), min_value)
 
 
 def nested_like(x, val):
+    r"""
+    Return a nested structure like `x`, filled with `val`
+
+    Example:
+        >>> x = [[1, 2], 3]
+        >>> nested_like(x, val=0)
+        [[0, 0], 0]
+
+    Args:
+        x (`Any`):
+            A nested structure list.
+        val (`Any`):
+            A value.
+
+    Returns:
+        filled_nested (`Any`):
+            A nested structure like `x`, filled with `val`
+    """
     if isinstance(x, list):
         return [nested_like(x_i, val) for x_i in x]
     else:
@@ -27,6 +59,14 @@ def nested_like(x, val):
 
 
 class GiaImageProcessor:
+    r"""
+    Image processor for GIA.
+
+    Args:
+        patch_size (`int`, *optional*, defaults to 16):
+            The size of the patches to extract from image observations.
+    """
+
     def __init__(self, patch_size: int = 16) -> None:
         self.patch_size = patch_size
 

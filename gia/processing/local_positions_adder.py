@@ -2,18 +2,19 @@ from typing import Any, Dict, List, Sized
 
 
 class LocalPositionsAdder:
-    """
+    r"""
     Add local positional information to a set of features.
 
     It takes a list of key groups, where each group is a list of keys. Each key corresponds to a set of features in a
     nested dictionary structure.
 
     Args:
-        key_groups (List[List[str]]): List of key groups. Each key group is a list of keys to which positional
-        information should be added. The key groups should be disjoint.
+        key_groups (`List[List[str]]`):
+            List of key groups. Each key group is a list of keys to which positional information should be added.
+            The key groups should be disjoint.
 
     Raises:
-        ValueError: If the key groups are not disjoint or the size of batches does not match.
+        `ValueError`: If the key groups are not disjoint or the size of batches does not match.
 
     Example:
         >>> from gia.processing import LocalPositionsAdder

@@ -5,17 +5,19 @@ import torch
 
 
 class GiaDataCollator:
-    """
+    r"""
     A callable data collator used for GIA model.
 
     - ensure all sequences within a batch have the same length
-    - pad None sequences with a sequence of pad values for each feature
-    - pad None features with the corresponding pad value for each feature
+    - pad `None` sequences with a sequence of pad values for each feature
+    - pad `None` features with the corresponding pad value for each feature
     - convert all features to PyTorch tensors
 
     Class Attributes:
-        pad_values (dict): A mapping from feature keys to their associated pad values.
-        dtypes (dict): A mapping from feature keys to their associated PyTorch dtype.
+        pad_values (`dict`):
+            A mapping from feature keys to their associated pad value.
+        dtypes (`dict`):
+            A mapping from feature keys to their associated PyTorch dtype.
 
     Example:
         >>> collator = GiaDataCollator()
@@ -30,10 +32,8 @@ class GiaDataCollator:
         ...     },
         ... ]
         >>> collator(features)
-        {
-            "input_ids": tensor([[1, 2, 0], [4, 5, 6]]),
-            "local_positions": tensor([[7, 8, 9], [-1, 11, 12]]),
-        }
+        {"input_ids": tensor([[1, 2, 0], [4, 5, 6]]),
+         "local_positions": tensor([[7, 8, 9], [-1, 11, 12]])}
     """
 
     pad_values = {
@@ -64,6 +64,17 @@ class GiaDataCollator:
         return torch.tensor(features, dtype=dtype)
 
     def __call__(self, features: List[Dict[str, List[Any]]]) -> Dict[str, torch.Tensor]:
+        """
+        Collate the data.
+
+        Args:
+            features (`List[Dict[str, List[Any]]]`):
+                Features to collate, as a list of dicts. The keys must be within `cls.pad_values.keys()`. All features
+                must have the same length.
+
+        Returns:
+            Dict[str, torch.Tensor]: The collated result, as a of tensors.
+        """
         keys = features[0].keys()  # they should all have the same keys
         if any(key not in self.pad_values for key in keys):
             raise KeyError(f"Found unexpected keys: {set(keys) - set(self.pad_values.keys())}")
