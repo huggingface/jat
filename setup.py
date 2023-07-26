@@ -77,7 +77,7 @@ DEV_REQUIRE = []
 
 TESTS_REQUIRE = [
     "free-mujoco-py",
-    "gymnasium[accept-rom-license,atari, mujoco]",
+    "gymnasium[accept-rom-license,atari,mujoco]",
     "metaworld @ git+https://github.com/qgallouedec/Metaworld@gym2.6_register",
     "minigrid",
     "pytest-xdist",
