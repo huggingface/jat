@@ -42,8 +42,8 @@ jobs:
         echo "LD_LIBRARY_PATH=$HOME/.mujoco/mujoco210/bin:/usr/lib:/usr/lib/x86_64-linux-gnu/:$LD_LIBRARY_PATH" >> $GITHUB_ENV
     - name: Install env & dependencies
       run: |
-        pip install free-mujoco-py==2.1.6
-        pip install -e '.[dev,test]'
+        python -m pip install free-mujoco-py==2.1.6
+        python -m pip install -e '.[dev,test]'
     - name: Check quality
       run: |
         make quality
