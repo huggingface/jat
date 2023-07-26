@@ -22,14 +22,9 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
-    - name: Install MuJoCo dependencies
+    - name: Update and upgrade
       run: |
-        sudo apt-get update
-        sudo apt-get install -y libgl1-mesa-glx libglfw3 curl libglew-dev net-tools vim wget xpra xserver-xorg-dev build-essential libssl-dev libffi-dev libxml2-dev  libxslt1-dev zlib1g-dev libglu1-mesa-dev libgl1-mesa-dev libosmesa6-dev xvfb unzip patchelf ffmpeg cmake swig git
         python -m pip install --upgrade pip
-    - name: Update path
-      run: |
-        echo $CONDA/bin >> $GITHUB_PATH
     - name: Additional step for MuJoCo installation
       run: |
         url="https://mujoco.org/download/mujoco210-linux-x86_64.tar.gz"
