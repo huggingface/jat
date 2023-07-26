@@ -1,5 +1,6 @@
 import subprocess
 
+from gia.eval.evaluator import Evaluator
 from gia.eval.language_modeling.language_modeling_evaluator import LanguageModelingEvaluator
 from gia.eval.rl import GymEvaluator
 
@@ -13,7 +14,6 @@ def is_slurm_available() -> bool:
         return False
 
 
-# TODO: A nice use case for structural pattern matching?!
 EVALUATORS = {
     "mujoco": GymEvaluator,
     "atari": GymEvaluator,
@@ -23,9 +23,23 @@ EVALUATORS = {
 }
 
 
-def get_evaluator(task):
-    if "-" in task:
-        domain = task.split("-")[0]  # TODO: this will have problems for ok-vqa, etc..
-        return EVALUATORS[domain]
+def get_evaluator(task_name: str) -> Evaluator:
+    """
+    Get the evaluator for a given task.
 
-    return EVALUATORS[task]
+    Args:
+        task_name (`str`):
+            The task name.
+
+    Raises:
+        `ValueError`: If the task name is unknown.
+
+    Returns:
+        evaluator (`Evaluator`):
+            The evaluator for the task.
+    """
+    for domain in EVALUATORS.keys():
+        if task_name.startswith(domain):
+            return EVALUATORS[domain]
+    else:
+        raise ValueError(f"Unknown task {task_name}")
