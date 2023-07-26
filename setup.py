@@ -61,23 +61,28 @@ from setuptools import find_packages
 __version__ = "0.0.1.dev0"  # expected format is one of x.y.z.dev0, or x.y.z.rc1 or x.y.z (no to dashes, yes to dots)
 
 REQUIRED_PKGS = [
-    "numpy",
-    "torch",
-    "huggingface_hub>=0.10",  # For sharing objects, environments & trained RL policies
-    "transformers",
-    "gym==0.26.2",  # For RL action spaces and API
-    "hydra-core",
     "accelerate",
-    "wandb",
     "datasets @ git+https://github.com/qgallouedec/datasets.git@speedup-sequence-of-sequece-of-array",
+    "gymnasium",  # For RL action spaces and API
+    "huggingface_hub>=0.10",  # For sharing objects, environments & trained RL policies
+    "numpy",
     "opencv-python",
-    "Pillow",
+    "torch",
+    "transformers",
+    "wandb",
 ]
 
 
 DEV_REQUIRE = []
 
-TESTS_REQUIRE = ["pytest", "pytest-xdist", "gym[mujoco]==0.26.2"]
+TESTS_REQUIRE = [
+    "free-mujoco-py",
+    "gymnasium[accept-rom-license,atari,mujoco]",
+    "metaworld @ git+https://github.com/qgallouedec/Metaworld@gym2.6_register",
+    "minigrid",
+    "pytest-xdist",
+    "pytest",
+]
 
 QUALITY_REQUIRE = ["black[jupyter]~=22.0", "ruff", "pyyaml>=5.3.1"]
 
