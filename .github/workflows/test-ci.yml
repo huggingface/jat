@@ -42,7 +42,7 @@ jobs:
         echo "LD_LIBRARY_PATH=$HOME/.mujoco/mujoco210/bin:/usr/lib:/usr/lib/x86_64-linux-gnu/:$LD_LIBRARY_PATH" >> $GITHUB_ENV
     - name: Install env & dependencies
       run: |
-        strings /usr/lib/x86_64-linux-gnu/libstdc++.so.6 | grep GLIBCXX
+        pip install free-mujoco-py
         pip install -e '.[dev,test]'
     - name: Check quality
       run: |
