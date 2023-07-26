@@ -18,14 +18,14 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v3
-    - name: Set up Python
+    - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
     - name: Install MuJoCo dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y libgl1-mesa-glx libglfw3 curl libglew-dev python3-pip python3-numpy python3-scipy net-tools vim wget xpra xserver-xorg-dev python3-dev build-essential libssl-dev libffi-dev libxml2-dev  libxslt1-dev zlib1g-dev libglu1-mesa-dev libgl1-mesa-dev libosmesa6-dev xvfb unzip patchelf ffmpeg cmake swig git
+        sudo apt-get install -y libgl1-mesa-glx libglfw3 curl libglew-dev net-tools vim wget xpra xserver-xorg-dev build-essential libssl-dev libffi-dev libxml2-dev  libxslt1-dev zlib1g-dev libglu1-mesa-dev libgl1-mesa-dev libosmesa6-dev xvfb unzip patchelf ffmpeg cmake swig git
         python -m pip install --upgrade pip
     - name: Update path
       run: |
