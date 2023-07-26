@@ -38,7 +38,7 @@ jobs:
         curl -o "$tar_filename" "$url"
         tar -xzf "$tar_filename" -C "$target_folder"
         rm "$tar_filename"
-        echo "LD_LIBRARY_PATH=$HOME/.mujoco/mujoco210/bin:/usr/lib/x86_64-linux-gnu/:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+        echo "LD_LIBRARY_PATH=$HOME/.mujoco/mujoco210/bin:/usr/lib:/usr/lib/x86_64-linux-gnu/:$LD_LIBRARY_PATH" >> $GITHUB_ENV
     - name: Install conda env & dependencies
       run: |
         conda install python=${{ matrix.python-version }}
