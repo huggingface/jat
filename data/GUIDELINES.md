@@ -9,7 +9,7 @@ The dataset should be organized episodically. This involves storing observations
 Here's an example script for data generation:
 
 ```python
-import gym
+import gymnasium as gym
 
 env = gym.make("CartPole-v1")
 

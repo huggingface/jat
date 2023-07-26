@@ -18,19 +18,18 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v3
-    - name: Set up Python
+    - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
-    - name: Add conda to system path
+    - name: Install MuJoCo dependencies
       run: |
-        # $CONDA is an environment variable pointing to the root of the miniconda directory
-        echo $CONDA/bin >> $GITHUB_PATH
-    - name: Install conda env & dependencies
+        sudo apt-get update
+        sudo apt-get install -y libosmesa6-dev
+    - name: Install dependencies
       run: |
-       conda install python=${{ matrix.python-version }}
-       pip install -e '.[dev,test]'
-       conda list
+        python -m pip install --upgrade pip
+        python -m pip install -e '.[dev,test]'
     - name: Check quality
       run: |
         make quality

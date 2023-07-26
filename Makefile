@@ -15,4 +15,4 @@ style:
 
 # Run tests for the library
 test:
-	python -m pytest tests/
+	python -m pytest -v tests/
