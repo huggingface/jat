@@ -22,8 +22,10 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
-    - name: Update and upgrade
+    - name: Install MuJoCo dependencies
       run: |
+        sudo apt-get update
+        sudo apt-get install -y libgl1-mesa-glx libglu1-mesa-dev libgl1-mesa-dev libosmesa6-dev
         python -m pip install --upgrade pip
     - name: Additional step for MuJoCo installation
       run: |
