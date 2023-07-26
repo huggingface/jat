@@ -27,19 +27,8 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y libosmesa6-dev
         python -m pip install --upgrade pip
-    - name: Additional step for MuJoCo installation
-      run: |
-        url="https://mujoco.org/download/mujoco210-linux-x86_64.tar.gz"
-        target_folder=~/.mujoco
-        mkdir -p "$target_folder"
-        tar_filename="$target_folder/$(basename "$url")"
-        curl -o "$tar_filename" "$url"
-        tar -xzf "$tar_filename" -C "$target_folder"
-        rm "$tar_filename"
-        echo "LD_LIBRARY_PATH=$HOME/.mujoco/mujoco210/bin:/usr/lib:/usr/lib/x86_64-linux-gnu/:$LD_LIBRARY_PATH" >> $GITHUB_ENV
     - name: Install env & dependencies
       run: |
-        python --version
         python -m pip install -e '.[dev,test]'
     - name: Check quality
       run: |
