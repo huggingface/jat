@@ -2,7 +2,7 @@ import subprocess
 
 from gia.eval.evaluator import Evaluator
 from gia.eval.language_modeling.language_modeling_evaluator import LanguageModelingEvaluator
-from gia.eval.rl import GymEvaluator
+from gia.eval.rl import RlEvaluator
 
 
 def is_slurm_available() -> bool:
@@ -15,8 +15,8 @@ def is_slurm_available() -> bool:
 
 
 EVALUATORS = {
-    "mujoco": GymEvaluator,
-    "atari": GymEvaluator,
+    "mujoco": RlEvaluator,
+    "atari": RlEvaluator,
     "oscar": LanguageModelingEvaluator,
     "ok-vqa": LanguageModelingEvaluator,
     "conceptual-captions": LanguageModelingEvaluator,
