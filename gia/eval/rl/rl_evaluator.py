@@ -1,18 +1,15 @@
 import numpy as np
-from gym.vector.vector_env import VectorEnv
 from tqdm import tqdm
 
 from gia import GiaModel
 from gia.eval.evaluator import Evaluator
+from gia.eval.rl import make
 from gia.eval.rl.gia_agent import GiaAgent
 
 
 class RLEvaluator(Evaluator):
-    def _build_env(self) -> VectorEnv:  # TODO: maybe just a gym.Env ?
-        raise NotImplementedError
-
     def _evaluate(self, model: GiaModel) -> float:
-        env = self._build_env()
+        env = make(self.task_name)
         gia_agent = GiaAgent(self.task, model, env.observation_space, env.action_space)
 
         returns = []
