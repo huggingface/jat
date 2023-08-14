@@ -80,7 +80,7 @@ class GiaAgent:
 
         self.deterministic = deterministic
         self.device = next(self.model.parameters()).device
-        self._max_length = self.model.config.max_position_embeddings - 200  # TODO: check this
+        self._max_length = self.model.config.max_position_embeddings - 100  # TODO: check this
 
         if not isinstance(self.observation_space, spaces.Dict):
             raise TypeError("Unsupported observation space")
@@ -141,17 +141,20 @@ class GiaAgent:
             np.ndarray: The next action
         """
         # Turn into episode
-        for key, value in observations.items():
-            if isinstance(value, np.ndarray):
-                observations[key] = np.expand_dims(value, axis=1).tolist()
-            elif isinstance(value, (list, tuple)):
-                observations[key] = [[v] for v in value]
+        keys = observations[0].keys()
+        dict_observations = {}
+        for key in keys:
+            values = [obs[key] for obs in observations]
+            if isinstance(values[0], np.ndarray):
+                dict_observations[key] = np.expand_dims(np.stack(values), axis=1)
+            elif isinstance(values[0], str):
+                dict_observations[key] = [[value] for value in values]
             else:
                 raise TypeError(f"Unsupported type for {key}")
 
         # Process observations
         processed = self.processor(
-            **observations,
+            **dict_observations,
             padding=False,
             truncation="max_length",
             truncation_side="left",
@@ -179,10 +182,12 @@ class GiaAgent:
                 action_token = torch.multinomial(torch.softmax(action_logits, dim=-1), num_samples=1).squeeze(-1)
             action_tokens.append(action_token.tolist())
 
-            processed["input_ids"] = action_token[:, None]
-            processed["loss_mask"] = torch.ones(num_envs, 1, dtype=torch.bool, device=self.device)
-            processed["input_types"] = torch.zeros(num_envs, 1, dtype=torch.int64, device=self.device)
-            processed["local_positions"] = -torch.ones(num_envs, 1, dtype=torch.int64, device=self.device)
+            processed = {
+                "input_ids": action_token[:, None],
+                "loss_mask": torch.ones(num_envs, 1, dtype=torch.bool, device=self.device),
+                "input_types": torch.zeros(num_envs, 1, dtype=torch.int64, device=self.device),
+                "local_positions": -torch.ones(num_envs, 1, dtype=torch.int64, device=self.device),
+            }
 
         # To ensure the KV cache includes the last action token
         output = self.model(**processed, use_cache=True, past_key_values=self._past_key_values)
