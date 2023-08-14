@@ -5,12 +5,14 @@ from gia import GiaModel
 from gia.eval.evaluator import Evaluator
 from gia.eval.rl import make
 from gia.eval.rl.gia_agent import GiaAgent
+from gia.processing import GiaProcessor
 
 
 class RLEvaluator(Evaluator):
     def _evaluate(self, model: GiaModel) -> float:
         env = make(self.task_name)
-        gia_agent = GiaAgent(self.task, model, env.observation_space, env.action_space)
+        processor = GiaProcessor()  # Ideally, model.config
+        gia_agent = GiaAgent(model, processor, self.task_name, num_envs=1)
 
         returns = []
         # due to how to KV cache is used, we only can evaluate one env instance at a time
