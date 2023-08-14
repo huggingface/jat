@@ -24,7 +24,7 @@ class RLEvaluator(Evaluator):
 
             while not done:
                 # Compute the output of the model
-                action = gia_agent.get_action(obs)
+                action = gia_agent.get_action([obs])[0]
                 obs, reward, terminated, truncated, info = env.step(action)
 
                 done = terminated or truncated
