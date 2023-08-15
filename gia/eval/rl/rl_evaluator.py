@@ -28,7 +28,7 @@ class RLEvaluator(Evaluator):
                 obs, reward, terminated, truncated, info = env.step(action)
 
                 done = terminated or truncated
-                accum_rewards.append(reward[0])
+                accum_rewards.append(reward)
 
             returns.append(sum(accum_rewards))
         env.close()
