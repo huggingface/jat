@@ -1,5 +1,5 @@
 from .envs import make
-from .gym_evaluator import GymEvaluator
+from .rl_evaluator import RLEvaluator
 
 
-__all__ = ["make", "GymEvaluator"]
+__all__ = ["make", "RLEvaluator"]

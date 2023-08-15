@@ -14,7 +14,7 @@ from .wrappers import (
 )
 
 
-TASK_TO_ENV_MAPPING = {
+TASK_NAME_TO_ENV_ID = {
     "atari-alien": "ALE/Alien-v5",
     "atari-amidar": "ALE/Amidar-v5",
     "atari-assault": "ALE/Assault-v5",
@@ -181,7 +181,7 @@ def get_task_names() -> List[str]:
     Returns:
         list: List of environment ids
     """
-    return list(TASK_TO_ENV_MAPPING.keys())
+    return list(TASK_NAME_TO_ENV_ID.keys())
 
 
 class AtariDictObservationWrapper(ObservationWrapper):
@@ -200,7 +200,7 @@ def make_atari(task_name: str, **kwargs) -> Env:
     kwargs = {"frameskip": 1, "repeat_action_probability": 0.0, **kwargs}
     if task_name == "atari-montezumarevenge":
         kwargs["max_episode_steps"] = 18_000
-    env = gym.make(TASK_TO_ENV_MAPPING[task_name], **kwargs)
+    env = gym.make(TASK_NAME_TO_ENV_ID[task_name], **kwargs)
     env = gym.wrappers.RecordEpisodeStatistics(env)
     env = NoopResetEnv(env, noop_max=30)
     env = MaxAndSkipEnv(env, skip=4)
@@ -248,7 +248,7 @@ class FloatRewardWrapper(RewardWrapper):
 
 
 def make_babyai(task_name: str, **kwargs) -> Env:
-    env = gym.make(TASK_TO_ENV_MAPPING[task_name], **kwargs)
+    env = gym.make(TASK_NAME_TO_ENV_ID[task_name], **kwargs)
     env = BabyAIDictObservationWrapper(env)
     env = FloatRewardWrapper(env)
     return env
@@ -266,13 +266,13 @@ class ContinuousObservationDictWrapper(ObservationWrapper):
 def make_metaworld(task_name: str, **kwargs) -> Env:
     import metaworld  # noqa
 
-    env = gym.make(TASK_TO_ENV_MAPPING[task_name], **kwargs)
+    env = gym.make(TASK_NAME_TO_ENV_ID[task_name], **kwargs)
     env = ContinuousObservationDictWrapper(env)
     return env
 
 
 def make_mujoco(task_name: str, **kwargs) -> Env:
-    env = gym.make(TASK_TO_ENV_MAPPING[task_name], **kwargs)
+    env = gym.make(TASK_NAME_TO_ENV_ID[task_name], **kwargs)
     env = ContinuousObservationDictWrapper(env)
     return env
 

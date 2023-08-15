@@ -246,6 +246,7 @@ class GiaProcessor:
                 ]
             ]
         self.local_positions_adder = LocalPositionsAdder(local_positions_groups)
+        self.use_separator = use_separator
         if use_separator:
             separator = {
                 "input_ids": [token_shift + nb_bins],
