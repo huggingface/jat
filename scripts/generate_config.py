@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate config for GIA models"""
+"""Generate config for GIA models and processors, and push them to the hub."""
 
 from gia import GiaConfig, GiaModel
 from gia.processing import GiaProcessor
