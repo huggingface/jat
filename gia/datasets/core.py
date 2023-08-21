@@ -6,8 +6,6 @@ from typing import Dict, List, TypeVar, Union
 import numpy as np
 from datasets import Dataset, get_dataset_config_names, load_dataset
 
-from gia.processing import GiaProcessor
-
 
 T = TypeVar("T", List, np.ndarray)
 
@@ -174,7 +172,7 @@ class Prompter:
         return examples
 
 
-def load_and_process_dataset(data_args, split: str, config) -> Dict[str, Dataset]:
+def load_and_process_dataset(data_args, split: str, processor) -> Dict[str, Dataset]:
     r"""
     Load, prompt and process the dataset.
 
@@ -200,17 +198,6 @@ def load_and_process_dataset(data_args, split: str, config) -> Dict[str, Dataset
         for task_name, dataset in dataset_dict.items()
         if needs_prompt(task_name)
     }
-    processor = GiaProcessor(
-        config.patch_size,
-        data_args.text_tokenizer_name,
-        data_args.mu,
-        data_args.M,
-        data_args.nb_bins,
-        data_args.mask_loss_modalities,
-        config.seq_len,
-        data_args.local_positions_groups,
-        data_args.use_separator,
-    )
 
     def prompt_and_process(example, prompter):
         if prompter is not None:
