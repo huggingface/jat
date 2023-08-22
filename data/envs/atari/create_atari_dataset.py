@@ -135,7 +135,7 @@ def create_atari_dataset(cfg: Config):
                 if num_frames < cfg.max_num_frames:
                     ep_image_observations.append(obs["obs"].cpu().numpy())
 
-                obs, rew, terminated, truncated, infos = env.step([actions])
+                obs, rew, terminated, truncated, infos = env.step(actions)
 
                 dones = make_dones(terminated, truncated)
 
