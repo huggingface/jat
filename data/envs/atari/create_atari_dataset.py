@@ -235,7 +235,6 @@ def create_atari_dataset(cfg: Config):
     add_dataset_to_hub(
         "atari",
         task,
-        revision="unclipped_rewards",
         image_observations=dataset_image_observations,
         discrete_actions=dataset_discrete_actions,
         rewards=dataset_rewards,
