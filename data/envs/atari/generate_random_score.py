@@ -71,7 +71,8 @@ TASK_NAMES = [
     "atari-yarsrevenge",
     "atari-zaxxon",
 ]
-TOT_NUM_EPISODES = 1_000
+
+TOT_NUM_EPISODES = 100
 
 
 def generate_random_score(task_name):
@@ -117,7 +118,7 @@ def generate_random_score(task_name):
     # Add the random scores to the dictionary
     if task_name not in scores_dict:
         scores_dict[task_name] = {}
-    scores_dict[task_name]["random"] = {"mean": np.mean(ep_rewards), "std": np.std(ep_rewards)}
+    scores_dict[task_name]["random"] = {"mean": float(np.mean(ep_rewards)), "std": float(np.std(ep_rewards))}
 
     # Save the dictionary to a file
     with open(FILENAME, "w") as file:
