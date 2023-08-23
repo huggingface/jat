@@ -9,7 +9,7 @@ from sample_factory.utils.attr_dict import AttrDict
 from sf_examples.atari.train_atari import parse_atari_args, register_atari_components
 
 
-FILENAME = "scores_dict.json"
+FILENAME = "gia/eval/rl/scores_dict.json"
 
 
 TASK_NAMES = [
@@ -71,37 +71,40 @@ TASK_NAMES = [
     "atari-yarsrevenge",
     "atari-zaxxon",
 ]
-TOT_NUM_TIMESTEPS = 1_000_000
+
+TOT_NUM_EPISODES = 100
 
 
 def generate_random_score(task_name):
     cfg = parse_atari_args(evaluation=True)
-    cfg.env = task_name.replace("-", "_")
+    env_id = task_name.replace("-", "_")
+    if env_id == "atari_asteroids":
+        env_id = "atari_asteroid"
+    if env_id == "atari_montezumarevenge":
+        env_id = "atari_montezuma"
+    if env_id == "atari_kungfumaster":
+        env_id = "atari_kongfumaster"
+    if env_id == "atari_privateeye":
+        env_id = "atari_privateye"
+    cfg.env = env_id
     eval_env_frameskip = cfg.env_frameskip if cfg.eval_env_frameskip is None else cfg.eval_env_frameskip
     cfg.env_frameskip = cfg.eval_env_frameskip = eval_env_frameskip
-    cfg.num_envs = 1
+    cfg.num_envs = 16
 
     env = make_env_func_batched(cfg, env_config=AttrDict(worker_index=0, vector_index=0, env_id=0))
 
-    all_episode_rewards = []
-    tot_episode_rewards = 0
-    num_timesteps = 0
-    terminated = truncated = False
+    ep_rewards = []
     env.reset()
 
     with torch.no_grad():
-        while num_timesteps < TOT_NUM_TIMESTEPS or not (terminated or truncated):
-            actions = np.array([env.action_space.sample()])
-            _, rew, terminated, truncated, _ = env.step(actions)
-            reward, terminated, truncated = rew.item(), terminated.item(), truncated.item()
+        while len(ep_rewards) < TOT_NUM_EPISODES:
+            _, _, _, _, infos = env.step(np.array([env.action_space.sample() for _ in range(cfg.num_envs)]))
 
-            tot_episode_rewards += reward
-            num_timesteps += 1
-            if terminated or truncated:
-                all_episode_rewards.append(tot_episode_rewards)
-                tot_episode_rewards = 0
-            if num_timesteps % 10_000 == 0:
-                print(f"Task {task_name} - progress {int(num_timesteps / TOT_NUM_TIMESTEPS * 100)}%")
+            for info in infos:
+                if "episode" in info:
+                    ep_rewards.append(info["episode"]["r"][0])
+                    if len(ep_rewards) % 10 == 0:
+                        print(f"Task {task_name} - progress {int(len(ep_rewards) / TOT_NUM_EPISODES * 100)}%")
 
     env.close()
 
@@ -109,16 +112,16 @@ def generate_random_score(task_name):
     if not os.path.exists(FILENAME):
         scores_dict = {}
     else:
-        with open("scores_dict.json", "r") as file:
+        with open(FILENAME, "r") as file:
             scores_dict = json.load(file)
 
     # Add the random scores to the dictionary
     if task_name not in scores_dict:
         scores_dict[task_name] = {}
-    scores_dict[task_name]["random"] = {"mean": np.mean(all_episode_rewards), "std": np.std(all_episode_rewards)}
+    scores_dict[task_name]["random"] = {"mean": float(np.mean(ep_rewards)), "std": float(np.std(ep_rewards))}
 
     # Save the dictionary to a file
-    with open("scores_dict.json", "w") as file:
+    with open(FILENAME, "w") as file:
         scores_dict = {
             task: {agent: scores_dict[task][agent] for agent in sorted(scores_dict[task])}
             for task in sorted(scores_dict)
