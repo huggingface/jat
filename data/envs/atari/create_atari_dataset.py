@@ -19,8 +19,8 @@ from sample_factory.model.model_utils import get_rnn_size
 from sample_factory.utils.attr_dict import AttrDict
 from sample_factory.utils.typing import Config
 from sample_factory.utils.utils import log
-from sf_examples.envpool.atari.train_envpool_atari import parse_atari_args, register_atari_components
-# from sf_examples.atari.train_atari import parse_atari_args, register_atari_components
+# from sf_examples.envpool.atari.train_envpool_atari import parse_atari_args, register_atari_components
+from sf_examples.atari.train_atari import parse_atari_args, register_atari_components
 
 from gia.datasets.to_hub import add_dataset_to_hub
 
@@ -135,7 +135,7 @@ def create_atari_dataset(cfg: Config):
                 if num_frames < cfg.max_num_frames:
                     ep_image_observations.append(obs["obs"].cpu().numpy())
 
-                obs, rew, terminated, truncated, infos = env.step([actions])
+                obs, rew, terminated, truncated, infos = env.step(actions)
 
                 dones = make_dones(terminated, truncated)
 
