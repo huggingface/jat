@@ -129,6 +129,5 @@ def generate_random_score(task_name):
 
 if __name__ == "__main__":
     register_atari_components()
-    generate_random_score("atari-surround")
-    # with Pool(32) as p:
-    #     p.map(generate_random_score, TASK_NAMES)
+    with Pool(32) as p:
+        p.map(generate_random_score, TASK_NAMES)
