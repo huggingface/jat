@@ -565,12 +565,6 @@
             "std": 102.26924896240234
         }
     },
-    "atari_surround": {
-        "random": {
-            "mean": -10.0,
-            "std": 0.0
-        }
-    },
     "babyai-action-obj-door": {
         "expert": {
             "mean": 0.9871325350634979,
