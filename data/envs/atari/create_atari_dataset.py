@@ -135,7 +135,7 @@ def create_atari_dataset(cfg: Config):
                 if num_frames < cfg.max_num_frames:
                     ep_image_observations.append(obs["obs"].cpu().numpy())
 
-                obs, rew, terminated, truncated, infos = env.step(actions)
+                obs, rew, terminated, truncated, infos = env.step([actions])
 
                 dones = make_dones(terminated, truncated)
 
@@ -192,7 +192,7 @@ def create_atari_dataset(cfg: Config):
                     time.sleep(0.05)
 
                 if all(finished_episode):
-                    dataset_image_observations.append(np.array(ep_image_observations))
+                    dataset_image_observations.append(np.squeeze(np.array(ep_image_observations)))
                     dataset_discrete_actions.append(np.squeeze(np.array(ep_discrete_actions).astype(np.int64)))
                     dataset_rewards.append(np.array(ep_rewards).astype(np.float32))
                     ep_image_observations = []
