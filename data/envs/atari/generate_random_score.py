@@ -92,7 +92,7 @@ def generate_random_score(task_name):
 
     with torch.no_grad():
         while num_timesteps < TOT_NUM_TIMESTEPS or not (terminated or truncated):
-            actions = np.array(env.action_space.sample())
+            actions = np.array([env.action_space.sample()])
             _, rew, terminated, truncated, _ = env.step(actions)
             reward, terminated, truncated = rew.item(), terminated.item(), truncated.item()
 
