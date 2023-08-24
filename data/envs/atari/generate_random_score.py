@@ -6,7 +6,8 @@ import numpy as np
 import torch
 from sample_factory.algo.utils.make_env import make_env_func_batched
 from sample_factory.utils.attr_dict import AttrDict
-from sf_examples.atari.train_atari import parse_atari_args, register_atari_components
+# from sf_examples.atari.train_atari import parse_atari_args, register_atari_components
+from sf_examples.envpool.atari.train_envpool_atari import parse_atari_args, register_atari_components
 
 
 FILENAME = "scores_dict.json"
@@ -92,7 +93,7 @@ def generate_random_score(task_name):
     with torch.no_grad():
         while num_timesteps < TOT_NUM_TIMESTEPS or not (terminated or truncated):
             actions = np.array([env.action_space.sample()])
-            _, rew, terminated, truncated, _ = env.step(actions)
+            _, rew, terminated, truncated, _ = env.step([actions])
             reward, terminated, truncated = rew.item(), terminated.item(), truncated.item()
 
             tot_episode_rewards += reward
