@@ -1,10 +1,9 @@
-import os
 import time
 from collections import deque
 
 import numpy as np
 import torch
-from huggingface_hub import HfApi, repocard, upload_folder
+from huggingface_hub import HfApi, upload_folder
 from sample_factory.algo.learning.learner import Learner
 from sample_factory.algo.sampling.batched_sampling import preprocess_actions
 from sample_factory.algo.utils.action_distributions import argmax_actions
@@ -22,37 +21,6 @@ from sample_factory.utils.utils import log
 from sf_examples.envpool.atari.train_envpool_atari import parse_atari_args, register_atari_components
 
 from gia.datasets.to_hub import add_dataset_to_hub
-
-
-def generate_dataset_card(
-    dir_path: str,
-    env: str,
-    experiment_name: str,
-    repo_id: str,
-):
-    readme_path = os.path.join(dir_path, "README.md")
-    readme = f"""
-    An imitation learning environment for the {env} environment, sample for the policy {experiment_name} \n
-    This environment was created as part of the Generally Intelligent Agents project gia:
-    https://github.com/huggingface/gia \n
-    \n
-    """
-
-    with open(readme_path, "w", encoding="utf-8") as f:
-        f.write(readme)
-
-    metadata = {}
-    metadata["library_name"] = "gia"
-    metadata["tags"] = [
-        "deep-reinforcement-learning",
-        "reinforcement-learning",
-        "gia",
-        "multi-task",
-        "multi-modal",
-        "imitation-learning",
-        "offline-reinforcement-learning",
-    ]
-    repocard.metadata_save(readme_path, metadata)
 
 
 def push_to_hf(dir_path: str, repo_name: str):
@@ -259,6 +227,11 @@ def create_atari_dataset(cfg: Config):
     env.close()
 
     task = cfg.env.split("_")[1]
+    # Fix task names (see see https://huggingface.co/datasets/gia-project/gia-dataset/discussions/21 to 24)
+    task = "asteroids" if task == "asteroid" else task
+    task = "kungfumaster" if task == "kongfumaster" else task
+    task = "montezumarevenge" if task == "montezuma" else task
+    task = "privateeye" if task == "privateye" else task
     add_dataset_to_hub(
         "atari",
         task,

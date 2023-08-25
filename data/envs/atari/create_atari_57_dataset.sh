@@ -6,7 +6,7 @@ ENVS=(
     atari_amidar
     atari_assault
     atari_asterix
-    atari_asteroid  # (Might raise an error due to name change, see https://huggingface.co/datasets/gia-project/gia-dataset/discussions/23)
+    atari_asteroid
     atari_atlantis
     atari_bankheist
     atari_battlezone
@@ -32,14 +32,14 @@ ENVS=(
     atari_jamesbond
     atari_kangaroo
     atari_krull
-    atari_kongfumaster  # (Might raise an error due to name change, see https://huggingface.co/datasets/gia-project/gia-dataset/discussions/21)
-    atari_montezuma  # (Might raise an error due to name change, see https://huggingface.co/datasets/gia-project/gia-dataset/discussions/24)
+    atari_kongfumaster
+    atari_montezuma
     atari_mspacman
     atari_namethisgame
     atari_phoenix
     atari_pitfall
     atari_pong
-    atari_privateye  # (Might raise an error due to name change, see https://huggingface.co/datasets/gia-project/gia-dataset/discussions/22)
+    atari_privateye
     atari_qbert
     atari_riverraid
     atari_roadrunner
@@ -61,9 +61,6 @@ ENVS=(
     atari_zaxxon
 )
 
-ENVS=(
-    atari_surround
-)
 
 for ENV in "${ENVS[@]}"; do
     python -m sample_factory.huggingface.load_from_hub -r edbeeching/atari_2B_${ENV}_1111 -d train_dir
