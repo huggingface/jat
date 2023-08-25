@@ -6,8 +6,7 @@ import numpy as np
 import torch
 from sample_factory.algo.utils.make_env import make_env_func_batched
 from sample_factory.utils.attr_dict import AttrDict
-from sf_examples.atari.train_atari import parse_atari_args, register_atari_components
-# from sf_examples.envpool.atari.train_envpool_atari import parse_atari_args, register_atari_components
+from sf_examples.envpool.atari.train_envpool_atari import parse_atari_args, register_atari_components
 
 
 FILENAME = "scores_dict.json"
