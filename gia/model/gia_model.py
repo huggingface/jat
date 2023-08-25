@@ -10,7 +10,7 @@ from .embedding import Embeddings
 
 
 class GiaModel(PreTrainedModel):
-    """
+    r"""
     GiaModel is a wrapper around a transformer model that takes in both text and image patches as input.
 
     This model inherits from [`PreTrainedModel`]. Check the superclass documentation for the generic methods the
@@ -22,7 +22,7 @@ class GiaModel(PreTrainedModel):
     and behavior.
 
     Parameters:
-        config ([`GiaConfig`]):
+        config (`GiaConfig`):
             Model configuration class with all the parameters of the model.
     """
 
@@ -59,7 +59,7 @@ class GiaModel(PreTrainedModel):
         use_cache: bool = False,
         return_loss: bool = True,
     ) -> CausalLMOutputWithPast:
-        """
+        r"""
         Run a forward pass through the model. Takes in several inputs and returns a `CausalLMOutputWithPast` object.
 
         Args:
@@ -76,14 +76,14 @@ class GiaModel(PreTrainedModel):
             attention_mask (`torch.BoolTensor` of shape `(batch_size, sequence_length)`, *optional*):
                 Mask to avoid performing attention on padding token indices. Mask values selected in `[False, True]`:
 
-                    - True for tokens that are **not masked**,
-                    - False for tokens that are **masked**.
+                    - `True` for tokens that are **not masked**,
+                    - `False` for tokens that are **masked**.
 
             loss_mask (`torch.BoolTensor` of shape `(batch_size, sequence_length)`, *optional*):
                 Mask to ignore certain tokens in the loss computation. Mask values selected in `{True, False}`:
 
-                    - True for tokens that are **not ignored**,
-                    - False for tokens that are **ignored**.
+                    - `True` for tokens that are **not ignored**,
+                    - `False` for tokens that are **ignored**.
 
             past_key_values (`Tuple[Tuple[torch.FloatTensor]]`, *optional*, defaults to `None`):
                 Contains precomputed hidden-states (key and values in the attention blocks) as computed by the model
@@ -93,19 +93,18 @@ class GiaModel(PreTrainedModel):
             use_cache (`bool`, *optional*, defaults to `False`):
                 If set to True, past_key_values key value states are returned and can be used to speed up decoding
                 (see past_key_values).
-            return_loss (`bool`, *optional*):
+            return_loss (`bool`, *optional*, defaults to `True`):
                 Whether labels should be computed from `input_ids` and loss returned within model's output.
-                Default is `True`.
 
         Returns:
             `CausalLMOutputWithPast`: Output object from `transformers.ModelOutputs`.
 
         Raises:
             ValueError: If one of the following conditions is met:
-                - both input_ids and patches are None
-                - input_ids and patches are provided but input_types is None
-                - the input_types tensor contains values other than 0 or 1
-                - patches is provided but patch_positions is None (and vice-versa)
+                - both `input_ids` and patches are `None`
+                - `input_ids` and `patches` are provided but `input_types` is `None`
+                - the `input_types` tensor contains values other than 0 or 1
+                - `patches` is provided but `patch_positions` is `None` (and vice-versa)
         """
         embeds = self.emb(input_ids, patches, patch_positions, input_types, local_positions, attention_mask)
         if return_loss and input_ids is not None:
@@ -123,18 +122,6 @@ class GiaModel(PreTrainedModel):
             past_key_values=past_key_values,
             use_cache=use_cache,
         )
-
-    def generate(
-        self,
-        input_ids: Optional[torch.LongTensor] = None,
-        patches: Optional[torch.Tensor] = None,
-        patch_positions: Optional[torch.Tensor] = None,
-        input_types: Optional[torch.LongTensor] = None,
-        local_positions: Optional[torch.LongTensor] = None,
-        attention_mask: Optional[torch.BoolTensor] = None,
-        num_tokens: int = 1,
-    ):
-        raise NotImplementedError("GiaModel.generate is not implemented yet.")
 
 
 AutoModel.register(GiaConfig, GiaModel)

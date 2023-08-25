@@ -6,7 +6,7 @@ from torch import Tensor, nn
 
 
 class ImagePositionEncoding(nn.Module):
-    """
+    r"""
     A position encoding module for generating row and column positional information for image patches.
 
     This module calculates the normalized row and column intervals for each patch in an input image, quantizes
@@ -16,27 +16,25 @@ class ImagePositionEncoding(nn.Module):
     patch position encodings.
 
     Args:
-        vocab_size (int, optional): The size of the position embedding vocabulary. Defaults to 128.
-        embed_dim (int, optional): The embedding dimension. Defaults to 512.
+        vocab_size (int, *optional*, defaults to 128):
+            The size of the position embedding vocabulary.
+        embed_dim (int, *optional*, defaults to 512):
+            The embedding dimension.
 
     Inputs:
-        patch_positions (torch.Tensor): A tensor of shape (B, 2, 2) containing the interval of the patch position.
+        patch_positions (`torch.Tensor`):
+            A tensor of shape (B, 2, 2) containing the interval of the patch position.
             Each element describes the interval with an array [[x_min, y_min], [x_max, y_max]].
-        eval (bool, optional): A flag indicating whether the module is being used for evaluation. Defaults to False.
 
     Outputs:
-        position_encodings (torch.Tensor): A tensor of shape (B, N) containing the patch position encodings
-            for each image in the batch.
+        position_encodings (`torch.Tensor`):
+            A tensor of shape (B, N) containing the patch position encodings for each image in the batch.
 
     Example:
         >>> import torch
         >>> pos_enc = ImagePositionEncoding()
-        >>> patch_positions = torch.tensor(
-        ...     [
-        ...         [[0.0, 0.0], [0.2, 0.3]],
-        ...         [[0.1, 0.3], [0.2, 0.4]],
-        ...     ]
-        ... )
+        >>> patch_positions = torch.tensor([[[0.0, 0.0], [0.2, 0.3]],
+        ...                                 [[0.1, 0.3], [0.2, 0.4]]])
         >>> pos_encoding = pos_enc(patch_positions)
         >>> pos_encoding.shape
         torch.Size([2, 2048])
@@ -80,15 +78,17 @@ class ImagePositionEncoding(nn.Module):
 
 
 class ResidualBlockV2(nn.Module):
-    """
-    A residual block with GroupNorm and GELU activations.
+    r"""
+    A residual block with group normalization and GELU activations.
 
-    It consists of two convolutional layers with GroupNorm and GELU activations, followed by a residual
+    It consists of two convolutional layers with group normalization and GELU activations, followed by a residual
     connection.
 
     Args:
-        num_channels (int): The number of channels.
-        num_groups (int): The number of groups for the GroupNorm layers.
+        num_channels (`int`):
+            The number of channels.
+        num_groups (`int`)
+            The number of groups for the group normalization layers.
     """
 
     def __init__(self, num_channels: int, num_groups: int) -> None:
@@ -109,17 +109,21 @@ class ResidualBlockV2(nn.Module):
 
 
 class ImageEncoder(nn.Module):
-
-    """
+    r"""
     An image encoder module for extracting image features from a batch of images.
 
     Args:
-        in_channels (int): The number of channels in the input images. If the input images have less channels, they
-            are padded with zeros.
-        num_res_channels (int): The number of channels in the residual blocks.
-        out_features (int): The number of features in the output image features.
-        num_groups (int): The number of groups for the GroupNorm layers.
-        patch_size (int): The size of the patches to be extracted from the input images.
+        in_channels (`int`):
+            The number of channels in the input images. If the input images have less channels, they are padded with
+            zeros.
+        num_res_channels (`int`):
+            The number of channels in the residual blocks.
+        out_features (`int`):
+            The number of features in the output image features.
+        num_groups (`int`):
+            The number of groups for the GroupNorm layers.
+        patch_size (`int`):
+            The size of the patches to be extracted from the input images.
 
     Structure:
 
@@ -166,8 +170,24 @@ class ImageEncoder(nn.Module):
 
 
 class Embeddings(nn.Module):
-    """
+    r"""
     The embedding module for the GIA model.
+
+    Args:
+        embed_dim (`int`):
+            The size of the embedding vector.
+        token_vocab_size (`int`):
+            The size of the dictionary of embeddings.
+        num_local_positions (`int`, *optional*, defaults to 512):
+            Number of possible local positions.
+        patch_size (`int`, *optional*, defaults to 16):
+            The size of the patches to be extracted from the input images.
+        image_vocab_size (`int`, *optional*, defaults to 128):
+            The size of the position embedding vocabulary for image.
+        num_res_channels (`int`, *optional*, defaults to 64):
+            The number of channels in the residual blocks.
+        num_groups (`int`, *optional*, defaults to 32):
+            The number of groups for the group normalization layers.
     """
 
     def __init__(
@@ -204,7 +224,9 @@ class Embeddings(nn.Module):
         local_positions: Optional[Tensor] = None,
         attention_mask: Optional[Tensor] = None,
     ) -> Tensor:
-        """
+        r"""
+        Forward pass of the embedding.
+
         Args:
             input_ids (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):
                 Indices of input sequence tokens in the vocabulary.
@@ -219,18 +241,19 @@ class Embeddings(nn.Module):
             attention_mask (`torch.BoolTensor` of shape `(batch_size, sequence_length)`, *optional*):
                 Mask to avoid performing attention on padding token indices. Mask values selected in `[True, False]`:
 
-                - True for tokens that are **not masked**,
-                - False for tokens that are **masked**.
+                - `True` for tokens that are **not masked**,
+                - `False` for tokens that are **masked**.
 
         Returns:
-            torch.Tensor: The embedding tensor for the input sequence.
+            embed (`torch.Tensor`):
+                The embedding tensor for the input sequence.
 
         Raises:
-            ValueError: If one of the following conditions is met:
-                - both input_ids and patches are None
-                - input_ids and patches are provided but input_types is None
-                - the input_types tensor contains values other than 0 or 1
-                - patches is provided but patch_positions is None (and vice-versa)
+            `ValueError`: If one of the following conditions is met:
+                - both `input_ids` and `patches` are `None`,
+                - `input_ids` and patches are provided but `input_types` is `None`,
+                - the `input_types` tensor contains values other than 0 or 1,
+                - `patches` is provided but `patch_positions` is `None` (and vice-versa)
         """
 
         # Either input_ids or patches must be provided

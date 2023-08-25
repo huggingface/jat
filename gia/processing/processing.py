@@ -1,10 +1,11 @@
+import json
 import math
 from typing import Dict, List, Optional, Tuple, TypeVar, Union
 
 import cv2
 import numpy as np
 from numpy.lib.stride_tricks import as_strided
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, FeatureExtractionMixin
 
 from .interleaver import Interleaver
 from .local_positions_adder import LocalPositionsAdder
@@ -15,11 +16,43 @@ ImageType = List[List[List[int]]]
 T = TypeVar("T")
 
 
-def clamp(x, min_value, max_value):
+def clamp(x: float, min_value: float, max_value: float) -> float:
+    r"""
+    Clamp a float.
+
+    Args:
+        x (`float`):
+            Value to be clamped.
+        min_value (`float`):
+            Min value.
+        max_value (`float`):
+            Max value.
+
+    Returns:
+        float: The clamped value
+    """
     return max(min(x, max_value), min_value)
 
 
 def nested_like(x, val):
+    r"""
+    Return a nested structure like `x`, filled with `val`
+
+    Example:
+        >>> x = [[1, 2], 3]
+        >>> nested_like(x, val=0)
+        [[0, 0], 0]
+
+    Args:
+        x (`Any`):
+            A nested structure list.
+        val (`Any`):
+            A value.
+
+    Returns:
+        filled_nested (`Any`):
+            A nested structure like `x`, filled with `val`
+    """
     if isinstance(x, list):
         return [nested_like(x_i, val) for x_i in x]
     else:
@@ -27,6 +60,14 @@ def nested_like(x, val):
 
 
 class GiaImageProcessor:
+    r"""
+    Image processor for GIA.
+
+    Args:
+        patch_size (`int`, *optional*, defaults to 16):
+            The size of the patches to extract from image observations.
+    """
+
     def __init__(self, patch_size: int = 16) -> None:
         self.patch_size = patch_size
 
@@ -132,7 +173,7 @@ class GiaDiscreteTokenizer:
         return {"input_ids": input_ids}
 
 
-class GiaProcessor:
+class GiaProcessor(FeatureExtractionMixin):
     r"""
     Processor for Gia.
 
@@ -171,6 +212,16 @@ class GiaProcessor:
         local_positions_groups: Union[str, List[List[str]]] = "default",
         use_separator: bool = True,
     ):
+        self.patch_size = patch_size
+        self.text_tokenizer_name = text_tokenizer_name
+        self.mu = mu
+        self.M = M
+        self.nb_bins = nb_bins
+        self.mask_loss_modalities = mask_loss_modalities
+        self.seq_len = seq_len
+        self.local_positions_groups = local_positions_groups
+        self.use_separator = use_separator
+
         self.image_processor = GiaImageProcessor(patch_size)
         self.text_tokenizer = AutoTokenizer.from_pretrained(text_tokenizer_name)
         token_shift = self.text_tokenizer.vocab_size
@@ -192,7 +243,7 @@ class GiaProcessor:
         else:
             self.mask_loss_modalities = mask_loss_modalities
         if local_positions_groups == "default":
-            local_positions_groups = [
+            self.local_positions_groups = [
                 [
                     # "text",
                     # "images",
@@ -206,6 +257,7 @@ class GiaProcessor:
                 ]
             ]
         self.local_positions_adder = LocalPositionsAdder(local_positions_groups)
+
         if use_separator:
             separator = {
                 "input_ids": [token_shift + nb_bins],
@@ -215,7 +267,6 @@ class GiaProcessor:
         else:
             separator = None
         self.interleaver = Interleaver(separator)
-        self.seq_len = seq_len
 
     @staticmethod
     def truncate_residual(
@@ -417,3 +468,23 @@ class GiaProcessor:
             raise ValueError(f"Invalid value for `padding`: {padding}")
 
         return batch_data
+
+    def to_json_string(self) -> str:
+        """
+        Serializes this instance to a JSON string.
+
+        Returns:
+            `str`: String containing all the attributes that make up this feature_extractor instance in JSON format.
+        """
+        dictionary = {
+            "patch_size": self.patch_size,
+            "text_tokenizer_name": self.text_tokenizer_name,
+            "mu": self.mu,
+            "M": self.M,
+            "nb_bins": self.nb_bins,
+            "mask_loss_modalities": self.mask_loss_modalities,
+            "seq_len": self.seq_len,
+            "local_positions_groups": self.local_positions_groups,
+            "use_separator": self.use_separator,
+        }
+        return json.dumps(dictionary, indent=2, sort_keys=True) + "\n"
