@@ -228,6 +228,7 @@ def create_atari_dataset(cfg: Config):
     env.close()
 
     task = cfg.env.split("_")[1]
+    # Fix task names (see see https://huggingface.co/datasets/gia-project/gia-dataset/discussions/21 to 24)
     task = "asteroids" if task == "asteroid" else task
     task = "kungfumaster" if task == "kongfumaster" else task
     task = "montezumarevenge" if task == "montezuma" else task
