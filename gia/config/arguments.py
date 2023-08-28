@@ -334,7 +334,6 @@ class Arguments(DatasetArguments, ModelArguments, EvalArguments, WandBArguments,
         return cls(**loaded_args)
 
     def __post_init__(self):
-        super().__post_init__()
         # We could have the following in Dataset args and call another super post init ?
         self.task_names = get_task_name_list(self.task_names)
         if "," in self.mask_loss_modalities:
@@ -358,6 +357,7 @@ class Arguments(DatasetArguments, ModelArguments, EvalArguments, WandBArguments,
                 os.environ["WANDB_RUN_ID"] = self.wandb_run_id
             if self.wandb_tags is not None:
                 os.environ["WANDB_TAGS"] = ",".join(tag for tag in self.wandb_tags)
+        super().__post_init__()
 
     @staticmethod
     def parse_args() -> "Arguments":
