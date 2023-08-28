@@ -59,7 +59,7 @@ ENV_NAMES = [
     "atari-solaris",
     "atari-spaceinvaders",
     "atari-stargunner",
-    # "atari-surround", # Not in the dataset
+    "atari-surround",
     "atari-tennis",
     "atari-timepilot",
     "atari-tutankham",
@@ -161,11 +161,11 @@ ENV_NAMES = [
     "mujoco-doublependulum",
     "mujoco-halfcheetah",
     "mujoco-hopper",
-    # "mujoco-humanoid",  # Not in the dataset
+    "mujoco-humanoid",
     "mujoco-pendulum",
-    # "mujoco-pusher",  # Not in the dataset
+    "mujoco-pusher",
     "mujoco-reacher",
-    # "mujoco-standup",  # Not in the dataset
+    "mujoco-standup",
     "mujoco-swimmer",
     "mujoco-walker",
 ]
@@ -180,7 +180,6 @@ for env_name in tqdm(ENV_NAMES):
         "gia-project/gia-dataset",
         env_name,
         writer_batch_size=1,
-        download_mode="force_redownload",
         verification_mode="no_checks",
     )
     # Initialize the variables
