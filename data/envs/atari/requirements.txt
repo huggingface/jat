@@ -1,1 +1,2 @@
 sample-factory[atari,envpool]
+shimmy
