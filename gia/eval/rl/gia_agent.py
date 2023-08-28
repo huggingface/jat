@@ -141,10 +141,8 @@ class GiaAgent:
             np.ndarray: The next action
         """
         # Turn into episode
-        keys = observations[0].keys()
         dict_observations = {}
-        for key in keys:
-            values = [obs[key] for obs in observations]
+        for key, values in observations.items():
             if isinstance(values[0], np.ndarray):
                 dict_observations[key] = np.expand_dims(np.stack(values), axis=1)
             elif isinstance(values[0], str):
