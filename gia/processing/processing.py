@@ -73,7 +73,8 @@ class GiaImageProcessor:
 
     def _resize_to_multiple_of_patch_size(self, image: np.ndarray) -> np.ndarray:
         P = self.patch_size
-        image = image.transpose(1, 2, 0)
+        if image.shape[0] < 5:  # check if image is in channel order
+            image = image.transpose(1, 2, 0)
         H, W, _ = image.shape
         # Resize to the closest above multiple of the patch size
         H = H - H % P + P if H % P != 0 else H
