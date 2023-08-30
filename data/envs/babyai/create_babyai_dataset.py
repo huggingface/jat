@@ -52,9 +52,10 @@ def create_babyai_dataset(name_env, saving_path, max_num_episodes=100000, test_s
         while not done:
             try:
                 action = policy.replan()
-                _obs, r, done, _, infos = env.step(action)
+                _obs, r, term, trunc, infos = env.step(action)
                 dataset.add_step(obs, int(action), r)
                 obs = _obs
+                done = term or trunc
             except Exception:
                 done = True
 
