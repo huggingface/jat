@@ -5,12 +5,10 @@ import random
 import gymnasium as gym
 import numpy as np
 from bot_agent import Bot
-from utils.env_wrappers import AddRGBImgPartialObsWrapper
 
 
 def create_babyai_dataset(name_env, saving_path, max_num_episodes=100000, test_set_percentage=5):
     env = gym.make(name_env)
-    env = AddRGBImgPartialObsWrapper(env)  # add rgb image to obs
 
     class BabyAIEnvDataset:
         def __init__(self):
