@@ -1,11 +1,12 @@
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import torch
 import torch.nn.functional as F
 from datasets import Features, Sequence, Value, concatenate_datasets, load_dataset
 from torch import FloatTensor, LongTensor, nn
+from torch.utils.data import BatchSampler
 from transformers import GPTNeoConfig, GPTNeoModel, GPTNeoPreTrainedModel, Trainer, TrainingArguments
 from transformers.modeling_outputs import ModelOutput
 
@@ -217,14 +218,16 @@ def train():
 
     args = TrainingArguments(
         "test",
-        per_device_train_batch_size=1,
-        per_device_eval_batch_size=1,
+        # per_device_train_batch_size=1,
+        # per_device_eval_batch_size=1,
+        auto_find_batch_size=True,
         evaluation_strategy="steps",
         eval_steps=1000,
         eval_delay=0,
         logging_steps=1000,
         logging_first_step=True,
         num_train_epochs=5,
+        group_by_length=True,
     )
 
     trainer = Trainer(model=model.to("cpu"), train_dataset=train_dataset, eval_dataset=eval_dataset, args=args)
