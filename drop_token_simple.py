@@ -1,16 +1,15 @@
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Optional
 
 import numpy as np
 import torch
 import torch.nn.functional as F
 from datasets import Features, Sequence, Value, concatenate_datasets, load_dataset
 from torch import FloatTensor, LongTensor, nn
-from torch.utils.data import BatchSampler
+from torch.utils.data import RandomSampler
 from transformers import GPTNeoConfig, GPTNeoModel, GPTNeoPreTrainedModel, Trainer, TrainingArguments
 from transformers.modeling_outputs import ModelOutput
-
-from gia.eval.rl import make
+from transformers.trainer_pt_utils import LengthGroupedSampler
 
 
 @dataclass
@@ -156,19 +155,31 @@ class MyModel(GPTNeoPreTrainedModel):
         )
 
 
+class MyTrainer(Trainer):
+    def _get_train_sampler(self) -> Optional[torch.utils.data.Sampler]:
+        if self.args.group_by_length:
+            return LengthGroupedSampler(
+                self.args.train_batch_size * self.args.gradient_accumulation_steps,
+                dataset=self.train_dataset,
+                model_input_name=self.train_dataset.column_names[0],
+            )
+        else:
+            return RandomSampler(self.train_dataset)
+
+
 def train():
     num_layers = 8
     continuous_max_size = 27
     tasks = [
         "mujoco-ant",
         "mujoco-doublependulum",
-        "mujoco-halfcheetah",
-        "mujoco-hopper",
-        "mujoco-pendulum",
-        "mujoco-reacher",
-        "mujoco-swimmer",
-        "mujoco-walker",
-        "mujoco-pusher",
+        # "mujoco-halfcheetah",
+        # "mujoco-hopper",
+        # "mujoco-pendulum",
+        # "mujoco-reacher",
+        # "mujoco-swimmer",
+        # "mujoco-walker",
+        # "mujoco-pusher",
     ]
 
     config = GPTNeoConfig(
@@ -230,7 +241,7 @@ def train():
         group_by_length=True,
     )
 
-    trainer = Trainer(model=model.to("cpu"), train_dataset=train_dataset, eval_dataset=eval_dataset, args=args)
+    trainer = MyTrainer(model=model.to("cpu"), train_dataset=train_dataset, eval_dataset=eval_dataset, args=args)
     trainer.train()
 
 
