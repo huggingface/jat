@@ -3,8 +3,9 @@ from typing import Optional
 
 import numpy as np
 import torch
-from datasets import concatenate_datasets, load_dataset, Features, Sequence, Value
-from torch import FloatTensor, Tensor, nn
+import torch.nn.functional as F
+from datasets import Features, Sequence, Value, concatenate_datasets, load_dataset
+from torch import FloatTensor, LongTensor, nn
 from transformers import GPTNeoConfig, GPTNeoModel, GPTNeoPreTrainedModel, Trainer, TrainingArguments
 from transformers.modeling_outputs import ModelOutput
 
@@ -15,11 +16,28 @@ from gia.eval.rl import make
 class MyOutput(ModelOutput):
     """ """
 
-    predicted_observations: torch.FloatTensor = None
-    predicted_actions: torch.FloatTensor = None
-    observation_loss: Optional[Tensor] = None
-    action_loss: Optional[Tensor] = None
-    loss: Optional[Tensor] = None
+    pred_discrete_observations: Optional[torch.LongTensor] = None
+    pred_continuous_observations: Optional[torch.FloatTensor] = None
+    pred_continuous_actions: Optional[torch.FloatTensor] = None
+    loss: Optional[torch.FloatTensor] = None
+
+
+class Pad1d(nn.Module):
+    def __init__(self, size):
+        super().__init__()
+        self.size = size
+
+    def forward(self, x):
+        return torch.nn.functional.pad(x, (0, self.size - x.shape[-1]))
+
+
+class OneHotFlatten(nn.Module):
+    def __init__(self, num_classes):
+        super().__init__()
+        self.num_classes = num_classes
+
+    def forward(self, x):
+        return nn.functional.one_hot(x, num_classes=self.num_classes).flatten(-2)
 
 
 class MyModel(GPTNeoPreTrainedModel):
@@ -27,7 +45,10 @@ class MyModel(GPTNeoPreTrainedModel):
         super().__init__(config)
 
         # Encoders
-        self.continuous_encoder = nn.Linear(config.continuous_max_size, config.hidden_size)
+        self.continuous_encoder = nn.Sequential(
+            Pad1d(config.continuous_max_size),
+            nn.Linear(config.continuous_max_size, config.hidden_size),
+        )
 
         # Transformer
         self.transformer = GPTNeoModel(config)
@@ -40,56 +61,98 @@ class MyModel(GPTNeoPreTrainedModel):
 
     def forward(
         self,
+        discrete_observations: Optional[LongTensor] = None,
         continuous_observations: Optional[FloatTensor] = None,
         continuous_actions: Optional[FloatTensor] = None,
         rewards: Optional[FloatTensor] = None,
         return_loss: bool = True,
     ):
-        # Pad observations with zeros
-        batch_size, seq_len, observation_size = continuous_observations.shape
-        padded_observations = nn.functional.pad(
-            continuous_observations, (0, self.config.continuous_max_size - observation_size)
-        )
-        encoded_continuous_observations = self.continuous_encoder(padded_observations)
-        inputs_embeds_observations = encoded_continuous_observations
+        inputs_embeds = {}
+        if discrete_observations is not None:
+            discrete_observations_onehot = F.one_hot(discrete_observations, num_classes=self.config.discrete_max)
+            discrete_observations_onehot = discrete_observations_onehot.flatten(-2).to(torch.float32)
+            inputs_embeds["discrete_observations"] = self.continuous_encoder(discrete_observations_onehot)
 
-        # Pad actions and actions with zeros and mask them
-        batch_size, seq_len, action_size = continuous_actions.shape
-        padded_actions = nn.functional.pad(continuous_actions, (0, self.config.continuous_max_size - action_size))
-        encoded_continuous_actions = self.continuous_encoder(padded_actions)
-        inputs_embeds_actions = encoded_continuous_actions
+        if continuous_observations is not None:
+            inputs_embeds["continuous_observations"] = self.continuous_encoder(continuous_observations)
+
+        if continuous_actions is not None:
+            inputs_embeds["continuous_actions"] = self.continuous_encoder(continuous_actions)
+
+        modalities = list(inputs_embeds.keys())
+        num_modalities = len(modalities)
 
         # Interleave observations and actions
-        inputs_embeds = torch.cat((inputs_embeds_observations, inputs_embeds_actions), dim=2).view(
-            batch_size, 2 * seq_len, self.config.hidden_size
-        )
+        inputs_embeds = list(inputs_embeds.values())
+        inputs_embeds = torch.stack(inputs_embeds, dim=2).flatten(1, 2)
 
         transformer_outputs = self.transformer(inputs_embeds=inputs_embeds)
 
         hidden_states = transformer_outputs[0]
 
         # Un-interleave observations and actions (warning, shifted by 1)
-        hidden_observations = hidden_states[..., 1::2, :]
-        hidden_actions = hidden_states[..., ::2, :]
+        keys = modalities[1:] + modalities[:1]
 
-        predicted_observations = self.continuous_decoder(hidden_observations)[..., :observation_size]
-        predicted_actions = self.continuous_decoder(hidden_actions)[..., :action_size]
+        hidden_outputs = {}
+        for idx in range(num_modalities):
+            hidden_outputs[keys[idx]] = hidden_states[..., idx::num_modalities, :]
 
-        observation_loss, action_loss = None, None
+        discrete_observation_loss = None
+        continuous_observation_loss = None
+        continuous_action_loss = None
+        pred_discrete_observations = None
+        pred_continuous_observations = None
+        pred_continuous_actions = None
+
+        need_roll = True
+        if discrete_observations is not None:
+            logits = self.continuous_decoder(hidden_outputs["discrete_observations"])
+            logits = logits[..., : discrete_observations_onehot.shape[-1]]
+            logits = logits.reshape(logits.shape[0], logits.shape[1], -1, self.config.discrete_max)
+            observation_probabilities = logits.softmax(dim=-1)
+            pred_discrete_observations = observation_probabilities.argmax(dim=-1)
+            if return_loss:
+                loss_fct = nn.CrossEntropyLoss()
+                if need_roll:
+                    observation_probabilities = observation_probabilities[:, 1:]
+                    discrete_observations = discrete_observations[:, :-1]
+                    need_roll = False
+                discrete_observation_loss = loss_fct(
+                    torch.flatten(observation_probabilities, end_dim=-2), torch.flatten(discrete_observations)
+                )
+
+        if continuous_observations is not None:
+            pred_continuous_observations = self.continuous_decoder(hidden_outputs["continuous_observations"])
+            pred_continuous_observations = pred_continuous_observations[..., : continuous_observations.shape[-1]]
+            if return_loss:
+                loss_fct = nn.MSELoss()
+                if need_roll:
+                    continuous_observation_loss = loss_fct(
+                        pred_continuous_observations[:, 1:], continuous_observations[:, :-1]
+                    )
+                    need_roll = False
+                else:
+                    continuous_observation_loss = loss_fct(pred_continuous_observations, continuous_observations)
+
+        if continuous_actions is not None:
+            pred_continuous_actions = self.continuous_decoder(hidden_outputs["continuous_actions"])
+            pred_continuous_actions = pred_continuous_actions[..., : continuous_actions.shape[-1]]
+            if return_loss:
+                loss_fct = nn.MSELoss()
+                continuous_action_loss = loss_fct(pred_continuous_actions, continuous_actions)
+
         if return_loss:
-            loss_fct = nn.MSELoss()
-            observation_loss = loss_fct(predicted_observations[:, 1:], continuous_observations[:, :-1])
-            action_loss = loss_fct(predicted_actions, continuous_actions)
-
-            return MyOutput(
-                predicted_observations=predicted_observations,
-                predicted_actions=predicted_actions,
-                observation_loss=observation_loss,
-                action_loss=action_loss,
-                loss=observation_loss + action_loss,
-            )
+            losses = [discrete_observation_loss, continuous_observation_loss, continuous_action_loss]
+            loss = sum([loss for loss in losses if loss is not None])
         else:
-            return MyOutput(predicted_observations=predicted_observations, predicted_actions=predicted_actions)
+            loss = None
+
+        return MyOutput(
+            pred_discrete_observations=pred_discrete_observations,
+            pred_continuous_observations=pred_continuous_observations,
+            pred_continuous_actions=pred_continuous_actions,
+            loss=loss,
+        )
 
 
 def train():
@@ -164,12 +227,12 @@ def train():
         num_train_epochs=5,
     )
 
-    trainer = Trainer(model=model.to("cuda"), train_dataset=train_dataset, eval_dataset=eval_dataset, args=args)
+    trainer = Trainer(model=model.to("cpu"), train_dataset=train_dataset, eval_dataset=eval_dataset, args=args)
     trainer.train()
 
 
 def eval(task):
-    model = MyModel.from_pretrained("test/checkpoint-81000").to("cuda")
+    model = MyModel.from_pretrained("test/checkpoint-81000").to("cpu")
     env = make(task, render_mode="human")
 
     for episode in range(10):
@@ -182,9 +245,9 @@ def eval(task):
         done = False
         while not done:
             with torch.inference_mode():
-                continuous_observations = torch.tensor(observations, dtype=torch.float32).unsqueeze(0).to("cuda")
+                continuous_observations = torch.tensor(observations, dtype=torch.float32).unsqueeze(0).to("cpu")
                 continuous_actions = (
-                    torch.tensor([*actions, action_placeholder], dtype=torch.float32).unsqueeze(0).to("cuda")
+                    torch.tensor([*actions, action_placeholder], dtype=torch.float32).unsqueeze(0).to("cpu")
                 )
                 output = model(continuous_observations, continuous_actions, return_loss=False)
                 action = output.predicted_actions[0, -1].cpu().numpy()
@@ -201,13 +264,27 @@ def eval(task):
 
 
 if __name__ == "__main__":
+    # batch_size = 2
+    # seq_len = 4
+
+    # config = GPTNeoConfig()
+    # config.continuous_max_size = 15
+    # config.discrete_max = 3
+    # model = MyModel(config)
+
+    # discrete_obs = torch.randint(0, config.discrete_max, (batch_size, seq_len, 2))
+    # continuous_obs = torch.rand(batch_size, seq_len, 5)
+    # continuous_actions = torch.rand(batch_size, seq_len, 10)
+
+    # output = model(discrete_obs, continuous_obs, continuous_actions)
+    # print(output)
     train()
-    eval("mujoco-ant")
-    eval("mujoco-doublependulum")
-    eval("mujoco-halfcheetah")
-    eval("mujoco-hopper")
-    eval("mujoco-pendulum")
-    eval("mujoco-reacher")
-    eval("mujoco-swimmer")
-    eval("mujoco-walker")
-    eval("mujoco-pusher")
+    # eval("mujoco-ant")
+    # eval("mujoco-doublependulum")
+    # eval("mujoco-halfcheetah")
+    # eval("mujoco-hopper")
+    # eval("mujoco-pendulum")
+    # eval("mujoco-reacher")
+    # eval("mujoco-swimmer")
+    # eval("mujoco-walker")
+    # eval("mujoco-pusher")
