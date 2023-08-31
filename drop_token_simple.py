@@ -1,34 +1,14 @@
 from dataclasses import dataclass
-from typing import Any, Optional, List, Dict
+from typing import Optional
 
+import numpy as np
 import torch
-from datasets import load_dataset
-from torch import FloatTensor, LongTensor, Tensor, nn
-from transformers import FeatureExtractionMixin, GPTNeoConfig, GPTNeoModel, GPTNeoPreTrainedModel, ProcessorMixin
-from transformers.feature_extraction_utils import FeatureExtractionMixin
+from datasets import concatenate_datasets, load_dataset, Features, Sequence, Value
+from torch import FloatTensor, Tensor, nn
+from transformers import GPTNeoConfig, GPTNeoModel, GPTNeoPreTrainedModel, Trainer, TrainingArguments
 from transformers.modeling_outputs import ModelOutput
 
-# Processor: everything related to padding, truncation, resize, normalization, etc.
-# Embedding: takes the output of the processor and embeds it into a vector, must be multimodal, the input must still be episodes (conitnuous_observations, discrete_observations, text_observations, image_observations, continuous_actions, discrete_actions, rewards)
-
-# class ContinuousEmbedding(nn.Module):
-#     def __init__(self, continuous_max_size, discrete_max_val, hidden_size):
-
-
-# class _MyProcessor(FeatureExtractionMixin):
-#     def __init__(self, max_length):
-#         self.max_length = max_length
-
-#     def __call__(self, batch):
-#         # Truncated to the max length
-#         for k, v in batch.items():
-#             batch[k] = [x[: self.max_length] for x in v]
-
-#         # Pad to the max length
-#         for k, v in batch.items():
-#             batch[k] = [x + [x[0]] * (self.max_length - len(x)) for x in v]
-#         batch["attention_mask"] = [[1] * len(x) + [0] * (self.max_length - len(x)) for x in v]
-#         return batch
+from gia.eval.rl import make
 
 
 @dataclass
@@ -65,8 +45,6 @@ class MyModel(GPTNeoPreTrainedModel):
         rewards: Optional[FloatTensor] = None,
         return_loss: bool = True,
     ):
-        inputs_embeds_dict = {}
-
         # Pad observations with zeros
         batch_size, seq_len, observation_size = continuous_observations.shape
         padded_observations = nn.functional.pad(
@@ -114,10 +92,20 @@ class MyModel(GPTNeoPreTrainedModel):
             return MyOutput(predicted_observations=predicted_observations, predicted_actions=predicted_actions)
 
 
-if __name__ == "__main__":
+def train():
     num_layers = 8
-    continuous_max_size = 20
-    task = "mujoco-doublependulum"
+    continuous_max_size = 27
+    tasks = [
+        "mujoco-ant",
+        "mujoco-doublependulum",
+        "mujoco-halfcheetah",
+        "mujoco-hopper",
+        "mujoco-pendulum",
+        "mujoco-reacher",
+        "mujoco-swimmer",
+        "mujoco-walker",
+        "mujoco-pusher",
+    ]
 
     config = GPTNeoConfig(
         num_layers=num_layers,
@@ -128,36 +116,60 @@ if __name__ == "__main__":
     )
     config.continuous_max_size = continuous_max_size
 
-    # model = MyModel(config)
+    model = MyModel(config)
 
-    # # Load the dataset
-    # train_dataset = load_dataset("gia-project/gia-dataset", task, split="train")
-    # eval_dataset = load_dataset("gia-project/gia-dataset", task, split="test[:20]")
+    # Load the dataset
+    features = Features(
+        {
+            "continuous_observations": Sequence(Sequence(Value("float32"))),
+            "continuous_actions": Sequence(Sequence(Value("float32"))),
+            "rewards": Sequence(Value("float32")),
+        }
+    )
+    train_dataset = concatenate_datasets(
+        [
+            load_dataset(
+                "gia-project/gia-dataset-parquet",
+                task,
+                revision="try_parquet",
+                split="train",
+                writer_batch_size=1,
+                features=features,
+            )
+            for task in tasks
+        ]
+    )
 
-    # from transformers import Trainer, TrainingArguments
+    eval_dataset = {
+        task: load_dataset(
+            "gia-project/gia-dataset-parquet",
+            task,
+            revision="try_parquet",
+            split="test[:100]",
+            writer_batch_size=1,
+            features=features,
+        )
+        for task in tasks
+    }
 
-    # args = TrainingArguments(
-    #     "test",
-    #     per_device_train_batch_size=1,
-    #     per_device_eval_batch_size=1,
-    #     evaluation_strategy="steps",
-    #     eval_steps=100,
-    #     eval_delay=0,
-    #     logging_steps=100,
-    #     logging_first_step=True,
-    #     num_train_epochs=1,
-    # )
+    args = TrainingArguments(
+        "test",
+        per_device_train_batch_size=1,
+        per_device_eval_batch_size=1,
+        evaluation_strategy="steps",
+        eval_steps=1000,
+        eval_delay=0,
+        logging_steps=1000,
+        logging_first_step=True,
+        num_train_epochs=5,
+    )
 
-    # trainer = Trainer(model=model.to("cuda"), train_dataset=train_dataset, eval_dataset=eval_dataset, args=args)
-    # trainer.train()
+    trainer = Trainer(model=model.to("cuda"), train_dataset=train_dataset, eval_dataset=eval_dataset, args=args)
+    trainer.train()
 
-    # Test the model
 
-    model = MyModel.from_pretrained("test/checkpoint-2500").to("cuda")
-
-    from gia.eval.rl import make
-    import numpy as np
-
+def eval(task):
+    model = MyModel.from_pretrained("test/checkpoint-81000").to("cuda")
     env = make(task, render_mode="human")
 
     for episode in range(10):
@@ -182,7 +194,20 @@ if __name__ == "__main__":
             actions.append(action)
             ep_return += reward
         all_returns.append(ep_return)
-        print((ep_return - 57.46) / (9338.69 - 57.46))
-    score = (np.array(all_returns) - 57.46) / (9338.69 - 57.46)
-    print("Score:", score.mean(), score.std())
+        # print((ep_return - 57.46) / (9338.69 - 57.46))
+    score = np.array(all_returns)
+    print(f"Score for {task}: {score.mean()} +- {score.std()}")
     env.close()
+
+
+if __name__ == "__main__":
+    train()
+    eval("mujoco-ant")
+    eval("mujoco-doublependulum")
+    eval("mujoco-halfcheetah")
+    eval("mujoco-hopper")
+    eval("mujoco-pendulum")
+    eval("mujoco-reacher")
+    eval("mujoco-swimmer")
+    eval("mujoco-walker")
+    eval("mujoco-pusher")
