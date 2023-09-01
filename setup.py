@@ -62,7 +62,7 @@ __version__ = "0.0.1.dev0"  # expected format is one of x.y.z.dev0, or x.y.z.rc1
 
 REQUIRED_PKGS = [
     "accelerate",
-    "datasets @ git+https://github.com/qgallouedec/datasets.git@speedup-sequence-of-sequece-of-array",
+    "datasets",
     "gymnasium",  # For RL action spaces and API
     "huggingface_hub>=0.10",  # For sharing objects, environments & trained RL policies
     "numpy",
