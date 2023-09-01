@@ -87,7 +87,7 @@ def cleanup_argv():
 
 def test_unknown_task(tmp_path):
     with pytest.raises(ValueError):
-        args = Arguments(task_names="unknown_task", output_dir=tmp_path)
+        Arguments(task_names="unknown_task", output_dir=tmp_path)
 
 
 def test_post_init_task_names_multi_domain(tmp_path):
