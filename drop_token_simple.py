@@ -139,7 +139,7 @@ def train(tasks, experience):
 
 
 def eval(task, experience, checkpoint):
-    model = MyModel.from_pretrained(f"{experience}/checkpoint-{checkpoint}").to("cuda")
+    model = MyModel.from_pretrained(f"{experience}/checkpoint-{checkpoint}")
     env = make(task, render_mode="rgb_array")
     frames = []
 
@@ -153,9 +153,9 @@ def eval(task, experience, checkpoint):
         done = False
         while not done:
             with torch.inference_mode():
-                continuous_observations = torch.tensor(observations, dtype=torch.float32).unsqueeze(0).to("cuda")
+                continuous_observations = torch.tensor(observations, dtype=torch.float32).unsqueeze(0)
                 continuous_actions = (
-                    torch.tensor([*actions, action_placeholder], dtype=torch.float32).unsqueeze(0).to("cuda")
+                    torch.tensor([*actions, action_placeholder], dtype=torch.float32).unsqueeze(0)
                 )
                 output = model(continuous_observations, continuous_actions, return_loss=False)
                 action = output.predicted_actions[0, -1].cpu().numpy()
