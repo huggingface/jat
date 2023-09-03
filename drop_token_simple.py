@@ -116,8 +116,18 @@ class MyModel(GPTNeoPreTrainedModel):
 
 if __name__ == "__main__":
     num_layers = 8
-    continuous_max_size = 20
-    task = "mujoco-doublependulum"
+    continuous_max_size = 27
+    tasks = [
+        "mujoco-ant",
+        "mujoco-doublependulum",
+        "mujoco-halfcheetah",
+        "mujoco-hopper",
+        "mujoco-pendulum",
+        "mujoco-reacher",
+        "mujoco-swimmer",
+        "mujoco-walker",
+        "mujoco-pusher",
+    ]
 
     config = GPTNeoConfig(
         num_layers=num_layers,
@@ -128,37 +138,46 @@ if __name__ == "__main__":
     )
     config.continuous_max_size = continuous_max_size
 
-    # model = MyModel(config)
+    model = MyModel(config)
 
     # # Load the dataset
-    # train_dataset = load_dataset("gia-project/gia-dataset", task, split="train")
-    # eval_dataset = load_dataset("gia-project/gia-dataset", task, split="test[:20]")
+    from datasets import Sequence, Value, Features, concatenate_datasets
+    features = Features(
+            {
+                "continuous_observations": Sequence(Sequence(Value("float32"))),
+                "continuous_actions": Sequence(Sequence(Value("float32"))),
+                "rewards": Sequence(Value("float32")),
+            }
+        )
+    #train_dataset = concatenate_datasets([load_dataset("gia-project/gia-dataset", task, features=features, split="train") for task in tasks])
+    #eval_dataset = {task: load_dataset("gia-project/gia-dataset", task, split="test[:100]") for task in tasks}
 
-    # from transformers import Trainer, TrainingArguments
+    from transformers import Trainer, TrainingArguments
 
-    # args = TrainingArguments(
-    #     "test",
-    #     per_device_train_batch_size=1,
-    #     per_device_eval_batch_size=1,
-    #     evaluation_strategy="steps",
-    #     eval_steps=100,
-    #     eval_delay=0,
-    #     logging_steps=100,
-    #     logging_first_step=True,
-    #     num_train_epochs=1,
-    # )
+#    args = TrainingArguments(
+#        "old_script_all_mujoco",
+#        per_device_train_batch_size=1,
+#        per_device_eval_batch_size=1,
+#        evaluation_strategy="steps",
+#        eval_steps=500,
+#        eval_delay=0,
+#        save_steps=5000,
+#        logging_steps=100,
+#        logging_first_step=True,
+#        num_train_epochs=2,
+#    )
 
-    # trainer = Trainer(model=model.to("cuda"), train_dataset=train_dataset, eval_dataset=eval_dataset, args=args)
-    # trainer.train()
+#    trainer = Trainer(model=model.to("cuda"), train_dataset=train_dataset, eval_dataset=eval_dataset, args=args)
+#    trainer.train()
 
     # Test the model
-
-    model = MyModel.from_pretrained("test/checkpoint-2500").to("cuda")
+    task = "mujoco-walker"
+    model = MyModel.from_pretrained("old_script_all_mujoco/checkpoint-110000").to("cuda")
 
     from gia.eval.rl import make
     import numpy as np
 
-    env = make(task, render_mode="human")
+    env = make(task, render_mode="rgb_array")
 
     for episode in range(10):
         observation, _ = env.reset()
@@ -182,7 +201,7 @@ if __name__ == "__main__":
             actions.append(action)
             ep_return += reward
         all_returns.append(ep_return)
-        print((ep_return - 57.46) / (9338.69 - 57.46))
-    score = (np.array(all_returns) - 57.46) / (9338.69 - 57.46)
+        print(ep_return)
+    score = np.array(all_returns)
     print("Score:", score.mean(), score.std())
     env.close()
