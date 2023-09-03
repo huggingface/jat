@@ -6,14 +6,7 @@ import numpy as np
 import torch
 from datasets import Features, Sequence, Value, concatenate_datasets, load_dataset
 from torch import FloatTensor, Tensor, nn
-from transformers import (
-    GPTNeoConfig,
-    GPTNeoModel,
-    GPTNeoPreTrainedModel,
-    Trainer,
-    TrainingArguments,
-)
-
+from transformers import GPTNeoConfig, GPTNeoModel, GPTNeoPreTrainedModel, Trainer, TrainingArguments
 from transformers.modeling_outputs import ModelOutput
 
 from gia.eval.rl import make
@@ -148,8 +141,9 @@ def train(tasks, experience):
 def eval(task, experience, checkpoint):
     model = MyModel.from_pretrained(f"{experience}/checkpoint-{checkpoint}").to("cuda")
     env = make(task, render_mode="rgb_array")
+    frames = []
 
-    for episode in range(10):
+    for episode in range(1):
         observation, _ = env.reset()
         observations = [observation["continuous_observations"]]
         actions = []
@@ -166,6 +160,7 @@ def eval(task, experience, checkpoint):
                 output = model(continuous_observations, continuous_actions, return_loss=False)
                 action = output.predicted_actions[0, -1].cpu().numpy()
             observation, reward, termined, truncated, _ = env.step(action)
+            frames.append(np.array(env.render(), dtype=np.uint8))
             done = termined or truncated
             observations.append(observation["continuous_observations"])
             actions.append(action)
@@ -174,6 +169,17 @@ def eval(task, experience, checkpoint):
     score = np.array(all_returns)
     print(f"Task {task} score: {np.mean(score)} ± {np.std(score)}")
     env.close()
+
+    # Initialize video writer
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    out = cv2.VideoWriter(f"{experience}_{task}.mp4", fourcc, env.metadata["render_fps"], (480, 480))
+
+    # Write frames to video
+    for frame in frames:
+        out.write(frame)
+
+    # Release video writer
+    out.release()
 
 
 if __name__ == "__main__":
