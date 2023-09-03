@@ -1,34 +1,22 @@
 from dataclasses import dataclass
-from typing import Any, Optional, List, Dict
+from typing import Optional
 
+import cv2
+import numpy as np
 import torch
-from datasets import load_dataset
-from torch import FloatTensor, LongTensor, Tensor, nn
-from transformers import FeatureExtractionMixin, GPTNeoConfig, GPTNeoModel, GPTNeoPreTrainedModel, ProcessorMixin
-from transformers.feature_extraction_utils import FeatureExtractionMixin
+from datasets import Features, Sequence, Value, concatenate_datasets, load_dataset
+from torch import FloatTensor, Tensor, nn
+from transformers import (
+    GPTNeoConfig,
+    GPTNeoModel,
+    GPTNeoPreTrainedModel,
+    Trainer,
+    TrainingArguments,
+)
+
 from transformers.modeling_outputs import ModelOutput
 
-# Processor: everything related to padding, truncation, resize, normalization, etc.
-# Embedding: takes the output of the processor and embeds it into a vector, must be multimodal, the input must still be episodes (conitnuous_observations, discrete_observations, text_observations, image_observations, continuous_actions, discrete_actions, rewards)
-
-# class ContinuousEmbedding(nn.Module):
-#     def __init__(self, continuous_max_size, discrete_max_val, hidden_size):
-
-
-# class _MyProcessor(FeatureExtractionMixin):
-#     def __init__(self, max_length):
-#         self.max_length = max_length
-
-#     def __call__(self, batch):
-#         # Truncated to the max length
-#         for k, v in batch.items():
-#             batch[k] = [x[: self.max_length] for x in v]
-
-#         # Pad to the max length
-#         for k, v in batch.items():
-#             batch[k] = [x + [x[0]] * (self.max_length - len(x)) for x in v]
-#         batch["attention_mask"] = [[1] * len(x) + [0] * (self.max_length - len(x)) for x in v]
-#         return batch
+from gia.eval.rl import make
 
 
 @dataclass
@@ -65,8 +53,6 @@ class MyModel(GPTNeoPreTrainedModel):
         rewards: Optional[FloatTensor] = None,
         return_loss: bool = True,
     ):
-        inputs_embeds_dict = {}
-
         # Pad observations with zeros
         batch_size, seq_len, observation_size = continuous_observations.shape
         padded_observations = nn.functional.pad(
@@ -114,20 +100,9 @@ class MyModel(GPTNeoPreTrainedModel):
             return MyOutput(predicted_observations=predicted_observations, predicted_actions=predicted_actions)
 
 
-if __name__ == "__main__":
+def train(tasks, experience):
     num_layers = 8
     continuous_max_size = 27
-    tasks = [
-        "mujoco-ant",
-        "mujoco-doublependulum",
-        "mujoco-halfcheetah",
-        "mujoco-hopper",
-        "mujoco-pendulum",
-        "mujoco-reacher",
-        "mujoco-swimmer",
-        "mujoco-walker",
-        "mujoco-pusher",
-    ]
 
     config = GPTNeoConfig(
         num_layers=num_layers,
@@ -140,43 +115,38 @@ if __name__ == "__main__":
 
     model = MyModel(config)
 
-    # # Load the dataset
-    from datasets import Sequence, Value, Features, concatenate_datasets
+    # Load the dataset
     features = Features(
-            {
-                "continuous_observations": Sequence(Sequence(Value("float32"))),
-                "continuous_actions": Sequence(Sequence(Value("float32"))),
-                "rewards": Sequence(Value("float32")),
-            }
-        )
-    #train_dataset = concatenate_datasets([load_dataset("gia-project/gia-dataset", task, features=features, split="train") for task in tasks])
-    #eval_dataset = {task: load_dataset("gia-project/gia-dataset", task, split="test[:100]") for task in tasks}
+        {
+            "continuous_observations": Sequence(Sequence(Value("float32"))),
+            "continuous_actions": Sequence(Sequence(Value("float32"))),
+            "rewards": Sequence(Value("float32")),
+        }
+    )
+    train_dataset = concatenate_datasets(
+        [load_dataset("gia-project/gia-dataset", task, features=features, split="train") for task in tasks]
+    )
+    eval_dataset = {task: load_dataset("gia-project/gia-dataset", task, split="test[:100]") for task in tasks}
 
-    from transformers import Trainer, TrainingArguments
+    args = TrainingArguments(
+        experience,
+        per_device_train_batch_size=1,
+        per_device_eval_batch_size=1,
+        evaluation_strategy="steps",
+        eval_steps=500,
+        eval_delay=0,
+        save_steps=5000,
+        logging_steps=100,
+        logging_first_step=True,
+        num_train_epochs=2,
+    )
 
-#    args = TrainingArguments(
-#        "old_script_all_mujoco",
-#        per_device_train_batch_size=1,
-#        per_device_eval_batch_size=1,
-#        evaluation_strategy="steps",
-#        eval_steps=500,
-#        eval_delay=0,
-#        save_steps=5000,
-#        logging_steps=100,
-#        logging_first_step=True,
-#        num_train_epochs=2,
-#    )
+    trainer = Trainer(model=model.to("cuda"), train_dataset=train_dataset, eval_dataset=eval_dataset, args=args)
+    trainer.train()
 
-#    trainer = Trainer(model=model.to("cuda"), train_dataset=train_dataset, eval_dataset=eval_dataset, args=args)
-#    trainer.train()
 
-    # Test the model
-    task = "mujoco-walker"
-    model = MyModel.from_pretrained("old_script_all_mujoco/checkpoint-110000").to("cuda")
-
-    from gia.eval.rl import make
-    import numpy as np
-
+def eval(task, experience, checkpoint):
+    model = MyModel.from_pretrained(f"{experience}/checkpoint-{checkpoint}").to("cuda")
     env = make(task, render_mode="rgb_array")
 
     for episode in range(10):
@@ -201,7 +171,23 @@ if __name__ == "__main__":
             actions.append(action)
             ep_return += reward
         all_returns.append(ep_return)
-        print(ep_return)
     score = np.array(all_returns)
-    print("Score:", score.mean(), score.std())
+    print(f"Task {task} score: {np.mean(score)} ± {np.std(score)}")
     env.close()
+
+
+if __name__ == "__main__":
+    tasks = [
+        "mujoco-ant",
+        "mujoco-doublependulum",
+        "mujoco-halfcheetah",
+        "mujoco-hopper",
+        "mujoco-pendulum",
+        "mujoco-reacher",
+        "mujoco-swimmer",
+        "mujoco-walker",
+        "mujoco-pusher",
+    ]
+
+    for task in tasks:
+        eval(task, "old_script_all_mujoco", 110000)
