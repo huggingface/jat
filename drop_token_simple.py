@@ -142,13 +142,13 @@ def eval(task, experience, checkpoint):
     model = MyModel.from_pretrained(f"{experience}/checkpoint-{checkpoint}").to("cuda")
     env = make(task, render_mode="rgb_array")
     frames = []
+    all_returns = []
 
-    for episode in range(1):
+    for episode in range(2):
         observation, _ = env.reset()
         observations = [observation["continuous_observations"]]
         actions = []
         ep_return = 0
-        all_returns = []
         action_placeholder = np.zeros(env.action_space.shape, dtype=np.float32)
         done = False
         while not done:
@@ -196,4 +196,4 @@ if __name__ == "__main__":
     ]
 
     for task in tasks:
-        eval(task, "old_script_all_mujoco", 110000)
+        eval(task, "old_script_all_mujoco", 150_000)
