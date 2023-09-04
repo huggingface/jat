@@ -59,7 +59,7 @@ ENV_NAMES = [
     "atari-solaris",
     "atari-spaceinvaders",
     "atari-stargunner",
-    # "atari-surround", # Not in the dataset
+    "atari-surround", # Not in the dataset
     "atari-tennis",
     "atari-timepilot",
     "atari-tutankham",
@@ -88,10 +88,10 @@ ENV_NAMES = [
     "babyai-key-corridor",
     "babyai-key-in-box",
     "babyai-mini-boss-level",
-    "babyai-move-two-across",
+    "babyai-move-two-across-s8n9",
     "babyai-one-room-s8",
     "babyai-open-door",
-    "babyai-open-doors-order",
+    "babyai-open-doors-order-n4",
     "babyai-open-red-door",
     "babyai-open-two-doors",
     "babyai-open",
@@ -161,11 +161,11 @@ ENV_NAMES = [
     "mujoco-doublependulum",
     "mujoco-halfcheetah",
     "mujoco-hopper",
-    # "mujoco-humanoid",  # Not in the dataset
+    "mujoco-humanoid",
     "mujoco-pendulum",
-    # "mujoco-pusher",  # Not in the dataset
+    "mujoco-pusher",
     "mujoco-reacher",
-    # "mujoco-standup",  # Not in the dataset
+    "mujoco-standup",
     "mujoco-swimmer",
     "mujoco-walker",
 ]
@@ -177,11 +177,11 @@ for env_name in tqdm(ENV_NAMES):
     tqdm.write(f"Downloading expert scores for {env_name}")
 
     dataset = load_dataset(
-        "gia-project/gia-dataset",
+        "gia-project/gia-dataset-parquet",
         env_name,
-        writer_batch_size=1,
-        download_mode="force_redownload",
-        verification_mode="no_checks",
+        # writer_batch_size=1,
+        # download_mode="force_redownload",
+        # verification_mode="no_checks",
     )
     # Initialize the variables
     rewards = dataset["train"]["rewards"] + dataset["test"]["rewards"]
