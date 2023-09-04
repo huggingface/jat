@@ -1,3 +1,4 @@
+import json
 from dataclasses import dataclass
 from typing import Optional
 
@@ -10,14 +11,20 @@ from transformers import GPTNeoConfig, GPTNeoModel, GPTNeoPreTrainedModel, Train
 from transformers.modeling_outputs import ModelOutput
 
 from gia.eval.rl import make
+import torch
+from torch.utils.data import DataLoader, TensorDataset, ConcatDataset, BatchSampler, SequentialSampler
+import random
+from transformers.utils import is_datasets_available
+import datasets
+from transformers.trainer_utils import seed_worker
 
 
 @dataclass
 class MyOutput(ModelOutput):
     """ """
 
-    predicted_observations: torch.FloatTensor = None
-    predicted_actions: torch.FloatTensor = None
+    pred_observations: torch.FloatTensor = None
+    pred_actions: torch.FloatTensor = None
     observation_loss: Optional[Tensor] = None
     action_loss: Optional[Tensor] = None
     loss: Optional[Tensor] = None
@@ -73,24 +80,93 @@ class MyModel(GPTNeoPreTrainedModel):
         hidden_observations = hidden_states[..., 1::2, :]
         hidden_actions = hidden_states[..., ::2, :]
 
-        predicted_observations = self.continuous_decoder(hidden_observations)[..., :observation_size]
-        predicted_actions = self.continuous_decoder(hidden_actions)[..., :action_size]
+        pred_observations = self.continuous_decoder(hidden_observations)[..., :observation_size]
+        pred_actions = self.continuous_decoder(hidden_actions)[..., :action_size]
 
         observation_loss, action_loss = None, None
         if return_loss:
             loss_fct = nn.MSELoss()
-            observation_loss = loss_fct(predicted_observations[:, 1:], continuous_observations[:, :-1])
-            action_loss = loss_fct(predicted_actions, continuous_actions)
+            obs_loss_weight = self.config.continuous_max_size / pred_observations.shape[-1]
+            observation_loss = loss_fct(pred_observations[:, 1:], continuous_observations[:, :-1]) * obs_loss_weight
+            act_loss_weight = self.config.continuous_max_size / pred_actions.shape[-1]
+            action_loss = loss_fct(pred_actions, continuous_actions) * act_loss_weight
 
             return MyOutput(
-                predicted_observations=predicted_observations,
-                predicted_actions=predicted_actions,
+                pred_observations=pred_observations,
+                pred_actions=pred_actions,
                 observation_loss=observation_loss,
                 action_loss=action_loss,
                 loss=observation_loss + action_loss,
             )
         else:
-            return MyOutput(predicted_observations=predicted_observations, predicted_actions=predicted_actions)
+            return MyOutput(pred_observations=pred_observations, pred_actions=pred_actions)
+
+
+class MyBatchSampler(BatchSampler):
+    def __init__(self, sizes, batch_size):
+        self.sizes = sizes
+        self.batch_size = batch_size
+
+    def __iter__(self):
+        # Create a list of indices for each dataset
+        indices_list = []
+        cum_sum = 0
+
+        for size in self.sizes:
+            sublist = list(range(cum_sum, cum_sum + size))
+            random.shuffle(sublist)
+            indices_list.append(sublist)
+            cum_sum += size
+
+        # Create a list of batches
+        batches = []
+        for indices in indices_list:
+            # Create batches of size self.batch_size
+            for i in range(0, len(indices), self.batch_size):
+                batches.append(indices[i : i + self.batch_size])
+
+        # Shuffle the batches
+        random.shuffle(batches)
+
+        return iter(batches)
+
+    def __len__(self):
+        return sum([s // self.batch_size + (s % self.batch_size != 0) for s in self.sizes])
+
+
+class MyTrainer(Trainer):
+    def get_train_dataloader(self) -> DataLoader:
+        """
+        Returns the training [`~torch.utils.data.DataLoader`].
+
+        Will use no sampler if `train_dataset` does not implement `__len__`, a random sampler (adapted to distributed
+        training if necessary) otherwise.
+
+        Subclass and override this method if you want to inject some custom behavior.
+        """
+        if self.train_dataset is None:
+            raise ValueError("Trainer: training requires a train_dataset.")
+
+        train_dataset = self.train_dataset
+        data_collator = self.data_collator
+        if is_datasets_available() and isinstance(train_dataset, datasets.Dataset):
+            train_dataset = self._remove_unused_columns(train_dataset, description="training")
+        else:
+            data_collator = self._get_collator_with_removed_columns(data_collator, description="training")
+
+        dataloader_params = {
+            # "batch_size": self._train_batch_size,
+            "collate_fn": data_collator,
+            "num_workers": self.args.dataloader_num_workers,
+            "pin_memory": self.args.dataloader_pin_memory,
+        }
+
+        if not isinstance(train_dataset, torch.utils.data.IterableDataset):
+            dataloader_params["batch_sampler"] = MyBatchSampler(train_dataset.sizes, self._train_batch_size)
+            dataloader_params["drop_last"] = self.args.dataloader_drop_last
+            dataloader_params["worker_init_fn"] = seed_worker
+
+        return self.accelerator.prepare(DataLoader(train_dataset, **dataloader_params))
 
 
 def train(tasks, experience):
@@ -116,14 +192,18 @@ def train(tasks, experience):
             "rewards": Sequence(Value("float32")),
         }
     )
-    train_dataset = concatenate_datasets(
-        [load_dataset("gia-project/gia-dataset", task, features=features, split="train") for task in tasks]
-    )
-    eval_dataset = {task: load_dataset("gia-project/gia-dataset", task, split="test[:100]") for task in tasks}
+    train_datasets = [
+        load_dataset("gia-project/gia-dataset", task, features=features, split="train") for task in tasks
+    ]
+    train_dataset = concatenate_datasets(train_datasets)
+    train_dataset.sizes = [len(dataset) for dataset in train_datasets]
+    eval_dataset = {
+        task: load_dataset("gia-project/gia-dataset", task, features=features, split="test[:100]") for task in tasks
+    }
 
     args = TrainingArguments(
         experience,
-        per_device_train_batch_size=1,
+        per_device_train_batch_size=2,
         per_device_eval_batch_size=1,
         evaluation_strategy="steps",
         eval_steps=500,
@@ -131,10 +211,10 @@ def train(tasks, experience):
         save_steps=5000,
         logging_steps=100,
         logging_first_step=True,
-        num_train_epochs=2,
+        num_train_epochs=1,
     )
 
-    trainer = Trainer(model=model.to("cuda"), train_dataset=train_dataset, eval_dataset=eval_dataset, args=args)
+    trainer = MyTrainer(model=model.to("cuda"), train_dataset=train_dataset, eval_dataset=eval_dataset, args=args)
     trainer.train()
 
 
@@ -153,12 +233,12 @@ def eval(task, experience, checkpoint):
         done = False
         while not done:
             with torch.inference_mode():
-                continuous_observations = torch.tensor(observations, dtype=torch.float32).unsqueeze(0).to("cuda")
-                continuous_actions = (
-                    torch.tensor([*actions, action_placeholder], dtype=torch.float32).unsqueeze(0).to("cuda")
-                )
+                continuous_observations = np.array(observations, dtype=np.float32)[None, ...]
+                continuous_observations = torch.from_numpy(continuous_observations).to("cuda")
+                continuous_actions = np.array([*actions, action_placeholder], dtype=np.float32)[None, ...]
+                continuous_actions = torch.from_numpy(continuous_actions).to("cuda")
                 output = model(continuous_observations, continuous_actions, return_loss=False)
-                action = output.predicted_actions[0, -1].cpu().numpy()
+                action = output.pred_actions[0, -1].cpu().numpy()
             observation, reward, termined, truncated, _ = env.step(action)
             frames.append(np.array(env.render(), dtype=np.uint8))
             done = termined or truncated
@@ -166,13 +246,22 @@ def eval(task, experience, checkpoint):
             actions.append(action)
             ep_return += reward
         all_returns.append(ep_return)
-    score = np.array(all_returns)
-    print(f"Task {task} score: {np.mean(score)} ± {np.std(score)}")
+
+    with open("gia/eval/rl/scores_dict.json", "r") as file:
+        scores_dict = json.load(file)
+
+    expert_mean = scores_dict[task]["expert"]["mean"]
+    random_mean = scores_dict[task]["random"]["mean"]
+
+    mean = (np.mean(all_returns) - random_mean) / (expert_mean - random_mean)
+    std = np.std(all_returns) / (expert_mean - random_mean)
+
+    print(f"Task {task} normalized score: {mean:.2f} ± {std:.2f}")
     env.close()
 
     # Initialize video writer
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    out = cv2.VideoWriter(f"{experience}_{task}.mp4", fourcc, env.metadata["render_fps"], (480, 480))
+    out = cv2.VideoWriter(f"{experience}/{checkpoint}-{task}.mp4", fourcc, env.metadata["render_fps"], (480, 480))
 
     # Write frames to video
     for frame in frames:
@@ -194,6 +283,7 @@ if __name__ == "__main__":
         "mujoco-walker",
         "mujoco-pusher",
     ]
-
+    # train(tasks, "old_script_with_weights")
     for task in tasks:
-        eval(task, "old_script_all_mujoco", 150_000)
+        eval(task, "old_script_all_mujoco", 25_000)
+
