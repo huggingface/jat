@@ -59,7 +59,7 @@ ENV_NAMES = [
     "atari-solaris",
     "atari-spaceinvaders",
     "atari-stargunner",
-    "atari-surround",  # Not in the dataset
+    "atari-surround",
     "atari-tennis",
     "atari-timepilot",
     "atari-tutankham",
