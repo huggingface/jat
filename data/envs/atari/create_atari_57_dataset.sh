@@ -1,12 +1,12 @@
 #!/bin/bash
-# creates 100,000 per environment from models hosted on the hub
+# creates 500,000 per environment from models hosted on the hub
 
 ENVS=(
     atari_alien
     atari_amidar
     atari_assault
     atari_asterix
-    atari_asteroids  # (Might raise an error due to name change, see https://huggingface.co/datasets/gia-project/gia-dataset/discussions/23)
+    atari_asteroid
     atari_atlantis
     atari_bankheist
     atari_battlezone
@@ -32,14 +32,14 @@ ENVS=(
     atari_jamesbond
     atari_kangaroo
     atari_krull
-    atari_kungfumaster  # (Might raise an error due to name change, see https://huggingface.co/datasets/gia-project/gia-dataset/discussions/21)
-    atari_montezumarevenge  # (Might raise an error due to name change, see https://huggingface.co/datasets/gia-project/gia-dataset/discussions/24)
+    atari_kongfumaster
+    atari_montezuma
     atari_mspacman
     atari_namethisgame
     atari_phoenix
     atari_pitfall
     atari_pong
-    atari_privateeye  # (Might raise an error due to name change, see https://huggingface.co/datasets/gia-project/gia-dataset/discussions/22)
+    atari_privateye
     atari_qbert
     atari_riverraid
     atari_roadrunner
@@ -61,8 +61,9 @@ ENVS=(
     atari_zaxxon
 )
 
+
 for ENV in "${ENVS[@]}"; do
     python -m sample_factory.huggingface.load_from_hub -r edbeeching/atari_2B_${ENV}_1111 -d train_dir
     echo $ENV
-    python create_atari_dataset.py --env=$ENV --experiment=atari_2B_${ENV}_1111 --train_dir=train_dir --push_to_hub --hf_repository=edbeeching/prj_gia_dataset_atari_2B_${ENV}_1111 --max_num_frames=100000 --no_render
+    python data/envs/atari/create_atari_dataset.py --env=$ENV --experiment=atari_2B_${ENV}_1111 --train_dir=train_dir --push_to_hub --hf_repository=edbeeching/prj_gia_dataset_atari_2B_${ENV}_1111 --max_num_frames=500000 --no_render
 done

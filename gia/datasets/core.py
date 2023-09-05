@@ -6,8 +6,6 @@ from typing import Dict, List, TypeVar, Union
 import numpy as np
 from datasets import Dataset, get_dataset_config_names, load_dataset
 
-from gia.processing import GiaProcessor
-
 
 T = TypeVar("T", List, np.ndarray)
 
@@ -41,21 +39,22 @@ def get_task_name_list(task_names: Union[str, List[str]]) -> List[str]:
             task_names = [task_names]
     # Get all task names from gia dataset
     all_tasks = set(get_dataset_config_names("gia-project/gia-dataset"))
+    output_tasks = []
     # If the task name is a domain, load all the tasks of that domain
     for task_name in task_names:
         if task_name == "all":
-            task_names.extend(all_tasks)
-            task_names.remove("all")
+            output_tasks.extend(all_tasks)
         elif task_name not in all_tasks:
             # task_name is actaully a prefix
             prefix = task_name
             tasks = [task for task in all_tasks if task.startswith(prefix)]
             if len(tasks) > 0:
-                task_names.extend(tasks)
-                task_names.remove(task_name)
+                output_tasks.extend(tasks)
             else:
                 raise ValueError(f"Task {task_name} not found in the dataset.")
-    return task_names
+        else:
+            output_tasks.append(task_name)
+    return output_tasks
 
 
 def needs_prompt(task_name: str) -> bool:
@@ -174,7 +173,7 @@ class Prompter:
         return examples
 
 
-def load_and_process_dataset(data_args, split: str, config) -> Dict[str, Dataset]:
+def load_and_process_dataset(data_args, split: str, processor) -> Dict[str, Dataset]:
     r"""
     Load, prompt and process the dataset.
 
@@ -200,17 +199,6 @@ def load_and_process_dataset(data_args, split: str, config) -> Dict[str, Dataset
         for task_name, dataset in dataset_dict.items()
         if needs_prompt(task_name)
     }
-    processor = GiaProcessor(
-        config.patch_size,
-        data_args.text_tokenizer_name,
-        data_args.mu,
-        data_args.M,
-        data_args.nb_bins,
-        data_args.mask_loss_modalities,
-        config.seq_len,
-        data_args.local_positions_groups,
-        data_args.use_separator,
-    )
 
     def prompt_and_process(example, prompter):
         if prompter is not None:
