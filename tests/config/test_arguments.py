@@ -85,6 +85,90 @@ def cleanup_argv():
 #     assert loaded_args.per_device_train_batch_size == 2
 
 
+def test_unknown_task(tmp_path):
+    with pytest.raises(ValueError):
+        Arguments(task_names="unknown_task", output_dir=tmp_path)
+
+
+def test_post_init_task_names_multi_domain(tmp_path):
+    args = Arguments(task_names="mujoco,atari", output_dir=tmp_path)
+    assert {*args.task_names} == {
+        "atari-alien",
+        "atari-amidar",
+        "atari-assault",
+        "atari-asterix",
+        "atari-asteroids",
+        "atari-atlantis",
+        "atari-bankheist",
+        "atari-battlezone",
+        "atari-beamrider",
+        "atari-berzerk",
+        "atari-bowling",
+        "atari-boxing",
+        "atari-breakout",
+        "atari-centipede",
+        "atari-choppercommand",
+        "atari-crazyclimber",
+        "atari-defender",
+        "atari-demonattack",
+        "atari-doubledunk",
+        "atari-enduro",
+        "atari-fishingderby",
+        "atari-freeway",
+        "atari-frostbite",
+        "atari-gopher",
+        "atari-gravitar",
+        "atari-hero",
+        "atari-icehockey",
+        "atari-jamesbond",
+        "atari-kangaroo",
+        "atari-krull",
+        "atari-kungfumaster",
+        "atari-montezumarevenge",
+        "atari-mspacman",
+        "atari-namethisgame",
+        "atari-phoenix",
+        "atari-pitfall",
+        "atari-pong",
+        "atari-privateeye",
+        "atari-qbert",
+        "atari-riverraid",
+        "atari-roadrunner",
+        "atari-robotank",
+        "atari-seaquest",
+        "atari-skiing",
+        "atari-solaris",
+        "atari-spaceinvaders",
+        "atari-stargunner",
+        "atari-surround",
+        "atari-tennis",
+        "atari-timepilot",
+        "atari-tutankham",
+        "atari-upndown",
+        "atari-venture",
+        "atari-videopinball",
+        "atari-wizardofwor",
+        "atari-yarsrevenge",
+        "atari-zaxxon",
+        "mujoco-ant",
+        "mujoco-doublependulum",
+        "mujoco-halfcheetah",
+        "mujoco-hopper",
+        "mujoco-humanoid",
+        "mujoco-pendulum",
+        "mujoco-pusher",
+        "mujoco-reacher",
+        "mujoco-standup",
+        "mujoco-swimmer",
+        "mujoco-walker",
+    }
+
+
+def test_babyai_go_to(tmp_path):
+    args = Arguments(task_names="babyai-go-to", output_dir=tmp_path)
+    assert {*args.task_names} == {"babyai-go-to"}
+
+
 def test_post_init_task_names(tmp_path):
     args = Arguments(task_names="mujoco,atari-pong", output_dir=tmp_path)
     assert {*args.task_names} == {

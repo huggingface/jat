@@ -39,21 +39,22 @@ def get_task_name_list(task_names: Union[str, List[str]]) -> List[str]:
             task_names = [task_names]
     # Get all task names from gia dataset
     all_tasks = set(get_dataset_config_names("gia-project/gia-dataset"))
+    output_tasks = []
     # If the task name is a domain, load all the tasks of that domain
     for task_name in task_names:
         if task_name == "all":
-            task_names.extend(all_tasks)
-            task_names.remove("all")
+            output_tasks.extend(all_tasks)
         elif task_name not in all_tasks:
             # task_name is actaully a prefix
             prefix = task_name
             tasks = [task for task in all_tasks if task.startswith(prefix)]
             if len(tasks) > 0:
-                task_names.extend(tasks)
-                task_names.remove(task_name)
+                output_tasks.extend(tasks)
             else:
                 raise ValueError(f"Task {task_name} not found in the dataset.")
-    return task_names
+        else:
+            output_tasks.append(task_name)
+    return output_tasks
 
 
 def needs_prompt(task_name: str) -> bool:
