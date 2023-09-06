@@ -122,7 +122,9 @@ def add_dataset_to_hub(
 
         path_in_repo = f"data/{domain}/{task}/"
         commit_message = f"adds {domain} {task} {n_episodes=}"
-        HfApi().create_repo(repo_id="gia-project/gia-dataset-parquet", private=False, exist_ok=True, repo_type="dataset")
+        HfApi().create_repo(
+            repo_id="gia-project/gia-dataset-parquet", private=False, exist_ok=True, repo_type="dataset"
+        )
 
         upload_folder(
             repo_id="gia-project/gia-dataset-parquet",

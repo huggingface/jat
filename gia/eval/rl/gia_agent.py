@@ -12,7 +12,7 @@ from gia.processing import GiaProcessor
 
 from .envs.core import get_task_names, make
 
-from datasets import Image, Sequence
+
 class GiaAgent:
     r"""
     An RL agent that uses Gia to generate actions.
