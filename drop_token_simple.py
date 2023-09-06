@@ -1,22 +1,35 @@
 import json
+import random
 from dataclasses import dataclass
 from typing import Optional
 
 import cv2
+import datasets
 import numpy as np
 import torch
+import torch.nn.functional as F
 from datasets import Features, Sequence, Value, concatenate_datasets, load_dataset
 from torch import FloatTensor, Tensor, nn
+from torch.utils.data import BatchSampler, DataLoader
 from transformers import GPTNeoConfig, GPTNeoModel, GPTNeoPreTrainedModel, Trainer, TrainingArguments
 from transformers.modeling_outputs import ModelOutput
+from transformers.trainer_utils import seed_worker
+from transformers.utils import is_datasets_available
 
 from gia.eval.rl import make
-import torch
-from torch.utils.data import DataLoader, TensorDataset, ConcatDataset, BatchSampler, SequentialSampler
-import random
-from transformers.utils import is_datasets_available
-import datasets
-from transformers.trainer_utils import seed_worker
+
+
+LOSS_WEIGHTS = {
+    "mujoco-ant": 0.00265386 / 0.01879,
+    "mujoco-doublependulum": 0.00265386 / 0.003574,
+    "mujoco-halfcheetah": 0.00265386 / 0.02215,
+    "mujoco-hopper": 0.00265386 / 0.05969,
+    "mujoco-pendulum": 0.00265386 / 0.0004398,
+    "mujoco-reacher": 0.00265386 / 0.001816,
+    "mujoco-swimmer": 0.00265386 / 0.03623,
+    "mujoco-walker": 0.00265386 / 0.3287,
+    "mujoco-pusher": 0.00265386 / 0.007077,
+}
 
 
 @dataclass
@@ -30,7 +43,7 @@ class MyOutput(ModelOutput):
     loss: Optional[Tensor] = None
 
 
-class MyModel(GPTNeoPreTrainedModel):
+class MuJoCoModel(GPTNeoPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
 
@@ -52,6 +65,7 @@ class MyModel(GPTNeoPreTrainedModel):
         continuous_actions: Optional[FloatTensor] = None,
         rewards: Optional[FloatTensor] = None,
         return_loss: bool = True,
+        loss_weights: Optional[FloatTensor] = None,
     ):
         # Pad observations with zeros
         batch_size, seq_len, observation_size = continuous_observations.shape
@@ -85,11 +99,11 @@ class MyModel(GPTNeoPreTrainedModel):
 
         observation_loss, action_loss = None, None
         if return_loss:
-            loss_fct = nn.MSELoss()
-            obs_loss_weight = self.config.continuous_max_size / pred_observations.shape[-1]
-            observation_loss = loss_fct(pred_observations[:, 1:], continuous_observations[:, :-1]) * obs_loss_weight
-            act_loss_weight = self.config.continuous_max_size / pred_actions.shape[-1]
-            action_loss = loss_fct(pred_actions, continuous_actions) * act_loss_weight
+            loss_fct = nn.MSELoss(reduction="none")
+            observation_loss = torch.mean(loss_fct(pred_observations[:, 1:], continuous_observations[:, :-1]), (1, 2))
+            observation_loss = torch.mean(observation_loss * loss_weights)
+            action_loss = torch.mean(loss_fct(pred_actions, continuous_actions), (1, 2))
+            action_loss = torch.mean(action_loss * loss_weights)
 
             return MyOutput(
                 pred_observations=pred_observations,
@@ -102,8 +116,147 @@ class MyModel(GPTNeoPreTrainedModel):
             return MyOutput(pred_observations=pred_observations, pred_actions=pred_actions)
 
 
+class ResBlock(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super(ResBlock, self).__init__()
+        self.conv1 = nn.Conv2d(in_channels, out_channels, 3, padding=1)
+        self.bn1 = nn.BatchNorm2d(out_channels)
+        self.conv2 = nn.Conv2d(out_channels, out_channels, 3, padding=1)
+        self.bn2 = nn.BatchNorm2d(out_channels)
+
+    def forward(self, x):
+        residual = x
+        out = F.relu(self.bn1(self.conv1(x)))
+        out = self.bn2(self.conv2(out))
+        out += residual
+        return F.relu(out)
+
+
+class ImprovedEncoder(nn.Module):
+    def __init__(self, hidden_size):
+        super(ImprovedEncoder, self).__init__()
+        self.conv1 = nn.Conv2d(4, 32, 3, padding=1)
+        self.res1 = ResBlock(32, 32)
+        self.conv2 = nn.Conv2d(32, 64, 3, padding=1)
+        self.res2 = ResBlock(64, 64)
+        self.conv3 = nn.Conv2d(64, 128, 3, padding=1)
+        self.res3 = ResBlock(128, 128)
+        self.fc = nn.Linear(128 * 10 * 10, hidden_size)
+
+    def forward(self, x):
+        x = F.max_pool2d(F.relu(self.conv1(x)), (2, 2))
+        x = self.res1(x)
+        x = F.max_pool2d(F.relu(self.conv2(x)), (2, 2))
+        x = self.res2(x)
+        x = F.max_pool2d(F.relu(self.conv3(x)), (2, 2))
+        x = self.res3(x)
+        x = x.view(x.size(0), -1)
+        x = self.fc(x)
+        return x
+
+
+class AtariModel(GPTNeoPreTrainedModel):
+    def __init__(self, config):
+        super().__init__(config)
+
+        class DualBatchReshapeWrapper(nn.Module):
+            def __init__(self, module):
+                super().__init__()
+                self.module = module
+
+            def forward(self, x):
+                n1, n2 = x.shape[:2]
+                x = x.view(n1 * n2, *x.shape[2:])
+                x = self.module(x)
+                x = x.view(n1, n2, *x.shape[1:])
+                return x
+
+        # Encoders
+        self.encoder = DualBatchReshapeWrapper(ImprovedEncoder(self.config.hidden_size))
+        # nn.Sequential(
+        #     nn.Conv2d(4, 32, 3, padding=1),
+        #     nn.MaxPool2d(2, 2),
+        #     nn.Conv2d(32, 64, 3, padding=1),
+        #     nn.MaxPool2d(2, 2),
+        #     nn.Conv2d(64, 128, 3, padding=1),
+        #     nn.MaxPool2d(2, 2),
+        #     nn.Flatten(),
+        #     nn.Linear(128 * 10 * 10, self.config.hidden_size),
+        #     # )
+        # )
+        self.embedding = nn.Embedding(18, self.config.hidden_size)
+
+        # Transformer
+        self.transformer = GPTNeoModel(config)
+
+        self.decoder = DualBatchReshapeWrapper(
+            nn.Sequential(
+                nn.Linear(self.config.hidden_size, 128 * 10 * 10),
+                nn.Unflatten(1, (128, 10, 10)),
+                nn.ConvTranspose2d(128, 64, 3, stride=2),
+                nn.ReLU(),
+                nn.ConvTranspose2d(64, 32, 3, stride=2, padding=1, output_padding=1),
+                nn.ReLU(),
+                nn.ConvTranspose2d(32, 4, 3, stride=2, padding=1, output_padding=1),
+            )
+        )
+        self.logits_decoder = nn.Linear(self.config.hidden_size, 18)
+
+        # Initialize weights and apply final processing
+        self.post_init()
+
+    def forward(
+        self,
+        image_observations: Optional[FloatTensor] = None,
+        discrete_actions: Optional[FloatTensor] = None,
+        rewards: Optional[FloatTensor] = None,
+        return_loss: bool = True,
+        loss_weights: Optional[FloatTensor] = None,
+    ):
+        # to channel first and normalize
+        processed_image_observations = image_observations.transpose(4, 2) / 128 - 1.0
+        inputs_embeds_observations = self.encoder(processed_image_observations)
+        inputs_embeds_actions = self.embedding(discrete_actions)
+        batch_size, seq_len, _ = inputs_embeds_actions.shape
+
+        # Interleave observations and actions
+        inputs_embeds = torch.cat((inputs_embeds_observations, inputs_embeds_actions), dim=2).view(
+            batch_size, 2 * seq_len, self.config.hidden_size
+        )
+
+        transformer_outputs = self.transformer(inputs_embeds=inputs_embeds)
+
+        hidden_states = transformer_outputs[0]
+
+        # Un-interleave observations and actions (warning, shifted by 1)
+        hidden_observations = hidden_states[..., 1::2, :]
+        hidden_actions = hidden_states[..., ::2, :]
+
+        pred_observations = self.decoder(hidden_observations)
+        pred_actions = self.logits_decoder(hidden_actions)
+
+        observation_loss, action_loss = None, None
+        if return_loss:
+            obs_loss_fct = nn.MSELoss()
+            observation_loss = obs_loss_fct(pred_observations[:, 1:], processed_image_observations[:, :-1])
+            action_loss_fct = nn.CrossEntropyLoss()
+            action_loss = action_loss_fct(
+                torch.flatten(pred_actions, end_dim=-2), torch.flatten(discrete_actions, end_dim=-1)
+            )
+            print((pred_actions.argmax(-1) == discrete_actions).float().mean())
+            return MyOutput(
+                pred_observations=pred_observations,
+                pred_actions=pred_actions,
+                observation_loss=observation_loss,
+                action_loss=action_loss,
+                loss=observation_loss + action_loss,
+            )
+        else:
+            return MyOutput(pred_observations=pred_observations, pred_actions=pred_actions)
+
+
 class MyBatchSampler(BatchSampler):
-    def __init__(self, sizes, batch_size):
+    def __init__(self, sizes, batch_size, loss_weights=None):
         self.sizes = sizes
         self.batch_size = batch_size
 
@@ -169,7 +322,7 @@ class MyTrainer(Trainer):
         return self.accelerator.prepare(DataLoader(train_dataset, **dataloader_params))
 
 
-def train(tasks, experience):
+def train_mujoco(tasks, experience):
     num_layers = 8
     continuous_max_size = 27
 
@@ -182,7 +335,7 @@ def train(tasks, experience):
     )
     config.continuous_max_size = continuous_max_size
 
-    model = MyModel(config)
+    model = MuJoCoModel(config)
 
     # Load the dataset
     features = Features(
@@ -192,18 +345,19 @@ def train(tasks, experience):
             "rewards": Sequence(Value("float32")),
         }
     )
-    train_datasets = [
-        load_dataset("gia-project/gia-dataset", task, features=features, split="train") for task in tasks
-    ]
-    train_dataset = concatenate_datasets(train_datasets)
-    train_dataset.sizes = [len(dataset) for dataset in train_datasets]
-    eval_dataset = {
-        task: load_dataset("gia-project/gia-dataset", task, features=features, split="test[:100]") for task in tasks
-    }
+    all_datasets = {t: load_dataset("gia-project/gia-dataset", t, features=features) for t in tasks}
+    all_datasets = {t: d.map(lambda x: {"loss_weights": LOSS_WEIGHTS[t]}) for t, d in all_datasets.items()}
+
+    train_datasets = [dataset["train"] for dataset in all_datasets.values()]
+    train_dataset = concatenate_datasets([d["train"] for d in all_datasets.values()])
+    train_dataset.sizes = [len(d) for d in train_datasets]
+
+    eval_dataset = {t: dataset["test"] for t, dataset in all_datasets.items()}
+    eval_dataset = {t: d.select(range(100)) for t, d in eval_dataset.items()}  # only the first 100 samples
 
     args = TrainingArguments(
         experience,
-        per_device_train_batch_size=2,
+        per_device_train_batch_size=1,
         per_device_eval_batch_size=1,
         evaluation_strategy="steps",
         eval_steps=500,
@@ -218,8 +372,8 @@ def train(tasks, experience):
     trainer.train()
 
 
-def eval(task, experience, checkpoint):
-    model = MyModel.from_pretrained(f"{experience}/checkpoint-{checkpoint}").to("cuda")
+def eval_mujoco(task, experience, checkpoint):
+    model = MuJoCoModel.from_pretrained(f"{experience}/checkpoint-{checkpoint}").to("cuda")
     env = make(task, render_mode="rgb_array")
     frames = []
     all_returns = []
@@ -271,8 +425,60 @@ def eval(task, experience, checkpoint):
     out.release()
 
 
+def train_atari(tasks, experience):
+    num_layers = 8
+
+    config = GPTNeoConfig(
+        num_layers=num_layers,
+        num_heads=24,
+        hidden_size=768,
+        attention_types=[[["global", "local"], num_layers // 2]],
+        window_size=512,
+        max_position_embeddings=512,
+    )
+
+    model = AtariModel(config)
+
+    def preprocess_function(examples):
+        # truncate (but reuse the truncated part to add a new example)
+        max_len = 512 // 2
+        out_dict = {key: [] for key in examples.keys()}
+        ni = next(iter(examples.values()))
+        for ep in range(len(ni)):
+            for t in range(0, len(ni[ep]), max_len):
+                for key in examples.keys():
+                    out_dict[key].append(examples[key][ep][t : t + max_len])
+        return out_dict
+
+    # Load the dataset
+    all_datasets = {t: load_dataset("gia-project/gia-dataset-parquet", t) for t in tasks}
+    all_datasets = {
+        t: d.map(preprocess_function, batched=True, num_proc=16, batch_size=10) for t, d in all_datasets.items()
+    }
+    all_datasets = {t: d.with_format(type="torch") for t, d in all_datasets.items()}
+    train_dataset = concatenate_datasets([d["train"] for d in all_datasets.values()])  # type: Dataset
+    eval_dataset = {t: d["test"] for t, d in all_datasets.items()}
+    # eval_dataset = {t: d.select(range(100)) for t, d in eval_dataset.items()}  # only the first 100 samples
+
+    args = TrainingArguments(
+        experience,
+        per_device_train_batch_size=1,
+        per_device_eval_batch_size=1,
+        evaluation_strategy="steps",
+        eval_steps=20_000,
+        eval_delay=0,
+        save_steps=20_000,
+        logging_steps=1_000,
+        logging_first_step=True,
+        num_train_epochs=3,
+    )
+
+    trainer = Trainer(model=model, train_dataset=train_dataset, eval_dataset=eval_dataset, args=args)
+    trainer.train()
+
+
 if __name__ == "__main__":
-    tasks = [
+    mujoco = [
         "mujoco-ant",
         "mujoco-doublependulum",
         "mujoco-halfcheetah",
@@ -283,7 +489,66 @@ if __name__ == "__main__":
         "mujoco-walker",
         "mujoco-pusher",
     ]
-    # train(tasks, "old_script_with_weights")
-    for task in tasks:
-        eval(task, "old_script_all_mujoco", 25_000)
+    atari = [
+        "atari-alien",
+        "atari-amidar",
+        "atari-assault",
+        "atari-asterix",
+        "atari-asteroids",
+        "atari-atlantis",
+        "atari-bankheist",
+        "atari-battlezone",
+        "atari-beamrider",
+        "atari-berzerk",
+        "atari-bowling",
+        "atari-boxing",
+        "atari-breakout",
+        "atari-centipede",
+        "atari-choppercommand",
+        "atari-crazyclimber",
+        "atari-defender",
+        "atari-demonattack",
+        # "atari-doubledunk",
+        "atari-enduro",
+        "atari-fishingderby",
+        "atari-freeway",
+        "atari-frostbite",
+        "atari-gopher",
+        "atari-gravitar",
+        "atari-hero",
+        "atari-icehockey",
+        "atari-jamesbond",
+        "atari-kangaroo",
+        "atari-krull",
+        "atari-kungfumaster",
+        "atari-montezumarevenge",
+        "atari-mspacman",
+        "atari-namethisgame",
+        "atari-phoenix",
+        "atari-pitfall",
+        "atari-pong",
+        "atari-privateeye",
+        "atari-qbert",
+        "atari-riverraid",
+        "atari-roadrunner",
+        "atari-robotank",
+        "atari-seaquest",
+        "atari-skiing",
+        "atari-solaris",
+        "atari-spaceinvaders",
+        "atari-stargunner",
+        "atari-surround",
+        "atari-tennis",
+        "atari-timepilot",
+        "atari-tutankham",
+        "atari-upndown",
+        "atari-venture",
+        "atari-videopinball",
+        "atari-wizardofwor",
+        "atari-yarsrevenge",
+        "atari-zaxxon",
+    ]
 
+    # train_atari(atari, "old_script_all_atari")
+    for task in mujoco:
+        eval_mujoco(task, "old_script_with_weights_2", 80_000)
