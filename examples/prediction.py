@@ -17,7 +17,9 @@ split = "train[:10]"
 processor = GiaProcessor()
 
 # Load, prompt and process the datasets
-datasets = {task_name: load_dataset("gia-project/gia-dataset", task_name, split=split) for task_name in task_names}
+datasets = {
+    task_name: load_dataset("gia-project/gia-dataset-parquet", task_name, split=split) for task_name in task_names
+}
 prompters = {task_name: Prompter(dataset) for task_name, dataset in datasets.items() if needs_prompt(task_name)}
 
 
