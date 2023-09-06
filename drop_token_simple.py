@@ -110,7 +110,7 @@ class MuJoCoModel(GPTNeoPreTrainedModel):
                 pred_actions=pred_actions,
                 observation_loss=observation_loss,
                 action_loss=action_loss,
-                loss=observation_loss + action_loss,
+                loss=0.0 * observation_loss + 1.0 * action_loss,
             )
         else:
             return MyOutput(pred_observations=pred_observations, pred_actions=pred_actions)
@@ -155,6 +155,27 @@ class ImprovedEncoder(nn.Module):
         return x
 
 
+class ImprovedDecoder(nn.Module):
+    def __init__(self, hidden_size):
+        super(ImprovedDecoder, self).__init__()
+        self.fc = nn.Linear(hidden_size, 128 * 10 * 10)
+        self.convt1 = nn.ConvTranspose2d(128, 64, 3, stride=2)
+        self.res1 = ResBlock(64, 64)
+        self.convt2 = nn.ConvTranspose2d(64, 32, 3, stride=2, padding=1, output_padding=1)
+        self.res2 = ResBlock(32, 32)
+        self.convt3 = nn.ConvTranspose2d(32, 4, 3, stride=2, padding=1, output_padding=1)
+
+    def forward(self, x):
+        x = self.fc(x)
+        x = x.view(x.size(0), 128, 10, 10)
+        x = F.relu(self.convt1(x))
+        x = self.res1(x)
+        x = F.relu(self.convt2(x))
+        x = self.res2(x)
+        x = self.convt3(x)
+        return x
+
+
 class AtariModel(GPTNeoPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
@@ -173,33 +194,13 @@ class AtariModel(GPTNeoPreTrainedModel):
 
         # Encoders
         self.encoder = DualBatchReshapeWrapper(ImprovedEncoder(self.config.hidden_size))
-        # nn.Sequential(
-        #     nn.Conv2d(4, 32, 3, padding=1),
-        #     nn.MaxPool2d(2, 2),
-        #     nn.Conv2d(32, 64, 3, padding=1),
-        #     nn.MaxPool2d(2, 2),
-        #     nn.Conv2d(64, 128, 3, padding=1),
-        #     nn.MaxPool2d(2, 2),
-        #     nn.Flatten(),
-        #     nn.Linear(128 * 10 * 10, self.config.hidden_size),
-        #     # )
-        # )
         self.embedding = nn.Embedding(18, self.config.hidden_size)
 
         # Transformer
         self.transformer = GPTNeoModel(config)
 
-        self.decoder = DualBatchReshapeWrapper(
-            nn.Sequential(
-                nn.Linear(self.config.hidden_size, 128 * 10 * 10),
-                nn.Unflatten(1, (128, 10, 10)),
-                nn.ConvTranspose2d(128, 64, 3, stride=2),
-                nn.ReLU(),
-                nn.ConvTranspose2d(64, 32, 3, stride=2, padding=1, output_padding=1),
-                nn.ReLU(),
-                nn.ConvTranspose2d(32, 4, 3, stride=2, padding=1, output_padding=1),
-            )
-        )
+        # Decoders
+        self.decoder = DualBatchReshapeWrapper(ImprovedDecoder(self.config.hidden_size))
         self.logits_decoder = nn.Linear(self.config.hidden_size, 18)
 
         # Initialize weights and apply final processing
@@ -249,7 +250,7 @@ class AtariModel(GPTNeoPreTrainedModel):
                 pred_actions=pred_actions,
                 observation_loss=observation_loss,
                 action_loss=action_loss,
-                loss=observation_loss + action_loss,
+                loss=0.0 * observation_loss + 1.0 * action_loss,
             )
         else:
             return MyOutput(pred_observations=pred_observations, pred_actions=pred_actions)
@@ -465,9 +466,10 @@ def train_atari(tasks, experience):
         per_device_train_batch_size=1,
         per_device_eval_batch_size=1,
         evaluation_strategy="steps",
-        eval_steps=20_000,
+        eval_steps=0.05,
         eval_delay=0,
-        save_steps=20_000,
+        save_strategy="steps",
+        save_steps=0.05,
         logging_steps=1_000,
         logging_first_step=True,
         num_train_epochs=3,
@@ -483,7 +485,7 @@ def eval_atari(task, experience, checkpoint):
     frames = []
     all_returns = []
 
-    for episode in range(2):
+    for episode in range(1):
         observation, _ = env.reset()
         observations = [observation["image_observations"]]
         actions = []
@@ -521,11 +523,11 @@ def eval_atari(task, experience, checkpoint):
 
     # Initialize video writer
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    out = cv2.VideoWriter(f"{experience}/{checkpoint}-{task}.mp4", fourcc, env.metadata["render_fps"], (480, 480))
+    out = cv2.VideoWriter(f"{experience}/{checkpoint}-{task}.mp4", fourcc, env.metadata["render_fps"], (160, 210))
 
     # Write frames to video
     for frame in frames:
-        out.write(frame)
+        out.write(frame[..., [2, 1, 0]])
 
     # Release video writer
     out.release()
@@ -544,65 +546,65 @@ if __name__ == "__main__":
         "mujoco-pusher",
     ]
     atari = [
-        "atari-alien",
-        "atari-amidar",
-        "atari-assault",
-        "atari-asterix",
-        "atari-asteroids",
-        "atari-atlantis",
-        "atari-bankheist",
-        "atari-battlezone",
-        "atari-beamrider",
-        "atari-berzerk",
-        "atari-bowling",
-        "atari-boxing",
+        # "atari-alien",
+        # "atari-amidar",
+        # "atari-assault",
+        # "atari-asterix",
+        # "atari-asteroids",
+        # "atari-atlantis",
+        # "atari-bankheist",
+        # "atari-battlezone",
+        # "atari-beamrider",
+        # "atari-berzerk",
+        # "atari-bowling",
+        # "atari-boxing",
         "atari-breakout",
-        "atari-centipede",
-        "atari-choppercommand",
-        "atari-crazyclimber",
-        "atari-defender",
-        "atari-demonattack",
+        # "atari-centipede",
+        # "atari-choppercommand",
+        # "atari-crazyclimber",
+        # "atari-defender",
+        # "atari-demonattack",
         # "atari-doubledunk",
-        "atari-enduro",
-        "atari-fishingderby",
+        # "atari-enduro",
+        # "atari-fishingderby",
         "atari-freeway",
         "atari-frostbite",
-        "atari-gopher",
-        "atari-gravitar",
-        "atari-hero",
-        "atari-icehockey",
-        "atari-jamesbond",
-        "atari-kangaroo",
-        "atari-krull",
-        "atari-kungfumaster",
-        "atari-montezumarevenge",
+        # "atari-gopher",
+        # "atari-gravitar",
+        # "atari-hero",
+        # "atari-icehockey",
+        # "atari-jamesbond",
+        # "atari-kangaroo",
+        # "atari-krull",
+        # "atari-kungfumaster",
+        # "atari-montezumarevenge",
         "atari-mspacman",
-        "atari-namethisgame",
-        "atari-phoenix",
-        "atari-pitfall",
+        # "atari-namethisgame",
+        # "atari-phoenix",
+        # "atari-pitfall",
         "atari-pong",
-        "atari-privateeye",
+        # "atari-privateeye",
         "atari-qbert",
-        "atari-riverraid",
-        "atari-roadrunner",
-        "atari-robotank",
-        "atari-seaquest",
-        "atari-skiing",
-        "atari-solaris",
-        "atari-spaceinvaders",
-        "atari-stargunner",
-        "atari-surround",
-        "atari-tennis",
-        "atari-timepilot",
-        "atari-tutankham",
-        "atari-upndown",
-        "atari-venture",
-        "atari-videopinball",
-        "atari-wizardofwor",
-        "atari-yarsrevenge",
-        "atari-zaxxon",
+        # "atari-riverraid",
+        # "atari-roadrunner",
+        # "atari-robotank",
+        # "atari-seaquest",
+        # "atari-skiing",
+        # "atari-solaris",
+        # "atari-spaceinvaders",
+        # "atari-stargunner",
+        # "atari-surround",
+        # "atari-tennis",
+        # "atari-timepilot",
+        # "atari-tutankham",
+        # "atari-upndown",
+        # "atari-venture",
+        # "atari-videopinball",
+        # "atari-wizardofwor",
+        # "atari-yarsrevenge",
+        # "atari-zaxxon",
     ]
 
-    # train_atari(atari, "old_script_all_atari")
-    for task in ["atari-pong"]:
-        eval_atari(task, "old_script_pong", 5_000)
+    train_atari(atari, "atari-6")
+    # for task in atari:
+    #     eval_atari(task, "atari-6", 5434)
