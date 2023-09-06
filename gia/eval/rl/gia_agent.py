@@ -12,7 +12,7 @@ from gia.processing import GiaProcessor
 
 from .envs.core import get_task_names, make
 
-
+from datasets import Image, Sequence
 class GiaAgent:
     r"""
     An RL agent that uses Gia to generate actions.
@@ -64,7 +64,7 @@ class GiaAgent:
         self.model = model
 
         if use_prompt:
-            dataset = load_dataset("gia-project/gia-dataset", task_name, split="test", writer_batch_size=1)
+            dataset = load_dataset("gia-project/gia-dataset-parquet", task_name, split="test")
             self.prompter = Prompter(dataset, p_prompt, p_end, min_prompt_len, max_prompt_len)
         else:
             self.prompter = None
