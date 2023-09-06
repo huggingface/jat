@@ -477,6 +477,60 @@ def train_atari(tasks, experience):
     trainer.train()
 
 
+def eval_atari(task, experience, checkpoint):
+    model = AtariModel.from_pretrained(f"{experience}/checkpoint-{checkpoint}").to("cuda")
+    env = make(task, render_mode="rgb_array")
+    frames = []
+    all_returns = []
+
+    for episode in range(2):
+        observation, _ = env.reset()
+        observations = [observation["image_observations"]]
+        actions = []
+        ep_return = 0
+        action_placeholder = np.zeros(env.action_space.shape, dtype=np.int64)
+        done = False
+        while not done:
+            with torch.inference_mode():
+                image_observations = np.array(observations, dtype=np.uint8)[None, -256:]
+                image_observations = torch.from_numpy(image_observations).to("cuda")
+                discrete_actions = np.array([*actions, action_placeholder], dtype=np.int64)[None, -256:]
+                discrete_actions = torch.from_numpy(discrete_actions).to("cuda")
+                output = model(image_observations, discrete_actions, return_loss=False)
+                logits = output.pred_actions[0, -1, : env.action_space.n]
+                action = torch.multinomial(F.softmax(logits, dim=0), 1).item()
+            observation, reward, termined, truncated, _ = env.step(action)
+            frames.append(np.array(env.render(), dtype=np.uint8))
+            done = termined or truncated
+            observations.append(observation["image_observations"])
+            actions.append(action)
+            ep_return += reward
+        all_returns.append(ep_return)
+
+    with open("gia/eval/rl/scores_dict.json", "r") as file:
+        scores_dict = json.load(file)
+
+    expert_mean = scores_dict[task]["expert"]["mean"]
+    random_mean = scores_dict[task]["random"]["mean"]
+
+    mean = (np.mean(all_returns) - random_mean) / (expert_mean - random_mean)
+    std = np.std(all_returns) / (expert_mean - random_mean)
+
+    print(f"Task {task} normalized score: {mean:.2f} ± {std:.2f}")
+    env.close()
+
+    # Initialize video writer
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    out = cv2.VideoWriter(f"{experience}/{checkpoint}-{task}.mp4", fourcc, env.metadata["render_fps"], (480, 480))
+
+    # Write frames to video
+    for frame in frames:
+        out.write(frame)
+
+    # Release video writer
+    out.release()
+
+
 if __name__ == "__main__":
     mujoco = [
         "mujoco-ant",
@@ -550,5 +604,5 @@ if __name__ == "__main__":
     ]
 
     # train_atari(atari, "old_script_all_atari")
-    for task in mujoco:
-        eval_mujoco(task, "old_script_with_weights_2", 80_000)
+    for task in ["atari-pong"]:
+        eval_atari(task, "old_script_pong", 5_000)
