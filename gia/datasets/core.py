@@ -38,7 +38,7 @@ def get_task_name_list(task_names: Union[str, List[str]]) -> List[str]:
         else:
             task_names = [task_names]
     # Get all task names from gia dataset
-    all_tasks = set(get_dataset_config_names("gia-project/gia-dataset"))
+    all_tasks = set(get_dataset_config_names("gia-project/gia-dataset-parquet"))
     output_tasks = []
     # If the task name is a domain, load all the tasks of that domain
     for task_name in task_names:
@@ -134,7 +134,7 @@ class Prompter:
         from_ends = random.choices([True, False], k=num_prompts, weights=[self.p_end, 1 - self.p_end])
         ep_lens = [self.ep_lens[idx] for idx in prompt_ep_idxs]
         prompt_lengths = random.choices(range(self.min_prompt_len, self.max_prompt_len + 1), k=num_prompts)
-        prompts = self.dataset.select(prompt_ep_idxs).to_dict()
+        prompts = {key: self.dataset.select(prompt_ep_idxs)[key] for key in self.dataset.column_names}
         for idx in range(num_prompts):
             max_start = max(0, ep_lens[idx] - prompt_lengths[idx])
             start = max_start if from_ends[idx] else random.randint(0, max_start)
@@ -189,7 +189,7 @@ def load_and_process_dataset(data_args, split: str, processor) -> Dict[str, Data
     """
 
     dataset_dict = {
-        task_name: load_dataset("gia-project/gia-dataset", task_name, split=split, writer_batch_size=1)
+        task_name: load_dataset("gia-project/gia-dataset-parquet", task_name, split=split)
         for task_name in data_args.task_names
     }
     prompters = {
@@ -212,7 +212,6 @@ def load_and_process_dataset(data_args, split: str, processor) -> Dict[str, Data
             remove_columns=dataset.column_names,
             batched=True,
             batch_size=1,  # lower this from 1000 to 20 avoid OOM
-            writer_batch_size=1,
             num_proc=data_args.preprocessing_num_workers,
             load_from_cache_file=not data_args.overwrite_cache,
         )
