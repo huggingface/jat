@@ -117,12 +117,12 @@ class MuJoCoModel(GPTNeoPreTrainedModel):
 
 
 class ResBlock(nn.Module):
-    def __init__(self, in_channels, out_channels):
-        super(ResBlock, self).__init__()
-        self.conv1 = nn.Conv2d(in_channels, out_channels, 3, padding=1)
-        self.bn1 = nn.BatchNorm2d(out_channels)
-        self.conv2 = nn.Conv2d(out_channels, out_channels, 3, padding=1)
-        self.bn2 = nn.BatchNorm2d(out_channels)
+    def __init__(self, num_channels):
+        super().__init__()
+        self.conv1 = nn.Conv2d(num_channels, num_channels, 3, padding=1)
+        self.bn1 = nn.BatchNorm2d(num_channels)
+        self.conv2 = nn.Conv2d(num_channels, num_channels, 3, padding=1)
+        self.bn2 = nn.BatchNorm2d(num_channels)
 
     def forward(self, x):
         residual = x
@@ -132,15 +132,15 @@ class ResBlock(nn.Module):
         return F.relu(out)
 
 
-class ImprovedEncoder(nn.Module):
+class ImageEncoder(nn.Module):
     def __init__(self, hidden_size):
-        super(ImprovedEncoder, self).__init__()
+        super().__init__()
         self.conv1 = nn.Conv2d(4, 32, 3, padding=1)
-        self.res1 = ResBlock(32, 32)
+        self.res1 = ResBlock(32)
         self.conv2 = nn.Conv2d(32, 64, 3, padding=1)
-        self.res2 = ResBlock(64, 64)
+        self.res2 = ResBlock(64)
         self.conv3 = nn.Conv2d(64, 128, 3, padding=1)
-        self.res3 = ResBlock(128, 128)
+        self.res3 = ResBlock(128)
         self.fc = nn.Linear(128 * 10 * 10, hidden_size)
 
     def forward(self, x):
@@ -155,14 +155,14 @@ class ImprovedEncoder(nn.Module):
         return x
 
 
-class ImprovedDecoder(nn.Module):
+class ImageDecoder(nn.Module):
     def __init__(self, hidden_size):
-        super(ImprovedDecoder, self).__init__()
+        super().__init__()
         self.fc = nn.Linear(hidden_size, 128 * 10 * 10)
         self.convt1 = nn.ConvTranspose2d(128, 64, 3, stride=2)
-        self.res1 = ResBlock(64, 64)
+        self.res1 = ResBlock(64)
         self.convt2 = nn.ConvTranspose2d(64, 32, 3, stride=2, padding=1, output_padding=1)
-        self.res2 = ResBlock(32, 32)
+        self.res2 = ResBlock(32)
         self.convt3 = nn.ConvTranspose2d(32, 4, 3, stride=2, padding=1, output_padding=1)
 
     def forward(self, x):
@@ -193,14 +193,14 @@ class AtariModel(GPTNeoPreTrainedModel):
                 return x
 
         # Encoders
-        self.encoder = DualBatchReshapeWrapper(ImprovedEncoder(self.config.hidden_size))
+        self.encoder = DualBatchReshapeWrapper(ImageEncoder(self.config.hidden_size))
         self.embedding = nn.Embedding(18, self.config.hidden_size)
 
         # Transformer
         self.transformer = GPTNeoModel(config)
 
         # Decoders
-        self.decoder = DualBatchReshapeWrapper(ImprovedDecoder(self.config.hidden_size))
+        self.decoder = DualBatchReshapeWrapper(ImageDecoder(self.config.hidden_size))
         self.logits_decoder = nn.Linear(self.config.hidden_size, 18)
 
         # Initialize weights and apply final processing
