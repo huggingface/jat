@@ -12,7 +12,7 @@ from datasets import Dataset, Features, Sequence, Value, concatenate_datasets, l
 from PIL import Image
 from torch import FloatTensor, Tensor, nn
 from torch.utils.data import BatchSampler, DataLoader
-from transformers import GPTNeoConfig, GPTNeoModel, GPTNeoPreTrainedModel, Trainer, TrainingArguments
+from transformers import GPTNeoConfig, GPTNeoModel, GPTNeoPreTrainedModel, Trainer, TrainingArguments, TrainerCallback
 from transformers.modeling_outputs import ModelOutput
 from transformers.trainer_utils import seed_worker
 from transformers.utils import is_datasets_available
@@ -30,6 +30,28 @@ LOSS_WEIGHTS = {
     "mujoco-walker": 0.00265386 / 0.3287,
     "mujoco-pusher": 0.00265386 / 0.007077,
 }
+
+
+def write_video(frames, filename, fps):
+    """
+    Writes a list of frames into a video file.
+
+    Parameters:
+    - frames (list of np.ndarray): List of frames in RGB format.
+    - filename (str): Output video filename including the extension.
+    - fps (int): Frames per second for the output video.
+    """
+    # Initialize video writer
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    shape = (frames[0].shape[1], frames[0].shape[0])
+    out = cv2.VideoWriter(filename, fourcc, fps, shape)
+
+    # Write frames to video
+    for frame in frames:
+        out.write(frame[..., [2, 1, 0]])  # convert RGB to BGR and write
+
+    # Release resources
+    out.release()
 
 
 @dataclass
@@ -64,6 +86,7 @@ class MuJoCoModel(GPTNeoPreTrainedModel):
         continuous_observations: Optional[FloatTensor] = None,
         continuous_actions: Optional[FloatTensor] = None,
         rewards: Optional[FloatTensor] = None,
+        attention_mask: Optional[FloatTensor] = None,
         return_loss: bool = True,
         loss_weights: Optional[FloatTensor] = None,
     ):
@@ -85,14 +108,17 @@ class MuJoCoModel(GPTNeoPreTrainedModel):
         inputs_embeds = torch.cat((inputs_embeds_observations, inputs_embeds_actions), dim=2).view(
             batch_size, 2 * seq_len, self.config.hidden_size
         )
+        attention_mask = attention_mask.repeat_interleave(2, dim=1)
 
-        transformer_outputs = self.transformer(inputs_embeds=inputs_embeds)
+        transformer_outputs = self.transformer(inputs_embeds=inputs_embeds, attention_mask=attention_mask)
 
         hidden_states = transformer_outputs[0]
 
         # Un-interleave observations and actions (warning, shifted by 1)
         hidden_observations = hidden_states[..., 1::2, :]
+        pred_obs_attention = attention_mask[..., 1::2]
         hidden_actions = hidden_states[..., ::2, :]
+        pred_act_attention = attention_mask[..., ::2]
 
         pred_observations = self.continuous_decoder(hidden_observations)[..., :observation_size]
         pred_actions = self.continuous_decoder(hidden_actions)[..., :action_size]
@@ -100,10 +126,12 @@ class MuJoCoModel(GPTNeoPreTrainedModel):
         observation_loss, action_loss = None, None
         if return_loss:
             loss_fct = nn.MSELoss(reduction="none")
-            observation_loss = torch.mean(loss_fct(pred_observations[:, 1:], continuous_observations[:, :-1]), (1, 2))
-            observation_loss = torch.mean(observation_loss * loss_weights)
-            action_loss = torch.mean(loss_fct(pred_actions, continuous_actions), (1, 2))
-            action_loss = torch.mean(action_loss * loss_weights)
+            obs_squared_errors = loss_fct(pred_observations[:, 1:], continuous_observations[:, :-1])
+            observation_loss = torch.mean(torch.mean(obs_squared_errors, 2) * pred_obs_attention[:, 1:])
+            # observation_loss = torch.mean(observation_loss * loss_weights)
+            act_squared_errors = loss_fct(pred_actions[:, 1:], continuous_actions[:, :-1])
+            action_loss = torch.mean(torch.mean(act_squared_errors, 2) * pred_act_attention[:, 1:])
+            # action_loss = torch.mean(action_loss * loss_weights)
 
             return MyOutput(
                 pred_observations=pred_observations,
@@ -119,7 +147,6 @@ class MuJoCoModel(GPTNeoPreTrainedModel):
 class ResBlock(nn.Module):
     def __init__(self, num_channels):
         super().__init__()
-
         self.conv1 = nn.Conv2d(num_channels, num_channels, kernel_size=3, padding=1)
         self.in1 = nn.InstanceNorm2d(num_channels)  # the batch is too self-correlated to use batch norm
         self.conv2 = nn.Conv2d(num_channels, num_channels, kernel_size=3, padding=1)
@@ -225,7 +252,8 @@ class AtariModel(GPTNeoPreTrainedModel):
         inputs_embeds = torch.cat((inputs_embeds_observations, inputs_embeds_actions), dim=2).view(
             batch_size, 2 * seq_len, self.config.hidden_size
         )
-        attention_mask = attention_mask.repeat_interleave(2, dim=1)
+        if attention_mask is not None:
+            attention_mask = attention_mask.repeat_interleave(2, dim=1)
 
         transformer_outputs = self.transformer(inputs_embeds=inputs_embeds, attention_mask=attention_mask)
 
@@ -246,7 +274,6 @@ class AtariModel(GPTNeoPreTrainedModel):
             action_loss = action_loss_fct(
                 torch.flatten(pred_actions, end_dim=-2), torch.flatten(discrete_actions, end_dim=-1)
             )
-            print((pred_actions.argmax(-1) == discrete_actions).float().mean())
             return MyOutput(
                 pred_observations=pred_observations,
                 pred_actions=pred_actions,
@@ -327,7 +354,7 @@ class MyTrainer(Trainer):
 
 def train_mujoco(tasks, experience):
     num_layers = 8
-    continuous_max_size = 27
+    continuous_max_size = 39
 
     config = GPTNeoConfig(
         num_layers=num_layers,
@@ -340,6 +367,27 @@ def train_mujoco(tasks, experience):
 
     model = MuJoCoModel(config)
 
+    def preprocess_function(examples):
+        max_len = 256  # 512 // 2
+        out_dict = {key: [] for key in examples.keys()}
+        attention_mask = []
+
+        ni = next(iter(examples.values()))
+
+        for ep in range(len(ni)):
+            for t in range(0, len(ni[ep]), max_len):
+                chunk = ni[ep][t : t + max_len]
+                pad_len = max_len - len(chunk)
+                for key in examples.keys():
+                    pad_value = examples[key][0][0]
+                    padded_chunk = examples[key][ep][t : t + max_len] + [pad_value] * pad_len
+                    out_dict[key].append(padded_chunk)
+
+                mask = [1.0] * len(chunk) + [0.0] * pad_len
+                attention_mask.append(mask)
+        out_dict["attention_mask"] = attention_mask
+        return out_dict
+
     # Load the dataset
     features = Features(
         {
@@ -348,9 +396,10 @@ def train_mujoco(tasks, experience):
             "rewards": Sequence(Value("float32")),
         }
     )
-    all_datasets = {t: load_dataset("gia-project/gia-dataset", t, features=features) for t in tasks}
-    all_datasets = {t: d.map(lambda x: {"loss_weights": LOSS_WEIGHTS[t]}) for t, d in all_datasets.items()}
-
+    all_datasets = {t: load_dataset("gia-project/gia-dataset-parquet", t) for t in tasks}
+    all_datasets = {
+        t: d.map(preprocess_function, batched=True, num_proc=16, batch_size=10) for t, d in all_datasets.items()
+    }
     train_datasets = [dataset["train"] for dataset in all_datasets.values()]
     train_dataset = concatenate_datasets([d["train"] for d in all_datasets.values()])
     train_dataset.sizes = [len(d) for d in train_datasets]
@@ -360,15 +409,19 @@ def train_mujoco(tasks, experience):
 
     args = TrainingArguments(
         experience,
-        per_device_train_batch_size=1,
-        per_device_eval_batch_size=1,
+        # per_device_train_batch_size=1,
+        # per_device_eval_batch_size=1,
+        auto_find_batch_size=True,
         evaluation_strategy="steps",
-        eval_steps=500,
+        eval_steps=0.05,
         eval_delay=0,
-        save_steps=5000,
-        logging_steps=100,
+        save_strategy="steps",
+        save_steps=0.05,
+        logging_steps=1_000,
         logging_first_step=True,
-        num_train_epochs=1,
+        num_train_epochs=3,
+        lr_scheduler_type="cosine",
+        warmup_ratio=0.1,
     )
 
     trainer = MyTrainer(model=model.to("cuda"), train_dataset=train_dataset, eval_dataset=eval_dataset, args=args)
@@ -416,16 +469,8 @@ def eval_mujoco(task, experience, checkpoint):
     print(f"Task {task} normalized score: {mean:.2f} ± {std:.2f}")
     env.close()
 
-    # Initialize video writer
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    out = cv2.VideoWriter(f"{experience}/{checkpoint}-{task}.mp4", fourcc, env.metadata["render_fps"], (480, 480))
-
-    # Write frames to video
-    for frame in frames:
-        out.write(frame)
-
-    # Release video writer
-    out.release()
+    write_video(frames, f"{experience}/{checkpoint}-{task}.mp4", env.metadata["render_fps"])
+    return mean
 
 
 def train_atari(tasks, experience):
@@ -494,9 +539,9 @@ def train_atari(tasks, experience):
         lr_scheduler_type="cosine",
         warmup_ratio=0.1,
     )
-
     trainer = Trainer(model=model, train_dataset=train_dataset, eval_dataset=eval_dataset, args=args)
     trainer.train()
+    # trainer.push_to_hub()
 
 
 def eval_atari(task, experience, checkpoint):
@@ -505,7 +550,7 @@ def eval_atari(task, experience, checkpoint):
     frames = []
     all_returns = []
 
-    for episode in range(1):
+    for episode in range(2):
         observation, _ = env.reset()
         observations = [observation["image_observations"]]
         actions = []
@@ -538,19 +583,11 @@ def eval_atari(task, experience, checkpoint):
     mean = (np.mean(all_returns) - random_mean) / (expert_mean - random_mean)
     std = np.std(all_returns) / (expert_mean - random_mean)
 
+    print(f"Task {task} score: {np.mean(all_returns)} ± {np.std(all_returns)}")
     print(f"Task {task} normalized score: {mean:.2f} ± {std:.2f}")
     env.close()
 
-    # Initialize video writer
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    out = cv2.VideoWriter(f"{experience}/{checkpoint}-{task}.mp4", fourcc, env.metadata["render_fps"], (160, 210))
-
-    # Write frames to video
-    for frame in frames:
-        out.write(frame[..., [2, 1, 0]])
-
-    # Release video writer
-    out.release()
+    write_video(frames, f"{experience}/{checkpoint}-{task}.mp4", env.metadata["render_fps"])
 
     return mean
 
@@ -626,10 +663,62 @@ if __name__ == "__main__":
         # "atari-yarsrevenge",
         # "atari-zaxxon",
     ]
-
-    train_atari(atari, "atari-6")
+    metaworld = [
+        "metaworld-assembly",
+        "metaworld-basketball",
+        "metaworld-bin-picking",
+        "metaworld-box-close",
+        "metaworld-button-press-topdown-wall",
+        "metaworld-button-press-topdown",
+        "metaworld-button-press-wall",
+        "metaworld-button-press",
+        "metaworld-coffee-button",
+        "metaworld-coffee-pull",
+        "metaworld-coffee-push",
+        "metaworld-dial-turn",
+        "metaworld-disassemble",
+        "metaworld-door-close",
+        "metaworld-door-lock",
+        "metaworld-door-open",
+        "metaworld-door-unlock",
+        "metaworld-drawer-close",
+        "metaworld-drawer-open",
+        "metaworld-faucet-close",
+        "metaworld-faucet-open",
+        "metaworld-hammer",
+        "metaworld-hand-insert",
+        "metaworld-handle-press-side",
+        "metaworld-handle-press",
+        "metaworld-handle-pull-side",
+        "metaworld-handle-pull",
+        "metaworld-lever-pull",
+        "metaworld-peg-insert-side",
+        "metaworld-peg-unplug-side",
+        "metaworld-pick-out-of-hole",
+        "metaworld-pick-place-wall",
+        "metaworld-pick-place",
+        "metaworld-plate-slide-back-side",
+        "metaworld-plate-slide-back",
+        "metaworld-plate-slide-side",
+        "metaworld-plate-slide",
+        "metaworld-push-back",
+        "metaworld-push-wall",
+        "metaworld-push",
+        "metaworld-reach-wall",
+        "metaworld-reach",
+        "metaworld-shelf-place",
+        "metaworld-soccer",
+        "metaworld-stick-pull",
+        "metaworld-stick-push",
+        "metaworld-sweep-into",
+        "metaworld-sweep",
+        "metaworld-window-close",
+        "metaworld-window-open",
+    ]
+    train_mujoco(metaworld, "all-metaworld")
+    # train_atari(atari, "atari-6")
     scores = []
     for task in atari:
-        score = eval_atari(task, "atari-6", 16260)
+        score = eval_atari(task, "atari-6", 30894)
         scores.append(score)
     print(f"Average score: {np.mean(scores)}")
