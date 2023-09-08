@@ -8,7 +8,8 @@ import datasets
 import numpy as np
 import torch
 import torch.nn.functional as F
-from datasets import Features, Sequence, Value, concatenate_datasets, load_dataset
+from datasets import Dataset, Features, Sequence, Value, concatenate_datasets, load_dataset
+from PIL import Image
 from torch import FloatTensor, Tensor, nn
 from torch.utils.data import BatchSampler, DataLoader
 from transformers import GPTNeoConfig, GPTNeoModel, GPTNeoPreTrainedModel, Trainer, TrainingArguments
@@ -17,7 +18,6 @@ from transformers.trainer_utils import seed_worker
 from transformers.utils import is_datasets_available
 
 from gia.eval.rl import make
-
 
 LOSS_WEIGHTS = {
     "mujoco-ant": 0.00265386 / 0.01879,
@@ -119,15 +119,16 @@ class MuJoCoModel(GPTNeoPreTrainedModel):
 class ResBlock(nn.Module):
     def __init__(self, num_channels):
         super().__init__()
-        self.conv1 = nn.Conv2d(num_channels, num_channels, 3, padding=1)
-        self.bn1 = nn.BatchNorm2d(num_channels)
-        self.conv2 = nn.Conv2d(num_channels, num_channels, 3, padding=1)
-        self.bn2 = nn.BatchNorm2d(num_channels)
+
+        self.conv1 = nn.Conv2d(num_channels, num_channels, kernel_size=3, padding=1)
+        self.in1 = nn.InstanceNorm2d(num_channels)  # the batch is too self-correlated to use batch norm
+        self.conv2 = nn.Conv2d(num_channels, num_channels, kernel_size=3, padding=1)
+        self.in2 = nn.InstanceNorm2d(num_channels)
 
     def forward(self, x):
         residual = x
-        out = F.relu(self.bn1(self.conv1(x)))
-        out = self.bn2(self.conv2(out))
+        out = F.relu(self.in1(self.conv1(x)))
+        out = self.in2(self.conv2(out))
         out += residual
         return F.relu(out)
 
@@ -135,11 +136,11 @@ class ResBlock(nn.Module):
 class ImageEncoder(nn.Module):
     def __init__(self, hidden_size):
         super().__init__()
-        self.conv1 = nn.Conv2d(4, 32, 3, padding=1)
+        self.conv1 = nn.Conv2d(4, 32, kernel_size=3, padding=1)
         self.res1 = ResBlock(32)
-        self.conv2 = nn.Conv2d(32, 64, 3, padding=1)
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
         self.res2 = ResBlock(64)
-        self.conv3 = nn.Conv2d(64, 128, 3, padding=1)
+        self.conv3 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
         self.res3 = ResBlock(128)
         self.fc = nn.Linear(128 * 10 * 10, hidden_size)
 
@@ -211,8 +212,8 @@ class AtariModel(GPTNeoPreTrainedModel):
         image_observations: Optional[FloatTensor] = None,
         discrete_actions: Optional[FloatTensor] = None,
         rewards: Optional[FloatTensor] = None,
+        attention_mask: Optional[FloatTensor] = None,
         return_loss: bool = True,
-        loss_weights: Optional[FloatTensor] = None,
     ):
         # to channel first and normalize
         processed_image_observations = image_observations.transpose(4, 2) / 128 - 1.0
@@ -224,8 +225,9 @@ class AtariModel(GPTNeoPreTrainedModel):
         inputs_embeds = torch.cat((inputs_embeds_observations, inputs_embeds_actions), dim=2).view(
             batch_size, 2 * seq_len, self.config.hidden_size
         )
+        attention_mask = attention_mask.repeat_interleave(2, dim=1)
 
-        transformer_outputs = self.transformer(inputs_embeds=inputs_embeds)
+        transformer_outputs = self.transformer(inputs_embeds=inputs_embeds, attention_mask=attention_mask)
 
         hidden_states = transformer_outputs[0]
 
@@ -441,14 +443,31 @@ def train_atari(tasks, experience):
     model = AtariModel(config)
 
     def preprocess_function(examples):
-        # truncate (but reuse the truncated part to add a new example)
-        max_len = 512 // 2
+        max_len = 256  # 512 // 2
         out_dict = {key: [] for key in examples.keys()}
+        attention_mask = []
+
         ni = next(iter(examples.values()))
+
         for ep in range(len(ni)):
             for t in range(0, len(ni[ep]), max_len):
+                chunk = ni[ep][t : t + max_len]
+                pad_len = max_len - len(chunk)
+
                 for key in examples.keys():
-                    out_dict[key].append(examples[key][ep][t : t + max_len])
+                    if key == "discrete_actions":
+                        pad_value = 0
+                    elif key == "rewards":
+                        pad_value = 0.0
+                    elif key == "image_observations":
+                        pad_value = Image.new("RGBA", (84, 84))
+
+                    padded_chunk = examples[key][ep][t : t + max_len] + [pad_value] * pad_len
+                    out_dict[key].append(padded_chunk)
+
+                mask = [1.0] * len(chunk) + [0.0] * pad_len
+                attention_mask.append(mask)
+        out_dict["attention_mask"] = attention_mask
         return out_dict
 
     # Load the dataset
@@ -459,7 +478,6 @@ def train_atari(tasks, experience):
     all_datasets = {t: d.with_format(type="torch") for t, d in all_datasets.items()}
     train_dataset = concatenate_datasets([d["train"] for d in all_datasets.values()])  # type: Dataset
     eval_dataset = {t: d["test"] for t, d in all_datasets.items()}
-    # eval_dataset = {t: d.select(range(100)) for t, d in eval_dataset.items()}  # only the first 100 samples
 
     args = TrainingArguments(
         experience,
@@ -473,6 +491,8 @@ def train_atari(tasks, experience):
         logging_steps=1_000,
         logging_first_step=True,
         num_train_epochs=3,
+        lr_scheduler_type="cosine",
+        warmup_ratio=0.1,
     )
 
     trainer = Trainer(model=model, train_dataset=train_dataset, eval_dataset=eval_dataset, args=args)
@@ -481,7 +501,7 @@ def train_atari(tasks, experience):
 
 def eval_atari(task, experience, checkpoint):
     model = AtariModel.from_pretrained(f"{experience}/checkpoint-{checkpoint}").to("cuda")
-    env = make(task, render_mode="rgb_array")
+    env = make(task, render_mode="rgb_array", clip_reward=False, episodic_life=False)
     frames = []
     all_returns = []
 
@@ -531,6 +551,8 @@ def eval_atari(task, experience, checkpoint):
 
     # Release video writer
     out.release()
+
+    return mean
 
 
 if __name__ == "__main__":
@@ -606,5 +628,8 @@ if __name__ == "__main__":
     ]
 
     train_atari(atari, "atari-6")
-    # for task in atari:
-    #     eval_atari(task, "atari-6", 5434)
+    scores = []
+    for task in atari:
+        score = eval_atari(task, "atari-6", 16260)
+        scores.append(score)
+    print(f"Average score: {np.mean(scores)}")
