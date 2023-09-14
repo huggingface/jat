@@ -84,7 +84,7 @@ class MyModel(GPTNeoPreTrainedModel):
                 predicted_actions=predicted_actions,
                 observation_loss=observation_loss,
                 action_loss=action_loss,
-                loss=observation_loss + action_loss,
+                loss=0.0 * observation_loss + 1.0 * action_loss,
             )
         else:
             return MyOutput(predicted_observations=predicted_observations, predicted_actions=predicted_actions)
@@ -126,34 +126,10 @@ if __name__ == "__main__":
     model = MyModel(config)
 
     # Load the dataset
-    features = Features(
-        {
-            "continuous_observations": Sequence(Sequence(Value("float32"))),
-            "continuous_actions": Sequence(Sequence(Value("float32"))),
-            "rewards": Sequence(Value("float32")),
-        }
-    )
-
-    train_dataset_ = concatenate_datasets(
-        [load_dataset("gia-project/gia-dataset", task, features=features, split="train") for task in tasks]
-    )
-    eval_dataset_ = {task: load_dataset("gia-project/gia-dataset", task, features=features, split="test[:100]") for task in tasks}
-
     train_dataset = concatenate_datasets(
         [load_dataset("gia-project/gia-dataset-parquet", task, split="train") for task in tasks]
     )
-    eval_dataset = {
-        task: load_dataset("gia-project/gia-dataset-parquet", task, split="test[:100]") for task in tasks
-    }
-
-    # compare the two datasets
-    for task in tasks:
-        for key in ["continuous_observations", "continuous_actions", "rewards"]:
-            print(task, key)
-            print(eval_dataset[task][:10][key] == eval_dataset_[task][:10][key])
-    for key in ["continuous_observations", "continuous_actions", "rewards"]:
-        print(key)
-        print(train_dataset[:10][key] == train_dataset_[:10][key])
+    eval_dataset = {task: load_dataset("gia-project/gia-dataset-parquet", task, split="test[:100]") for task in tasks}
 
     args = TrainingArguments(
         "checkpoints/back_from_scratch",
@@ -166,7 +142,7 @@ if __name__ == "__main__":
         logging_steps=100,
         logging_first_step=True,
         num_train_epochs=2,
-        seed=42,
+        seed=seed,
     )
 
     trainer = Trainer(model=model.to("cuda"), train_dataset=train_dataset, eval_dataset=eval_dataset, args=args)
