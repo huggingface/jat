@@ -177,10 +177,10 @@ if __name__ == "__main__":
     for task in tasks:
         for key in ["continuous_observations", "continuous_actions", "rewards"]:
             print(task, key)
-            print(eval_dataset[task][key][:10] == eval_dataset_2[task][key][:10])
+            print(eval_dataset[task][:10][key] == eval_dataset_2[task][:10][key])
     for key in ["continuous_observations", "continuous_actions", "rewards"]:
         print(task, key)
-        print(train_dataset[key][:10] == train_dataset_2[key][:10])
+        print(train_dataset[:10][key] == train_dataset_2[:10][key])
 
     from transformers import Trainer, TrainingArguments
 
