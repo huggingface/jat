@@ -4,7 +4,7 @@ from typing import Optional
 
 import numpy as np
 import torch
-from datasets import concatenate_datasets, load_dataset
+from datasets import Features, Sequence, Value, concatenate_datasets, load_dataset
 from torch import FloatTensor, Tensor, nn
 from transformers import GPTNeoConfig, GPTNeoModel, GPTNeoPreTrainedModel, Trainer, TrainingArguments
 from transformers.modeling_outputs import ModelOutput
@@ -126,16 +126,23 @@ if __name__ == "__main__":
     model = MyModel(config)
 
     # Load the dataset
+    features = Features(
+        {
+            "continuous_observations": Sequence(Sequence(Value("float32"))),
+            "continuous_actions": Sequence(Sequence(Value("float32"))),
+            "rewards": Sequence(Value("float32")),
+        }
+    )
+
+    train_dataset_ = concatenate_datasets(
+        [load_dataset("gia-project/gia-dataset", task, features=features, split="train") for task in tasks]
+    )
+    eval_dataset_ = {task: load_dataset("gia-project/gia-dataset", task, features=features, split="test[:100]") for task in tasks}
 
     train_dataset = concatenate_datasets(
-        [load_dataset("gia-project/gia-dataset", task, split="train") for task in tasks]
-    )
-    eval_dataset = {task: load_dataset("gia-project/gia-dataset", task, split="test[:100]") for task in tasks}
-
-    train_dataset_2 = concatenate_datasets(
         [load_dataset("gia-project/gia-dataset-parquet", task, split="train") for task in tasks]
     )
-    eval_dataset_2 = {
+    eval_dataset = {
         task: load_dataset("gia-project/gia-dataset-parquet", task, split="test[:100]") for task in tasks
     }
 
@@ -143,10 +150,10 @@ if __name__ == "__main__":
     for task in tasks:
         for key in ["continuous_observations", "continuous_actions", "rewards"]:
             print(task, key)
-            print(eval_dataset[task][:10][key] == eval_dataset_2[task][:10][key])
+            print(eval_dataset[task][:10][key] == eval_dataset_[task][:10][key])
     for key in ["continuous_observations", "continuous_actions", "rewards"]:
-        print(task, key)
-        print(train_dataset[:10][key] == train_dataset_2[:10][key])
+        print(key)
+        print(train_dataset[:10][key] == train_dataset_[:10][key])
 
     args = TrainingArguments(
         "checkpoints/back_from_scratch",
