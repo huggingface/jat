@@ -1,42 +1,19 @@
-from dataclasses import dataclass
-from typing import Any, Optional, List, Dict
-
-import torch
-from datasets import load_dataset
-from torch import FloatTensor, LongTensor, Tensor, nn
-from transformers import FeatureExtractionMixin, GPTNeoConfig, GPTNeoModel, GPTNeoPreTrainedModel, ProcessorMixin
-from transformers.feature_extraction_utils import FeatureExtractionMixin
-from transformers.modeling_outputs import ModelOutput
 import random
+from dataclasses import dataclass
+from typing import Optional
+
 import numpy as np
+import torch
+from datasets import concatenate_datasets, load_dataset
+from torch import FloatTensor, Tensor, nn
+from transformers import GPTNeoConfig, GPTNeoModel, GPTNeoPreTrainedModel, Trainer, TrainingArguments
+from transformers.modeling_outputs import ModelOutput
 
-# Processor: everything related to padding, truncation, resize, normalization, etc.
-# Embedding: takes the output of the processor and embeds it into a vector, must be multimodal, the input must still be episodes (conitnuous_observations, discrete_observations, text_observations, image_observations, continuous_actions, discrete_actions, rewards)
-
-# class ContinuousEmbedding(nn.Module):
-#     def __init__(self, continuous_max_size, discrete_max_val, hidden_size):
-
-
-# class _MyProcessor(FeatureExtractionMixin):
-#     def __init__(self, max_length):
-#         self.max_length = max_length
-
-#     def __call__(self, batch):
-#         # Truncated to the max length
-#         for k, v in batch.items():
-#             batch[k] = [x[: self.max_length] for x in v]
-
-#         # Pad to the max length
-#         for k, v in batch.items():
-#             batch[k] = [x + [x[0]] * (self.max_length - len(x)) for x in v]
-#         batch["attention_mask"] = [[1] * len(x) + [0] * (self.max_length - len(x)) for x in v]
-#         return batch
+from gia.eval.rl import make
 
 
 @dataclass
 class MyOutput(ModelOutput):
-    """ """
-
     predicted_observations: torch.FloatTensor = None
     predicted_actions: torch.FloatTensor = None
     observation_loss: Optional[Tensor] = None
@@ -67,8 +44,6 @@ class MyModel(GPTNeoPreTrainedModel):
         rewards: Optional[FloatTensor] = None,
         return_loss: bool = True,
     ):
-        inputs_embeds_dict = {}
-
         # Pad observations with zeros
         batch_size, seq_len, observation_size = continuous_observations.shape
         padded_observations = nn.functional.pad(
@@ -99,7 +74,6 @@ class MyModel(GPTNeoPreTrainedModel):
         predicted_observations = self.continuous_decoder(hidden_observations)[..., :observation_size]
         predicted_actions = self.continuous_decoder(hidden_actions)[..., :action_size]
 
-        observation_loss, action_loss = None, None
         if return_loss:
             loss_fct = nn.MSELoss()
             observation_loss = loss_fct(predicted_observations[:, 1:], continuous_observations[:, :-1])
@@ -151,23 +125,15 @@ if __name__ == "__main__":
 
     model = MyModel(config)
 
-    # # Load the dataset
-    from datasets import Sequence, Value, Features, concatenate_datasets
+    # Load the dataset
 
-    features = Features(
-        {
-            "continuous_observations": Sequence(Sequence(Value("float32"))),
-            "continuous_actions": Sequence(Sequence(Value("float32"))),
-            "rewards": Sequence(Value("float32")),
-        }
-    )
     train_dataset = concatenate_datasets(
-        [load_dataset("gia-project/gia-dataset", task, features=features, split="train") for task in tasks]
+        [load_dataset("gia-project/gia-dataset", task, split="train") for task in tasks]
     )
     eval_dataset = {task: load_dataset("gia-project/gia-dataset", task, split="test[:100]") for task in tasks}
 
     train_dataset_2 = concatenate_datasets(
-        [load_dataset("gia-project/gia-dataset-parquet", task, features=features, split="train") for task in tasks]
+        [load_dataset("gia-project/gia-dataset-parquet", task, split="train") for task in tasks]
     )
     eval_dataset_2 = {
         task: load_dataset("gia-project/gia-dataset-parquet", task, split="test[:100]") for task in tasks
@@ -181,8 +147,6 @@ if __name__ == "__main__":
     for key in ["continuous_observations", "continuous_actions", "rewards"]:
         print(task, key)
         print(train_dataset[:10][key] == train_dataset_2[:10][key])
-
-    from transformers import Trainer, TrainingArguments
 
     args = TrainingArguments(
         "checkpoints/back_from_scratch",
@@ -204,9 +168,6 @@ if __name__ == "__main__":
     # Test the model
     task = "mujoco-walker"
     model = MyModel.from_pretrained("old_script_all_mujoco/checkpoint-110000").to("cuda")
-
-    from gia.eval.rl import make
-    import numpy as np
 
     env = make(task, render_mode="rgb_array")
 
