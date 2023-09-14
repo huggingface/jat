@@ -162,9 +162,9 @@ if __name__ == "__main__":
         }
     )
     train_dataset = concatenate_datasets(
-        [load_dataset("gia-project/gia-dataset", task, features=features, split="train") for task in tasks]
+        [load_dataset("gia-project/gia-dataset-parquet", task, features=features, split="train") for task in tasks]
     )
-    eval_dataset = {task: load_dataset("gia-project/gia-dataset", task, split="test[:100]") for task in tasks}
+    eval_dataset = {task: load_dataset("gia-project/gia-dataset-parquet", task, split="test[:100]") for task in tasks}
 
     from transformers import Trainer, TrainingArguments
 
