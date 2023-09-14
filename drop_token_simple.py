@@ -162,9 +162,25 @@ if __name__ == "__main__":
         }
     )
     train_dataset = concatenate_datasets(
+        [load_dataset("gia-project/gia-dataset", task, features=features, split="train") for task in tasks]
+    )
+    eval_dataset = {task: load_dataset("gia-project/gia-dataset", task, split="test[:100]") for task in tasks}
+
+    train_dataset_2 = concatenate_datasets(
         [load_dataset("gia-project/gia-dataset-parquet", task, features=features, split="train") for task in tasks]
     )
-    eval_dataset = {task: load_dataset("gia-project/gia-dataset-parquet", task, split="test[:100]") for task in tasks}
+    eval_dataset_2 = {
+        task: load_dataset("gia-project/gia-dataset-parquet", task, split="test[:100]") for task in tasks
+    }
+
+    # compare the two datasets
+    for task in tasks:
+        for key in ["continuous_observations", "continuous_actions", "rewards"]:
+            print(task, key)
+            print(eval_dataset[task][key][:10] == eval_dataset_2[task][key][:10])
+    for key in ["continuous_observations", "continuous_actions", "rewards"]:
+        print(task, key)
+        print(train_dataset[key][:10] == train_dataset_2[key][:10])
 
     from transformers import Trainer, TrainingArguments
 
