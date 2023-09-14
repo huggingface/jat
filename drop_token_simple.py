@@ -7,6 +7,7 @@ from torch import FloatTensor, LongTensor, Tensor, nn
 from transformers import FeatureExtractionMixin, GPTNeoConfig, GPTNeoModel, GPTNeoPreTrainedModel, ProcessorMixin
 from transformers.feature_extraction_utils import FeatureExtractionMixin
 from transformers.modeling_outputs import ModelOutput
+import random
 
 # Processor: everything related to padding, truncation, resize, normalization, etc.
 # Embedding: takes the output of the processor and embeds it into a vector, must be multimodal, the input must still be episodes (conitnuous_observations, discrete_observations, text_observations, image_observations, continuous_actions, discrete_actions, rewards)
@@ -139,7 +140,13 @@ if __name__ == "__main__":
     config.continuous_max_size = continuous_max_size
 
     # Set the seed
-    torch.manual_seed(42)
+    seed = 42
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
     model = MyModel(config)
 
@@ -171,6 +178,7 @@ if __name__ == "__main__":
         logging_steps=100,
         logging_first_step=True,
         num_train_epochs=2,
+        seed=42,
     )
 
     trainer = Trainer(model=model.to("cuda"), train_dataset=train_dataset, eval_dataset=eval_dataset, args=args)
