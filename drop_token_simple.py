@@ -132,7 +132,7 @@ if __name__ == "__main__":
     eval_dataset = {task: load_dataset("gia-project/gia-dataset-parquet", task, split="test[:100]") for task in tasks}
 
     args = TrainingArguments(
-        "checkpoints/v2_just_action_loss",
+        "checkpoints/v2_just_action_loss_all_mujoco",
         per_device_train_batch_size=1,
         per_device_eval_batch_size=1,
         evaluation_strategy="steps",
@@ -150,7 +150,7 @@ if __name__ == "__main__":
 
     # Test the model
     task = "mujoco-walker"
-    model = MyModel.from_pretrained("old_script_all_mujoco/checkpoint-110000").to("cuda")
+    model = MyModel.from_pretrained("checkpoints/v2_just_action_loss_all_mujoco/checkpoint-").to("cuda")
 
     env = make(task, render_mode="rgb_array")
 
