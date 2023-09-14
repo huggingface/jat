@@ -120,13 +120,13 @@ if __name__ == "__main__":
     tasks = [
         "mujoco-ant",
         "mujoco-doublependulum",
-        "mujoco-halfcheetah",
-        "mujoco-hopper",
-        "mujoco-pendulum",
-        "mujoco-reacher",
-        "mujoco-swimmer",
-        "mujoco-walker",
-        "mujoco-pusher",
+        # "mujoco-halfcheetah",
+        # "mujoco-hopper",
+        # "mujoco-pendulum",
+        # "mujoco-reacher",
+        # "mujoco-swimmer",
+        # "mujoco-walker",
+        # "mujoco-pusher",
     ]
 
     config = GPTNeoConfig(
