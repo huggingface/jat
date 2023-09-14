@@ -8,6 +8,7 @@ from transformers import FeatureExtractionMixin, GPTNeoConfig, GPTNeoModel, GPTN
 from transformers.feature_extraction_utils import FeatureExtractionMixin
 from transformers.modeling_outputs import ModelOutput
 import random
+import numpy as np
 
 # Processor: everything related to padding, truncation, resize, normalization, etc.
 # Embedding: takes the output of the processor and embeds it into a vector, must be multimodal, the input must still be episodes (conitnuous_observations, discrete_observations, text_observations, image_observations, continuous_actions, discrete_actions, rewards)
