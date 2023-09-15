@@ -105,7 +105,10 @@ class MyModel(GPTNeoPreTrainedModel):
                 loss=0.0 * observation_loss + 1.0 * action_loss,
             )
         else:
-            return MyOutput(predicted_observations=predicted_observations, predicted_actions=predicted_actions)
+            return MyOutput(
+                predicted_observations=filter_tensor(predicted_observations, attention_mask, observation_sizes),
+                predicted_actions=filter_tensor(predicted_actions, attention_mask, action_sizes),
+            )
 
 
 if __name__ == "__main__":
