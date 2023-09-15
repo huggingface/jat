@@ -1,7 +1,9 @@
-import torch
+from typing import List, Tuple
 
 import torch
-import torch.nn as nn
+from torch import BoolTensor, FloatTensor
+
+from gia2.utils import compute_mse_loss, filter_tensor
 
 
 class ContinuousDataCollator:
@@ -10,6 +12,7 @@ class ContinuousDataCollator:
 
     Parameters:
         max_size (int): Maximum size for each tensor in the batch.
+        max_seq_len (int): Maximum sequence length for each tensor in the batch.
 
     Input:
         A list of `batch_size` dictionaries, each containing tensors with the following shapes:
@@ -29,41 +32,86 @@ class ContinuousDataCollator:
         where `max_seq_len` is the maximum sequence length among all examples in the batch.
     """
 
-    def __init__(self, max_size, max_seq_len=256):
+    def __init__(self, max_size: int, max_seq_len: int = 256):
         self.max_size = max_size
         self.max_seq_len = max_seq_len
 
-    def __call__(self, batch):
-        batch_size = len(batch)
+    def _collate_continuous(self, tensors: List[FloatTensor]) -> Tuple[FloatTensor, BoolTensor]:
+        """
+        Collates a list of continuous tensors into a single tensor.
+
+        Args:
+            tensors (`List[torch.FloatTensor]`):
+                List of continuous tensors, each of shape `(seq_len, size)`.
+
+        Returns:
+            collated (`torch.FloatTensor` of shape `(batch_size, max_seq_len, max_size)`):
+                Collated tensor with zeros for padding.
+            mask (`torch.BoolTensor` of shape `(batch_size, max_seq_len)`):
+                Boolean mask indicating valid timesteps.
+        """
+        batch_size = len(tensors)
 
         # Find the max sequence length in the batch
-        max_seq_len = min(max([len(x["continuous_observations"]) for x in batch]), self.max_seq_len)
+        max_seq_len = min(max([len(x) for x in tensors]), self.max_seq_len)
 
-        # Initialize tensors with zeros for padding
-        continuous_observations = torch.zeros(batch_size, max_seq_len, self.max_size, dtype=torch.float32)
-        continuous_actions = torch.zeros(batch_size, max_seq_len, self.max_size, dtype=torch.float32)
-        rewards = torch.zeros(batch_size, max_seq_len, dtype=torch.float32)
+        # Initialize tensor with zeros for padding
+        collated = torch.zeros(batch_size, max_seq_len, self.max_size, dtype=torch.float32, device=tensors[0].device)
         mask = torch.zeros(batch_size, max_seq_len, dtype=torch.bool)
-        observation_sizes = torch.zeros(batch_size, dtype=torch.int64)
-        action_sizes = torch.zeros(batch_size, dtype=torch.int64)
 
-        # Populate tensors with data
-        for i, ex in enumerate(batch):
-            # Convert to tensors and truncate
-            continuous_observation = torch.tensor(ex["continuous_observations"], dtype=torch.float32)[:max_seq_len]
-            continuous_action = torch.tensor(ex["continuous_actions"], dtype=torch.float32)[:max_seq_len]
-            reward = torch.tensor(ex["rewards"], dtype=torch.float32)[:max_seq_len]
-
-            seq_len, observation_size = continuous_observation.shape
-            seq_len, action_size = continuous_action.shape
-
-            continuous_observations[i, :seq_len, :observation_size] = continuous_observation
-            continuous_actions[i, :seq_len, :action_size] = continuous_action
-            rewards[i, :seq_len] = reward
+        # Populate tensor with data
+        for i, tensor in enumerate(tensors):
+            tensor = torch.tensor(tensor, dtype=torch.float32)[:max_seq_len]
+            seq_len, size = tensor.shape
+            collated[i, :seq_len, :size] = tensor
             mask[i, :seq_len] = 1
-            observation_sizes[i] = observation_size
-            action_sizes[i] = action_size
 
+        return collated, mask
+
+    def _collate_rewards(self, tensors: List[FloatTensor]) -> FloatTensor:
+        """
+        Collates a list of reward tensors into a single tensor.
+
+        Args:
+            tensors (`List[torch.FloatTensor]`):
+                List of reward tensors, each of shape `(seq_len,)`.
+
+        Returns:
+            collated (`torch.FloatTensor` of shape `(batch_size, max_seq_len)`):
+                Collated tensor with zeros for padding.
+        """
+        batch_size = len(tensors)
+
+        # Find the max sequence length in the batch
+        max_seq_len = min(max([len(x) for x in tensors]), self.max_seq_len)
+
+        # Initialize tensor with zeros for padding
+        collated = torch.zeros(batch_size, max_seq_len, dtype=torch.float32, device=tensors[0].device)
+
+        # Populate tensor with data
+        for i, tensor in enumerate(tensors):
+            tensor = torch.tensor(tensor, dtype=torch.float32)[:max_seq_len]
+            seq_len = tensor.shape[0]
+            collated[i, :seq_len] = tensor
+
+        return collated
+
+    def __call__(self, batch):
+        # Separate observations, actions, and rewards
+        continuous_observations = [x["continuous_observations"] for x in batch]
+        continuous_actions = [x["continuous_actions"] for x in batch]
+        rewards = [x["rewards"] for x in batch]
+
+        # Compute observation and action sizes
+        observation_sizes = torch.tensor([len(x[0]) for x in continuous_observations], dtype=torch.long)
+        action_sizes = torch.tensor([len(x[0]) for x in continuous_actions], dtype=torch.long)
+
+        # Collate observations, actions and rewards
+        continuous_observations, mask = self._collate_continuous(continuous_observations)
+        continuous_actions, mask = self._collate_continuous(continuous_actions)
+        rewards = self._collate_rewards(rewards)
+
+        # Return collated data
         return {
             "continuous_observations": continuous_observations,
             "continuous_actions": continuous_actions,
@@ -72,67 +120,6 @@ class ContinuousDataCollator:
             "observation_sizes": observation_sizes,
             "action_sizes": action_sizes,
         }
-
-
-def compute_mse_loss(predicted, true, mask, sizes):
-    """
-    Compute the MSE loss between predicted and true continuous observations.
-
-    Parameters:
-        predicted (Tensor): Predicted observations, shape (batch_size, max_seq_len, max_size).
-        true (Tensor): True observations, shape (batch_size, max_seq_len, max_size).
-        mask (Tensor): Mask indicating valid timesteps, shape (batch_size, max_seq_len).
-        size (Tensor): Size for each example, shape (batch_size,).
-
-    Returns:
-        float: The MSE loss.
-    """
-    # Initialize a mask for valid observation sizes
-    size_mask = torch.zeros_like(predicted, dtype=torch.bool, device=predicted.device)
-
-    for i, size in enumerate(sizes):
-        size_mask[i, :, :size] = 1
-
-    # Expand timestep mask and apply observation size mask
-    expanded_mask = mask.unsqueeze(-1).expand_as(predicted) * size_mask
-
-    # Mask the predicted and true observations
-    masked_predicted = predicted * expanded_mask
-    masked_true = true * expanded_mask
-
-    # Compute MSE loss
-    criterion = nn.MSELoss(reduction="sum")
-    loss = criterion(masked_predicted, masked_true)
-
-    # Normalize by the number of valid elements
-    loss /= expanded_mask.sum()
-
-    return loss
-
-
-def filter_tensor(tensor, mask, sizes):
-    """
-    Parameters:
-        tensor (Tensor): Tensor, shape (batch_size, seq_len, ...).
-        mask (Tensor): Mask indicating valid timesteps, shape (batch_size, seq_len).
-        sizes (Tensor): Observation size for each example, shape (batch_size,).
-
-    Returns:
-        list of list of values
-    """
-    batch_size, seq_len = tensor.shape[:2]
-    nested_list = []
-
-    for i in range(batch_size):
-        batch_list = []
-        for j in range(seq_len):
-            if mask is None or mask[i, j].item() == 1:
-                obs_size = sizes[i].item()
-                values = tensor[i, j, :obs_size].tolist()
-                batch_list.append(values)
-        nested_list.append(batch_list)
-
-    return nested_list
 
 
 if __name__ == "__main__":

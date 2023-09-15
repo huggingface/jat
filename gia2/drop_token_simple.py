@@ -10,20 +10,21 @@ from torch import BoolTensor, FloatTensor, Tensor, nn
 from transformers import GPTNeoConfig, GPTNeoModel, GPTNeoPreTrainedModel, Trainer, TrainingArguments
 from transformers.modeling_outputs import ModelOutput
 
-from gia2.data_collator import compute_mse_loss, filter_tensor
+from gia2.data_collator import ContinuousDataCollator
+from gia2.utils import compute_mse_loss, filter_tensor
 from gia.eval.rl import make
 
 
 @dataclass
-class MyOutput(ModelOutput):
-    predicted_observations: torch.FloatTensor = None
-    predicted_actions: torch.FloatTensor = None
+class GIA2Output(ModelOutput):
+    pred_observations: torch.FloatTensor = None
+    pred_actions: torch.FloatTensor = None
     observation_loss: Optional[Tensor] = None
     action_loss: Optional[Tensor] = None
     loss: Optional[Tensor] = None
 
 
-class MyModel(GPTNeoPreTrainedModel):
+class GIA2Model(GPTNeoPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
 
@@ -83,29 +84,29 @@ class MyModel(GPTNeoPreTrainedModel):
         # Un-interleave observations and actions (warning, shifted by 1)
         hidden_observations = hidden_states[..., 1::2, :]
         hidden_actions = hidden_states[..., ::2, :]
-        predicted_observations = self.continuous_decoder(hidden_observations)
-        predicted_actions = self.continuous_decoder(hidden_actions)
+        pred_observations = self.continuous_decoder(hidden_observations)
+        pred_actions = self.continuous_decoder(hidden_actions)
 
         if return_loss:
             observation_loss = compute_mse_loss(
-                predicted_observations[:, :-1],
+                pred_observations[:, :-1],
                 continuous_observations[:, 1:],
                 attention_mask[:, 1:],
                 observation_sizes,
             )
-            action_loss = compute_mse_loss(predicted_actions, continuous_actions, attention_mask, action_sizes)
+            action_loss = compute_mse_loss(pred_actions, continuous_actions, attention_mask, action_sizes)
 
             return GIA2Output(
-                predicted_observations=filter_tensor(predicted_observations, attention_mask, observation_sizes),
-                predicted_actions=filter_tensor(predicted_actions, attention_mask, action_sizes),
+                pred_observations=filter_tensor(pred_observations, attention_mask, observation_sizes),
+                pred_actions=filter_tensor(pred_actions, attention_mask, action_sizes),
                 observation_loss=observation_loss,
                 action_loss=action_loss,
                 loss=0.0 * observation_loss + 1.0 * action_loss,
             )
         else:
             return GIA2Output(
-                predicted_observations=filter_tensor(predicted_observations, attention_mask, observation_sizes),
-                predicted_actions=filter_tensor(predicted_actions, attention_mask, action_sizes),
+                pred_observations=filter_tensor(pred_observations, attention_mask, observation_sizes),
+                pred_actions=filter_tensor(pred_actions, attention_mask, action_sizes),
             )
 
 
@@ -145,7 +146,7 @@ if __name__ == "__main__":
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-    model = MyModel(config)
+    model = GIA2Model(config)
 
     # Load the dataset
     train_dataset = concatenate_datasets(
@@ -176,7 +177,7 @@ if __name__ == "__main__":
 
     # Test the model
     task = "mujoco-ant"
-    model = MyModel.from_pretrained("checkpoints/v2_with_collator_all_mujoco_afbs/checkpoint-10000").to("cuda")
+    model = GIA2Model.from_pretrained("checkpoints/v2_with_collator_all_mujoco_afbs/checkpoint-10000").to("cuda")
 
     env = make(task, render_mode="rgb_array")
 
@@ -195,7 +196,7 @@ if __name__ == "__main__":
                     torch.tensor([*actions, action_placeholder], dtype=torch.float32).unsqueeze(0).to("cuda")
                 )
                 output = model(continuous_observations[:, -256:], continuous_actions[:, -256:], return_loss=False)
-                action = output.predicted_actions[0][-1]
+                action = output.pred_actions[0][-1]
             observation, reward, termined, truncated, _ = env.step(action)
             done = termined or truncated
             observations.append(observation["continuous_observations"])
