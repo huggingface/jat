@@ -150,9 +150,9 @@ if __name__ == "__main__":
     eval_dataset = {task: load_dataset("gia-project/gia-dataset-parquet", task, split="test[:100]") for task in tasks}
 
     args = TrainingArguments(
-        "checkpoints/v2_with_collator_bs2",
-        per_device_train_batch_size=2,
-        per_device_eval_batch_size=2,
+        "checkpoints/v2_with_collator_bs3",
+        per_device_train_batch_size=3,
+        per_device_eval_batch_size=3,
         evaluation_strategy="steps",
         eval_steps=500,
         eval_delay=0,
@@ -174,7 +174,7 @@ if __name__ == "__main__":
 
     # Test the model
     task = "mujoco-walker"
-    model = MyModel.from_pretrained("checkpoints/v2_with_collator_bs2/checkpoint-").to("cuda")
+    model = MyModel.from_pretrained("checkpoints/v2_with_collator_bs3/checkpoint-").to("cuda")
 
     env = make(task, render_mode="rgb_array")
 
