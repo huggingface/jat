@@ -10,7 +10,7 @@ from torch import BoolTensor, FloatTensor, Tensor, nn
 from transformers import GPTNeoConfig, GPTNeoModel, GPTNeoPreTrainedModel, Trainer, TrainingArguments
 from transformers.modeling_outputs import ModelOutput
 
-from data_collator import compute_mse_loss, filter_tensor
+from gia2.data_collator import compute_mse_loss, filter_tensor
 from gia.eval.rl import make
 
 
@@ -95,7 +95,7 @@ class MyModel(GPTNeoPreTrainedModel):
             )
             action_loss = compute_mse_loss(predicted_actions, continuous_actions, attention_mask, action_sizes)
 
-            return MyOutput(
+            return GIA2Output(
                 predicted_observations=filter_tensor(predicted_observations, attention_mask, observation_sizes),
                 predicted_actions=filter_tensor(predicted_actions, attention_mask, action_sizes),
                 observation_loss=observation_loss,
@@ -103,14 +103,14 @@ class MyModel(GPTNeoPreTrainedModel):
                 loss=0.0 * observation_loss + 1.0 * action_loss,
             )
         else:
-            return MyOutput(
+            return GIA2Output(
                 predicted_observations=filter_tensor(predicted_observations, attention_mask, observation_sizes),
                 predicted_actions=filter_tensor(predicted_actions, attention_mask, action_sizes),
             )
 
 
 if __name__ == "__main__":
-    from data_collator import ContinuousDataCollator
+    from gia2.data_collator import ContinuousDataCollator
 
     num_layers = 8
     continuous_max_size = 27
