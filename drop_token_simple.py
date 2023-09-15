@@ -128,6 +128,7 @@ if __name__ == "__main__":
         hidden_size=768,
         attention_types=[[["global", "local"], num_layers // 2]],
         window_size=512,
+        max_position_embeddings=512,
     )
     config.continuous_max_size = continuous_max_size
 
