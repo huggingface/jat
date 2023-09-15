@@ -73,7 +73,10 @@ class MyModel(GPTNeoPreTrainedModel):
         inputs_embeds = torch.cat((inputs_embeds_observations, inputs_embeds_actions), dim=2).view(
             batch_size, 2 * seq_len, self.config.hidden_size
         )
-        input_attention_mask = torch.repeat_interleave(attention_mask, repeats=2, dim=1)
+        if attention_mask is not None:
+            input_attention_mask = torch.repeat_interleave(attention_mask, repeats=2, dim=1)
+        else:
+            input_attention_mask = None
 
         transformer_outputs = self.transformer(inputs_embeds=inputs_embeds, attention_mask=input_attention_mask)
 
