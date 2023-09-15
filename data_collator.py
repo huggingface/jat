@@ -36,7 +36,7 @@ class ContinuousDataCollator:
         batch_size = len(batch)
 
         # Find the max sequence length in the batch
-        max_seq_len = max([x["continuous_observations"].shape[0] for x in batch])
+        max_seq_len = max([len(x["continuous_observations"]) for x in batch])
 
         # Initialize tensors with zeros for padding
         continuous_observations = torch.zeros(batch_size, max_seq_len, self.max_size, dtype=torch.float32)
@@ -44,31 +44,29 @@ class ContinuousDataCollator:
         rewards = torch.zeros(batch_size, max_seq_len, dtype=torch.float32)
         mask = torch.zeros(batch_size, max_seq_len, dtype=torch.bool)
 
-        observation_size = torch.zeros(batch_size, dtype=torch.int64)
-        action_size = torch.zeros(batch_size, dtype=torch.int64)
+        observation_sizes = torch.zeros(batch_size, dtype=torch.int64)
+        action_sizes = torch.zeros(batch_size, dtype=torch.int64)
 
         # Populate tensors with data
         for i, example in enumerate(batch):
-            seq_len = example["continuous_observations"].shape[0]
+            seq_len = len(example["continuous_observations"])
+            observation_size = len(example["continuous_observations"][0])
+            action_size = len(example["continuous_actions"][0])
 
-            continuous_observations[i, :seq_len, : example["continuous_observations"].shape[1]] = example[
-                "continuous_observations"
-            ]
-            continuous_actions[i, :seq_len, : example["continuous_actions"].shape[1]] = example["continuous_actions"]
+            continuous_observations[i, :seq_len, :observation_size] = example["continuous_observations"]
+            continuous_actions[i, :seq_len, :action_size] = example["continuous_actions"]
             rewards[i, :seq_len] = example["rewards"]
-
             mask[i, :seq_len] = 1
-
-            observation_size[i] = example["continuous_observations"].shape[1]
-            action_size[i] = example["continuous_actions"].shape[1]
+            observation_sizes[i] = observation_size
+            action_sizes[i] = action_size
 
         return {
             "continuous_observations": continuous_observations,
             "continuous_actions": continuous_actions,
             "rewards": rewards,
             "attention_mask": mask,
-            "observation_sizes": observation_size,
-            "action_sizes": action_size,
+            "observation_sizes": observation_sizes,
+            "action_sizes": action_sizes,
         }
 
 
