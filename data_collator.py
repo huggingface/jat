@@ -29,7 +29,7 @@ class ContinuousDataCollator:
         where `max_seq_len` is the maximum sequence length among all examples in the batch.
     """
 
-    def __init__(self, max_size, max_seq_len=512):
+    def __init__(self, max_size, max_seq_len=256):
         self.max_size = max_size
         self.max_seq_len = max_seq_len
 
@@ -69,7 +69,7 @@ class ContinuousDataCollator:
         print("mask", mask.shape)
         print("observation_sizes", observation_sizes.shape)
         print("action_sizes", action_sizes.shape)
-        
+
         return {
             "continuous_observations": continuous_observations,
             "continuous_actions": continuous_actions,
