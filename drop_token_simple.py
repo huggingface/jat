@@ -52,7 +52,7 @@ class MyModel(GPTNeoPreTrainedModel):
         # Pad observations with zeros if needed
         batch_size, seq_len, obs_size = continuous_observations.shape
         if obs_size < self.config.continuous_max_size:
-            assert observation_sizes is not None
+            assert observation_sizes is None
             pad_size = self.config.continuous_max_size - obs_size
             observation_sizes = torch.ones(batch_size, dtype=torch.int64) * obs_size
             continuous_observations = F.pad(continuous_observations, (0, pad_size))
@@ -62,7 +62,7 @@ class MyModel(GPTNeoPreTrainedModel):
         # Pad actions with zeros if needed
         batch_size, seq_len, action_size = continuous_actions.shape
         if action_size < self.config.continuous_max_size:
-            assert action_sizes is not None
+            assert action_sizes is None
             pad_size = self.config.continuous_max_size - action_size
             action_sizes = torch.ones(batch_size, dtype=torch.int64) * action_size
             continuous_actions = F.pad(continuous_actions, (0, pad_size))
