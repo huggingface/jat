@@ -120,13 +120,13 @@ def filter_tensor(tensor, mask, sizes):
     Returns:
         list of list of values
     """
-    batch_size, seq_len = mask.shape
+    batch_size, seq_len = tensor.shape[:2]
     nested_list = []
 
     for i in range(batch_size):
         batch_list = []
         for j in range(seq_len):
-            if mask[i, j].item() == 1:
+            if mask is None or mask[i, j].item() == 1:
                 obs_size = sizes[i].item()
                 values = tensor[i, j, :obs_size].tolist()
                 batch_list.append(values)
