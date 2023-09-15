@@ -53,9 +53,9 @@ class ContinuousDataCollator:
             observation_size = len(example["continuous_observations"][0])
             action_size = len(example["continuous_actions"][0])
 
-            continuous_observations[i, :seq_len, :observation_size] = example["continuous_observations"]
-            continuous_actions[i, :seq_len, :action_size] = example["continuous_actions"]
-            rewards[i, :seq_len] = example["rewards"]
+            continuous_observations[i, :seq_len, :observation_size] = torch.tensor(example["continuous_observations"])
+            continuous_actions[i, :seq_len, :action_size] = torch.tensor(example["continuous_actions"])
+            rewards[i, :seq_len] = torch.tensor(example["rewards"])
             mask[i, :seq_len] = 1
             observation_sizes[i] = observation_size
             action_sizes[i] = action_size
@@ -138,14 +138,14 @@ if __name__ == "__main__":
     # Example 1: Batch with different sequence lengths and feature sizes
     batch1 = [
         {
-            "continuous_observations": torch.rand(3, 4),
-            "continuous_actions": torch.rand(3, 5),
-            "rewards": torch.rand(3),
+            "continuous_observations": torch.rand(3, 4).tolist(),
+            "continuous_actions": torch.rand(3, 5).tolist(),
+            "rewards": torch.rand(3).tolist(),
         },
         {
-            "continuous_observations": torch.rand(2, 6),
-            "continuous_actions": torch.rand(2, 7),
-            "rewards": torch.rand(2),
+            "continuous_observations": torch.rand(2, 6).tolist(),
+            "continuous_actions": torch.rand(2, 7).tolist(),
+            "rewards": torch.rand(2).tolist(),
         },
     ]
     result1 = collator(batch1)
