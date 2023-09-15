@@ -44,18 +44,15 @@ class ContinuousDataCollator:
         continuous_actions = torch.zeros(batch_size, max_seq_len, self.max_size, dtype=torch.float32)
         rewards = torch.zeros(batch_size, max_seq_len, dtype=torch.float32)
         mask = torch.zeros(batch_size, max_seq_len, dtype=torch.bool)
-
         observation_sizes = torch.zeros(batch_size, dtype=torch.int64)
         action_sizes = torch.zeros(batch_size, dtype=torch.int64)
 
         # Populate tensors with data
-        for i, example in enumerate(batch):
+        for i, ex in enumerate(batch):
             # Convert to tensors and truncate
-            continuous_observation = torch.tensor(example["continuous_observations"], dtype=torch.float32)[
-                :max_seq_len
-            ]
-            continuous_action = torch.tensor(example["continuous_actions"], dtype=torch.float32)[:max_seq_len]
-            reward = torch.tensor(example["rewards"], dtype=torch.float32)[:max_seq_len]
+            continuous_observation = torch.tensor(ex["continuous_observations"], dtype=torch.float32)[:max_seq_len]
+            continuous_action = torch.tensor(ex["continuous_actions"], dtype=torch.float32)[:max_seq_len]
+            reward = torch.tensor(ex["rewards"], dtype=torch.float32)[:max_seq_len]
 
             seq_len, observation_size = continuous_observation.shape
             seq_len, action_size = continuous_action.shape
