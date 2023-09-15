@@ -197,7 +197,7 @@ if __name__ == "__main__":
                     torch.tensor([*actions, action_placeholder], dtype=torch.float32).unsqueeze(0).to("cuda")
                 )
                 output = model(continuous_observations, continuous_actions, return_loss=False)
-                action = output.predicted_actions[0, -1].cpu().numpy()
+                action = output.predicted_actions[0][-1]
             observation, reward, termined, truncated, _ = env.step(action)
             done = termined or truncated
             observations.append(observation["continuous_observations"])
