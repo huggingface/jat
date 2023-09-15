@@ -117,13 +117,13 @@ if __name__ == "__main__":
     tasks = [
         "mujoco-ant",
         "mujoco-doublependulum",
-        # "mujoco-halfcheetah",
-        # "mujoco-hopper",
-        # "mujoco-pendulum",
-        # "mujoco-reacher",
-        # "mujoco-swimmer",
-        # "mujoco-walker",
-        # "mujoco-pusher",
+        "mujoco-halfcheetah",
+        "mujoco-hopper",
+        "mujoco-pendulum",
+        "mujoco-reacher",
+        "mujoco-swimmer",
+        "mujoco-walker",
+        "mujoco-pusher",
     ]
 
     config = GPTNeoConfig(
@@ -154,16 +154,14 @@ if __name__ == "__main__":
     eval_dataset = {task: load_dataset("gia-project/gia-dataset-parquet", task, split="test[:100]") for task in tasks}
 
     args = TrainingArguments(
-        "checkpoints/v2_with_collator_bs3",
-        per_device_train_batch_size=3,
-        per_device_eval_batch_size=3,
+        "checkpoints/v2_with_collator_all_mujoco_afbs",
+        auto_find_batch_size=True,
         evaluation_strategy="steps",
         eval_steps=500,
         eval_delay=0,
         save_steps=5000,
         logging_steps=100,
         logging_first_step=True,
-        num_train_epochs=2,
         seed=seed,
     )
 
@@ -178,7 +176,7 @@ if __name__ == "__main__":
 
     # Test the model
     task = "mujoco-ant"
-    model = MyModel.from_pretrained("checkpoints/v2_with_collator_bs3/checkpoint-10000").to("cuda")
+    model = MyModel.from_pretrained("checkpoints/v2_with_collator_all_mujoco_afbs/checkpoint-10000").to("cuda")
 
     env = make(task, render_mode="rgb_array")
 
