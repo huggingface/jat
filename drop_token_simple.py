@@ -176,8 +176,8 @@ if __name__ == "__main__":
     trainer.train()
 
     # Test the model
-    task = "mujoco-walker"
-    model = MyModel.from_pretrained("checkpoints/v2_with_collator_bs3/checkpoint-").to("cuda")
+    task = "mujoco-ant"
+    model = MyModel.from_pretrained("checkpoints/v2_with_collator_bs3/checkpoint-10000").to("cuda")
 
     env = make(task, render_mode="rgb_array")
 
