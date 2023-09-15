@@ -196,7 +196,7 @@ if __name__ == "__main__":
                 continuous_actions = (
                     torch.tensor([*actions, action_placeholder], dtype=torch.float32).unsqueeze(0).to("cuda")
                 )
-                output = model(continuous_observations[:, :-256], continuous_actions[:, :-256], return_loss=False)
+                output = model(continuous_observations[:, -256:], continuous_actions[:, -256:], return_loss=False)
                 action = output.predicted_actions[0][-1]
             observation, reward, termined, truncated, _ = env.step(action)
             done = termined or truncated
