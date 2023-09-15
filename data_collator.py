@@ -29,14 +29,15 @@ class ContinuousDataCollator:
         where `max_seq_len` is the maximum sequence length among all examples in the batch.
     """
 
-    def __init__(self, max_size):
+    def __init__(self, max_size, max_seq_len=512):
         self.max_size = max_size
+        self.max_seq_len = max_seq_len
 
     def __call__(self, batch):
         batch_size = len(batch)
 
         # Find the max sequence length in the batch
-        max_seq_len = max([len(x["continuous_observations"]) for x in batch])
+        max_seq_len = min(max([len(x["continuous_observations"]) for x in batch]), self.max_seq_len)
 
         # Initialize tensors with zeros for padding
         continuous_observations = torch.zeros(batch_size, max_seq_len, self.max_size, dtype=torch.float32)
@@ -49,13 +50,19 @@ class ContinuousDataCollator:
 
         # Populate tensors with data
         for i, example in enumerate(batch):
-            seq_len = len(example["continuous_observations"])
-            observation_size = len(example["continuous_observations"][0])
-            action_size = len(example["continuous_actions"][0])
+            # Convert to tensors and truncate
+            continuous_observation = torch.tensor(example["continuous_observations"], dtype=torch.float32)[
+                :max_seq_len
+            ]
+            continuous_action = torch.tensor(example["continuous_actions"], dtype=torch.float32)[:max_seq_len]
+            reward = torch.tensor(example["rewards"], dtype=torch.float32)[:max_seq_len]
 
-            continuous_observations[i, :seq_len, :observation_size] = torch.tensor(example["continuous_observations"])
-            continuous_actions[i, :seq_len, :action_size] = torch.tensor(example["continuous_actions"])
-            rewards[i, :seq_len] = torch.tensor(example["rewards"])
+            seq_len, observation_size = continuous_observation.shape
+            seq_len, action_size = continuous_action.shape
+
+            continuous_observations[i, :seq_len, :observation_size] = continuous_observation
+            continuous_actions[i, :seq_len, :action_size] = continuous_action
+            rewards[i, :seq_len] = reward
             mask[i, :seq_len] = 1
             observation_sizes[i] = observation_size
             action_sizes[i] = action_size
