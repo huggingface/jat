@@ -63,7 +63,13 @@ class ContinuousDataCollator:
             mask[i, :seq_len] = 1
             observation_sizes[i] = observation_size
             action_sizes[i] = action_size
-
+        print("continuous_observations", continuous_observations.shape)
+        print("continuous_actions", continuous_actions.shape)
+        print("rewards", rewards.shape)
+        print("mask", mask.shape)
+        print("observation_sizes", observation_sizes.shape)
+        print("action_sizes", action_sizes.shape)
+        
         return {
             "continuous_observations": continuous_observations,
             "continuous_actions": continuous_actions,
