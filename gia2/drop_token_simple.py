@@ -7,10 +7,12 @@ import torch
 import torch.nn.functional as F
 from datasets import concatenate_datasets, load_dataset
 from torch import BoolTensor, FloatTensor, Tensor, nn
-from transformers import GPTNeoConfig, GPTNeoModel, GPTNeoPreTrainedModel, Trainer, TrainingArguments
+from transformers import GPTNeoConfig, GPTNeoModel, GPTNeoPreTrainedModel, TrainingArguments
 from transformers.modeling_outputs import ModelOutput
-
+from transformers.training_args import TrainingArguments
+from torch.utils.data import WeightedRandomSampler
 from gia2.data_collator import ContinuousDataCollator
+from gia2.trainer import MyTrainer
 from gia2.utils import compute_mse_loss, filter_tensor
 from gia.eval.rl import make
 
@@ -126,6 +128,10 @@ if __name__ == "__main__":
         "mujoco-walker",
         "mujoco-pusher",
     ]
+    weights = {
+        "mujoco-pendulum": 2.0,
+        "mujoco-hopper": 1.5,
+    }
 
     config = GPTNeoConfig(
         num_layers=num_layers,
@@ -149,10 +155,11 @@ if __name__ == "__main__":
     model = GIA2Model(config)
 
     # Load the dataset
-    train_dataset = concatenate_datasets(
-        [load_dataset("gia-project/gia-dataset-parquet", task, split="train") for task in tasks]
-    )
-    eval_dataset = {task: load_dataset("gia-project/gia-dataset-parquet", task, split="test[:100]") for task in tasks}
+    dataset = {task: load_dataset("gia-project/gia-dataset-parquet", task) for task in tasks}
+    train_dataset = {task: dataset[task]["train"] for task in tasks}
+    eval_dataset = {task: dataset[task]["test"] for task in tasks}
+    weights = [weights.get(task, 1.0) for task in tasks for _ in range(len(dataset[task]["train"]))]
+    sampler = WeightedRandomSampler(weights, num_samples=int(sum(weights)))
 
     args = TrainingArguments(
         "checkpoints/v2_with_collator_all_mujoco_afbs",
@@ -166,12 +173,13 @@ if __name__ == "__main__":
         seed=seed,
     )
 
-    trainer = Trainer(
-        model=model.to("cuda"),
-        train_dataset=train_dataset,
+    trainer = MyTrainer(
+        model=model,
+        train_dataset=concatenate_datasets(list(train_dataset.values())),
         eval_dataset=eval_dataset,
         data_collator=ContinuousDataCollator(continuous_max_size),
         args=args,
+        train_sampler=sampler,
     )
     trainer.train()
 
