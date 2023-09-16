@@ -1,9 +1,6 @@
-from typing import Any, Callable, Dict, List, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
-from torch import Tensor
-from torch.nn import Module
-from torch.optim import Optimizer
-from torch.optim.lr_scheduler import LambdaLR
+from torch import Tensor, nn, optim
 from torch.utils.data import Dataset, Sampler
 from transformers import (
     EvalPrediction,
@@ -13,22 +10,23 @@ from transformers import (
     TrainerCallback,
     TrainingArguments,
 )
+from transformers.data.data_collator import DataCollator
 
 
 class MyTrainer(Trainer):
     def __init__(
         self,
-        model: PreTrainedModel | Module = None,
+        model: Union[PreTrainedModel, nn.Module] = None,
         args: TrainingArguments = None,
-        data_collator: Any | None = None,
-        train_dataset: Dataset | None = None,
-        eval_dataset: Dataset | Dict[str, Dataset] | None = None,
-        tokenizer: PreTrainedTokenizerBase | None = None,
-        model_init: Callable[[], PreTrainedModel] | None = None,
-        compute_metrics: Callable[[EvalPrediction], Dict] | None = None,
-        callbacks: List[TrainerCallback] | None = None,
-        optimizers: Tuple[Optimizer, LambdaLR] = (None, None),
-        preprocess_logits_for_metrics: Callable[[Tensor, Tensor], Tensor] | None = None,
+        data_collator: Optional[DataCollator] = None,
+        train_dataset: Optional[Dataset] = None,
+        eval_dataset: Optional[Union[Dataset, Dict[str, Dataset]]] = None,
+        tokenizer: Optional[PreTrainedTokenizerBase] = None,
+        model_init: Optional[Callable[[], PreTrainedModel]] = None,
+        compute_metrics: Optional[Callable[[EvalPrediction], Dict]] = None,
+        callbacks: Optional[List[TrainerCallback]] = None,
+        optimizers: Tuple[optim.Optimizer, optim.lr_scheduler.LambdaLR] = (None, None),
+        preprocess_logits_for_metrics: Optional[Callable[[Tensor, Tensor], Tensor]] = None,
         train_sampler: Sampler[int] | None = None,
     ):
         super().__init__(
