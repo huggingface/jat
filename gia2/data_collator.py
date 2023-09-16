@@ -36,65 +36,47 @@ class ContinuousDataCollator:
         self.max_size = max_size
         self.max_seq_len = max_seq_len
 
-    def _collate_continuous(self, tensors: List[FloatTensor]) -> Tuple[FloatTensor, BoolTensor]:
+    def _collate(self, sequences: List) -> Tuple[FloatTensor, BoolTensor]:
         """
-        Collates a list of continuous tensors into a single tensor.
+        Collates a list of vectors into a single tensor, handling both nested and non-nested sequences.
 
         Args:
-            tensors (`List[torch.FloatTensor]`):
-                List of continuous tensors, each of shape `(seq_len, size)`.
+            sequences (`List`):
+                Sequence of vectors. Each vector can either be of shape `(seq_len,)` or `(seq_len, size)`.
 
         Returns:
-            collated (`torch.FloatTensor` of shape `(batch_size, max_seq_len, max_size)`):
+            collated (`torch.FloatTensor`):
+                If sequences are nested, shape is `(batch_size, max_seq_len, max_size)`.
+                Otherwise, shape is `(batch_size, max_seq_len)`.
                 Collated tensor with zeros for padding.
             mask (`torch.BoolTensor` of shape `(batch_size, max_seq_len)`):
                 Boolean mask indicating valid timesteps.
         """
-        batch_size = len(tensors)
+        batch_size = len(sequences)
+        max_seq_len = min(max([len(sequence) for sequence in sequences]), self.max_seq_len)
 
-        # Find the max sequence length in the batch
-        max_seq_len = min(max([len(x) for x in tensors]), self.max_seq_len)
+        is_nested = isinstance(sequences[0][0], list)
 
-        # Initialize tensor with zeros for padding
-        collated = torch.zeros(batch_size, max_seq_len, self.max_size, dtype=torch.float32, device=tensors[0].device)
+        if is_nested:
+            collated = torch.zeros(batch_size, max_seq_len, self.max_size, dtype=torch.float32)
+        else:
+            collated = torch.zeros(batch_size, max_seq_len, dtype=torch.float32)
+
         mask = torch.zeros(batch_size, max_seq_len, dtype=torch.bool)
 
-        # Populate tensor with data
-        for i, tensor in enumerate(tensors):
-            tensor = torch.tensor(tensor, dtype=torch.float32)[:max_seq_len]
-            seq_len, size = tensor.shape
-            collated[i, :seq_len, :size] = tensor
+        for i, sequence in enumerate(sequences):
+            sequence = torch.tensor(sequence, dtype=torch.float32)[:max_seq_len]
+            seq_len = sequence.shape[0]
+
+            if is_nested:
+                size = sequence.shape[1]
+                collated[i, :seq_len, :size] = sequence
+            else:
+                collated[i, :seq_len] = sequence
+
             mask[i, :seq_len] = 1
 
         return collated, mask
-
-    def _collate_rewards(self, tensors: List[FloatTensor]) -> FloatTensor:
-        """
-        Collates a list of reward tensors into a single tensor.
-
-        Args:
-            tensors (`List[torch.FloatTensor]`):
-                List of reward tensors, each of shape `(seq_len,)`.
-
-        Returns:
-            collated (`torch.FloatTensor` of shape `(batch_size, max_seq_len)`):
-                Collated tensor with zeros for padding.
-        """
-        batch_size = len(tensors)
-
-        # Find the max sequence length in the batch
-        max_seq_len = min(max([len(x) for x in tensors]), self.max_seq_len)
-
-        # Initialize tensor with zeros for padding
-        collated = torch.zeros(batch_size, max_seq_len, dtype=torch.float32, device=tensors[0].device)
-
-        # Populate tensor with data
-        for i, tensor in enumerate(tensors):
-            tensor = torch.tensor(tensor, dtype=torch.float32)[:max_seq_len]
-            seq_len = tensor.shape[0]
-            collated[i, :seq_len] = tensor
-
-        return collated
 
     def __call__(self, batch):
         # Separate observations, actions, and rewards
@@ -107,9 +89,9 @@ class ContinuousDataCollator:
         action_sizes = torch.tensor([len(x[0]) for x in continuous_actions], dtype=torch.long)
 
         # Collate observations, actions and rewards
-        continuous_observations, mask = self._collate_continuous(continuous_observations)
-        continuous_actions, mask = self._collate_continuous(continuous_actions)
-        rewards = self._collate_rewards(rewards)
+        continuous_observations, mask = self._collate(continuous_observations)
+        continuous_actions, mask = self._collate(continuous_actions)
+        rewards = self._collate(rewards)
 
         # Return collated data
         return {
