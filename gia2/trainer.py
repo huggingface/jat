@@ -27,7 +27,7 @@ class MyTrainer(Trainer):
         callbacks: Optional[List[TrainerCallback]] = None,
         optimizers: Tuple[optim.Optimizer, optim.lr_scheduler.LambdaLR] = (None, None),
         preprocess_logits_for_metrics: Optional[Callable[[Tensor, Tensor], Tensor]] = None,
-        train_sampler: Sampler[int] | None = None,
+        train_sampler: Optional[Sampler[int]] = None,
     ):
         super().__init__(
             model,
