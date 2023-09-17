@@ -218,9 +218,45 @@ def collate_fn(batch: List[Dict[str, List]]) -> Dict[str, Tensor]:
     return collated
 
 
+def preprocess_function(examples: Dict[str, Any], max_len: int) -> Dict[str, Any]:
+    """
+    Splits the sequences in the input dictionary into chunks of a specified maximum length.
+
+    Args:
+        examples (dict of lists of lists):
+            A dictionary where each key corresponds to a list of sequences. Each sequence is a list of elements.
+
+    Returns:
+        dict:
+            A dictionary with the same keys as the input. Each key corresponds to a list of chunks, where each chunk
+            is a subsequence of the input sequences with a length not exceeding the specified maximum length.
+
+    Examples:
+        >>> examples = {
+        ...     "key1": [[1, 2, 3], [4, 5, 6, 7]],
+        ...     "key2": [[8, 9, 10], [11, 12, 13, 14]}
+        >>> preprocess_function(examples, max_len=2)
+        {
+            "key1": [[1, 2], [3], [4, 5], [6, 7]],
+            "key2": [[8, 9], [10], [11, 12], [13, 14]],
+        }
+    """
+    out_dict = {key: [] for key in examples.keys()}
+    first_ep_batch = next(iter(examples.values()))
+    num_episodes = len(first_ep_batch)
+    for ep_idx in range(num_episodes):
+        ep_len = len(first_ep_batch[ep_idx])
+        for t in range(0, ep_len, max_len):
+            for key in examples.keys():
+                chunk = examples[key][ep_idx][t : t + max_len]
+                out_dict[key].append(chunk)
+
+    return out_dict
+
+
 if __name__ == "__main__":
     # Example: Batch with different sequence lengths and feature sizes
-    batch1 = [
+    batch = [
         {
             "continuous_observations": torch.rand(2, 4).tolist(),
             "continuous_actions": torch.rand(2, 3).tolist(),
@@ -232,5 +268,5 @@ if __name__ == "__main__":
             "rewards": torch.rand(3).tolist(),
         },
     ]
-    result1 = collate_fn(batch1)
-    print("Example:", result1)
+    result = collate_fn(batch)
+    print("Example:", result)
