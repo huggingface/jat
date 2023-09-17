@@ -1,5 +1,7 @@
 from typing import Any, List, Optional
 
+import cv2
+import numpy as np
 import torch
 from torch import BoolTensor, FloatTensor, LongTensor, Tensor, nn
 
@@ -33,6 +35,40 @@ def compute_mse_loss(predicted: FloatTensor, true: FloatTensor, mask: BoolTensor
 
     # Normalize by the number of valid elements
     loss /= expanded_mask.sum()
+
+    return loss
+
+
+def compute_ce_loss(predicted: torch.FloatTensor, true: torch.LongTensor, mask: torch.BoolTensor) -> torch.FloatTensor:
+    """
+    Compute the Cross Entropy (CE) loss between predicted logits and true labels, considering valid timesteps.
+
+    Args:
+        predicted (`torch.FloatTensor` of shape `(batch_size, max_seq_len, num_classes)`):
+            Predicted logits at the output of the model.
+        true (`torch.LongTensor` of shape `(batch_size, max_seq_len)`):
+            Ground truth integer labels.
+        mask (`torch.BoolTensor` of shape `(batch_size, max_seq_len)`):
+            Boolean mask indicating valid timesteps.
+
+    Returns:
+        loss (`torch.FloatTensor` of shape `(,)`):
+            CE loss between predicted logits and true labels.
+    """
+    # Flatten the tensors to fit the loss function's expected input shapes
+    flat_predicted = predicted.view(-1, predicted.size(-1))
+    flat_true = true.view(-1)
+    flat_mask = mask.view(-1)
+
+    # Compute CE loss
+    criterion = nn.CrossEntropyLoss(reduction="none")
+    losses = criterion(flat_predicted, flat_true)
+
+    # Apply the mask to the losses
+    masked_losses = losses * flat_mask.float()
+
+    # Compute the mean loss over the masked elements
+    loss = masked_losses.sum() / flat_mask.float().sum()
 
     return loss
 
@@ -101,3 +137,28 @@ def cyclic_expand_dim(tensor: Tensor, expanded_dim_size: int) -> Tensor:
     B, L, X = tensor.shape
     indices = torch.arange(expanded_dim_size) % X
     return tensor[..., indices]
+
+
+def write_video(frames: List[np.ndarray], filename: str, fps: int):
+    """
+    Writes a list of frames into a video file.
+
+    Args:
+        frames (`List[np.ndarray]`):
+            List of frames in RGB format.
+        filename (`str`):
+            Output video filename including the extension.
+        fps (`int`):
+            Frames per second for the output video.
+    """
+    # Initialize video writer
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    shape = (frames[0].shape[1], frames[0].shape[0])
+    out = cv2.VideoWriter(filename, fourcc, fps, shape)
+
+    # Write frames to video
+    for frame in frames:
+        out.write(frame[..., [2, 1, 0]])  # convert RGB to BGR and write
+
+    # Release resources
+    out.release()
