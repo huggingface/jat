@@ -4,16 +4,16 @@ from typing import Optional
 
 import numpy as np
 import torch
-import torch.nn.functional as F
 from datasets import concatenate_datasets, load_dataset
 from torch import BoolTensor, FloatTensor, Tensor, nn
 from transformers import GPTNeoConfig, GPTNeoModel, GPTNeoPreTrainedModel, TrainingArguments
 from transformers.modeling_outputs import ModelOutput
 from transformers.training_args import TrainingArguments
-from torch.utils.data import WeightedRandomSampler
+
 from gia2.data_collator import ContinuousDataCollator
+from gia2.sampler import MyBatchSampler
 from gia2.trainer import MyTrainer
-from gia2.utils import compute_mse_loss, filter_tensor
+from gia2.utils import compute_mse_loss, cyclic_expand_dim
 from gia.eval.rl import make
 
 
@@ -48,26 +48,16 @@ class GIA2Model(GPTNeoPreTrainedModel):
         continuous_actions: Optional[FloatTensor] = None,
         rewards: Optional[FloatTensor] = None,
         attention_mask: Optional[BoolTensor] = None,
-        observation_sizes: Optional[BoolTensor] = None,
-        action_sizes: Optional[BoolTensor] = None,
         return_loss: bool = True,
-    ):
+    ) -> GIA2Output:
         # Pad observations with zeros if needed
         batch_size, seq_len, obs_size = continuous_observations.shape
-        if observation_sizes is None:
-            pad_size = self.config.continuous_max_size - obs_size
-            observation_sizes = torch.ones(batch_size, dtype=torch.bool) * obs_size
-            continuous_observations = F.pad(continuous_observations, (0, pad_size))
-
+        continuous_observations = cyclic_expand_dim(continuous_observations, self.config.continuous_max_size)
         inputs_embeds_observations = self.continuous_encoder(continuous_observations)
 
         # Pad actions with zeros if needed
         batch_size, seq_len, action_size = continuous_actions.shape
-        if action_sizes is None:
-            pad_size = self.config.continuous_max_size - action_size
-            action_sizes = torch.ones(batch_size, dtype=torch.bool) * action_size
-            continuous_actions = F.pad(continuous_actions, (0, pad_size))
-
+        continuous_actions = cyclic_expand_dim(continuous_actions, self.config.continuous_max_size)
         inputs_embeds_actions = self.continuous_encoder(continuous_actions)
 
         # Interleave observations and actions
@@ -91,24 +81,20 @@ class GIA2Model(GPTNeoPreTrainedModel):
 
         if return_loss:
             observation_loss = compute_mse_loss(
-                pred_observations[:, :-1],
-                continuous_observations[:, 1:],
-                attention_mask[:, 1:],
-                observation_sizes,
+                pred_observations[:, :-1], continuous_observations[:, 1:], attention_mask[:, 1:]
             )
-            action_loss = compute_mse_loss(pred_actions, continuous_actions, attention_mask, action_sizes)
-
+            action_loss = compute_mse_loss(pred_actions, continuous_actions, attention_mask)
             return GIA2Output(
-                pred_observations=filter_tensor(pred_observations, attention_mask, observation_sizes),
-                pred_actions=filter_tensor(pred_actions, attention_mask, action_sizes),
+                pred_observations=pred_observations[..., :obs_size],
+                pred_actions=pred_actions[..., :action_size],
                 observation_loss=observation_loss,
                 action_loss=action_loss,
                 loss=0.0 * observation_loss + 1.0 * action_loss,
             )
         else:
             return GIA2Output(
-                pred_observations=filter_tensor(pred_observations, attention_mask, observation_sizes),
-                pred_actions=filter_tensor(pred_actions, attention_mask, action_sizes),
+                pred_observations=pred_observations[..., :obs_size],
+                pred_actions=pred_actions[..., :action_size],
             )
 
 
@@ -158,12 +144,13 @@ if __name__ == "__main__":
     dataset = {task: load_dataset("gia-project/gia-dataset-parquet", task) for task in tasks}
     train_dataset = {task: dataset[task]["train"] for task in tasks}
     eval_dataset = {task: dataset[task]["test"] for task in tasks}
-    weights = [weights.get(task, 1.0) for task in tasks for _ in range(len(dataset[task]["train"]))]
-    sampler = WeightedRandomSampler(weights, num_samples=int(sum(weights)))
+    sampler = MyBatchSampler(train_dataset, weights=weights)
+    train_dataset = concatenate_datasets(list(train_dataset.values()))
 
     args = TrainingArguments(
-        "checkpoints/v2_with_collator_all_mujoco_afbs",
+        "checkpoints/v2_with_collator_all_mujoco_cyclic_fill",
         auto_find_batch_size=True,
+        gradient_accumulation_steps=9,
         evaluation_strategy="steps",
         eval_steps=500,
         eval_delay=0,
@@ -175,7 +162,7 @@ if __name__ == "__main__":
 
     trainer = MyTrainer(
         model=model,
-        train_dataset=concatenate_datasets(list(train_dataset.values())),
+        train_dataset=train_dataset,
         eval_dataset=eval_dataset,
         data_collator=ContinuousDataCollator(continuous_max_size),
         args=args,
@@ -185,7 +172,9 @@ if __name__ == "__main__":
 
     # Test the model
     task = "mujoco-ant"
-    model = GIA2Model.from_pretrained("checkpoints/v2_with_collator_all_mujoco_afbs/checkpoint-10000").to("cuda")
+    model = GIA2Model.from_pretrained("checkpoints/v2_with_collator_all_mujoco_cyclic_fill/checkpoint-10000").to(
+        "cuda"
+    )
 
     env = make(task, render_mode="rgb_array")
 

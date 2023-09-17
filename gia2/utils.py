@@ -1,34 +1,27 @@
-import torch
-from torch import BoolTensor, FloatTensor, LongTensor, nn, Tensor
 from typing import Any, List, Optional
 
+import torch
+from torch import BoolTensor, FloatTensor, LongTensor, Tensor, nn
 
-def compute_mse_loss(predicted: FloatTensor, true: FloatTensor, mask: BoolTensor, sizes: LongTensor) -> FloatTensor:
+
+def compute_mse_loss(predicted: FloatTensor, true: FloatTensor, mask: BoolTensor) -> FloatTensor:
     """
-    Compute the Mean Squared Error (MSE) loss between predicted and true observations, considering valid timesteps and sizes.
+    Compute the Mean Squared Error (MSE) loss between predicted and true observations, considering valid timesteps.
 
     Args:
-        predicted (`torch.FloatTensor` of shape `(batch_size, max_seq_len, max_size)`):
+        predicted (`torch.FloatTensor` of shape `(batch_size, max_seq_len, ...)`):
             Predicted observations at the output of the model.
-        true (`torch.FloatTensor` of shape `(batch_size, max_seq_len, max_size)`):
+        true (`torch.FloatTensor` of shape `(batch_size, max_seq_len, ...)`):
             Ground truth observations.
         mask (`torch.BoolTensor` of shape `(batch_size, max_seq_len)`):
             Boolean mask indicating valid timesteps.
-        sizes (`torch.LongTensor` of shape `(batch_size,)`):
-            Sizes for each example in the batch.
 
     Returns:
         loss (`torch.FloatTensor` of shape `(,)`):
             MSE loss between predicted and true observations.
     """
-    # Initialize a mask for valid observation sizes
-    size_mask = torch.zeros_like(predicted, dtype=torch.bool, device=predicted.device)
-
-    for i, size in enumerate(sizes):
-        size_mask[i, :, :size] = 1
-
     # Expand timestep mask and apply observation size mask
-    expanded_mask = mask.unsqueeze(-1).expand_as(predicted) * size_mask
+    expanded_mask = mask.unsqueeze(-1).expand_as(predicted)
 
     # Mask the predicted and true observations
     masked_predicted = predicted * expanded_mask
@@ -84,3 +77,27 @@ def filter_tensor(
         nested_list.append(batch_list)
 
     return nested_list
+
+
+def cyclic_expand_dim(tensor: Tensor, expanded_dim_size: int) -> Tensor:
+    """
+    Expands the last dimension of a tensor cyclically to a specified size.
+
+    Args:
+        tensor (`torch.Tensor` of shape `(batch_size, seq_len, ...)`):
+            Input tensor whose last dimension is to be expanded cyclically.
+        expanded_dim_size (`int`):
+            The desired size of the last dimension after expansion.
+
+    Returns:
+        `torch.Tensor` of shape `(batch_size, seq_len, expanded_dim_size)`:
+            A tensor with its last dimension expanded cyclically to the specified size.
+
+    Examples:
+        >>> tensor = torch.tensor([[[1, 2], [3, 4]], [[5, 6], [7, 8]]])
+        >>> cyclic_expand_dim(tensor, 5)
+        tensor([[[1, 2, 1, 2, 1], [3, 4, 3, 4, 3]], [[5, 6, 5, 6, 5], [7, 8, 7, 8, 7]]])
+    """
+    B, L, X = tensor.shape
+    indices = torch.arange(expanded_dim_size) % X
+    return tensor[..., indices]

@@ -1,6 +1,7 @@
 from typing import List, Tuple
 
 import torch
+import torch.nn.functional as F
 from torch import BoolTensor, FloatTensor
 
 from gia2.utils import compute_mse_loss, filter_tensor
@@ -36,7 +37,7 @@ class ContinuousDataCollator:
         self.max_size = max_size
         self.max_seq_len = max_seq_len
 
-    def _collate(self, sequences: List) -> Tuple[FloatTensor, BoolTensor]:
+    def _collate(self, sequences: List, dtype) -> Tuple[FloatTensor, BoolTensor]:
         """
         Collates a list of vectors into a single tensor, handling both nested and non-nested sequences.
 
@@ -45,7 +46,7 @@ class ContinuousDataCollator:
                 Sequence of vectors. Each vector can either be of shape `(seq_len,)` or `(seq_len, size)`.
 
         Returns:
-            collated (`torch.FloatTensor`):
+            collated (`torch.Tensor`):
                 If sequences are nested, shape is `(batch_size, max_seq_len, max_size)`.
                 Otherwise, shape is `(batch_size, max_seq_len)`.
                 Collated tensor with zeros for padding.
@@ -55,53 +56,40 @@ class ContinuousDataCollator:
         batch_size = len(sequences)
         max_seq_len = min(max([len(sequence) for sequence in sequences]), self.max_seq_len)
 
-        is_nested = isinstance(sequences[0][0], list)
-
-        if is_nested:
-            collated = torch.zeros(batch_size, max_seq_len, self.max_size, dtype=torch.float32)
-        else:
-            collated = torch.zeros(batch_size, max_seq_len, dtype=torch.float32)
-
+        data_shape = torch.tensor(sequences[0][0]).shape
+        collated = torch.zeros(batch_size, max_seq_len, *data_shape, dtype=dtype)
         mask = torch.zeros(batch_size, max_seq_len, dtype=torch.bool)
 
+        # Pad sequences with zeros
         for i, sequence in enumerate(sequences):
-            sequence = torch.tensor(sequence, dtype=torch.float32)[:max_seq_len]
-            seq_len = sequence.shape[0]
-
-            if is_nested:
-                size = sequence.shape[1]
-                collated[i, :seq_len, :size] = sequence
-            else:
-                collated[i, :seq_len] = sequence
-
+            seq_len = min(len(sequence), max_seq_len)
+            collated[i, :seq_len] = torch.tensor(sequence[:seq_len])
             mask[i, :seq_len] = 1
 
         return collated, mask
 
     def __call__(self, batch):
-        # Separate observations, actions, and rewards
-        continuous_observations = [x["continuous_observations"] for x in batch]
-        continuous_actions = [x["continuous_actions"] for x in batch]
-        rewards = [x["rewards"] for x in batch]
+        collated = {}
 
-        # Compute observation and action sizes
-        observation_sizes = torch.tensor([len(x[0]) for x in continuous_observations], dtype=torch.long)
-        action_sizes = torch.tensor([len(x[0]) for x in continuous_actions], dtype=torch.long)
+        continuous_keys = ["continuous_observations", "continuous_actions", "rewards"]
+        for key in continuous_keys:
+            if key in batch[0]:
+                values = [x[key] for x in batch]
+                collated[key], collated["attention_mask"] = self._collate(values, dtype=torch.float32)
+        
+        discrete_keys = ["discrete_observations", "discrete_actions", "text_observations"]
+        for key in discrete_keys:
+            if key in batch[0]:
+                values = [x[key] for x in batch]
+                collated[key], _ = self._collate(values, dtype=torch.int64)
+        
+        image_keys = ["image_observations"]
+        for key in image_keys:
+            if key in batch[0]:
+                values = [x[key] for x in batch]
+                collated[key], _ = self._collate(values, dtype=torch.float32)
 
-        # Collate observations, actions and rewards
-        continuous_observations, mask = self._collate(continuous_observations)
-        continuous_actions, mask = self._collate(continuous_actions)
-        rewards = self._collate(rewards)
-
-        # Return collated data
-        return {
-            "continuous_observations": continuous_observations,
-            "continuous_actions": continuous_actions,
-            "rewards": rewards,
-            "attention_mask": mask,
-            "observation_sizes": observation_sizes,
-            "action_sizes": action_sizes,
-        }
+        return collated
 
 
 if __name__ == "__main__":
