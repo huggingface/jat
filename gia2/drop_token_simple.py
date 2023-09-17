@@ -60,7 +60,7 @@ class GIA2Model(GPTNeoPreTrainedModel):
         continuous_actions = cyclic_expand_dim(continuous_actions, self.config.continuous_max_size)
         inputs_embeds_actions = self.continuous_encoder(continuous_actions)
 
-        # Interleave observations and actions
+        # Interleave observations and actions repeat attention_mask accordingly
         inputs_embeds = torch.cat((inputs_embeds_observations, inputs_embeds_actions), dim=2).view(
             batch_size, 2 * seq_len, self.config.hidden_size
         )
@@ -74,8 +74,8 @@ class GIA2Model(GPTNeoPreTrainedModel):
         hidden_states = transformer_outputs[0]
 
         # Un-interleave observations and actions (warning, shifted by 1)
-        hidden_observations = hidden_states[..., 1::2, :]
-        hidden_actions = hidden_states[..., ::2, :]
+        hidden_observations = hidden_states[:, 1::2]
+        hidden_actions = hidden_states[:, ::2]
         pred_observations = self.continuous_decoder(hidden_observations)
         pred_actions = self.continuous_decoder(hidden_actions)
 
@@ -114,10 +114,7 @@ if __name__ == "__main__":
         "mujoco-walker",
         "mujoco-pusher",
     ]
-    weights = {
-        "mujoco-pendulum": 2.0,
-        "mujoco-hopper": 1.5,
-    }
+    weights = {}
 
     config = GPTNeoConfig(
         num_layers=num_layers,
