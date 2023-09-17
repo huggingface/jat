@@ -1,4 +1,4 @@
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
@@ -162,3 +162,75 @@ def write_video(frames: List[np.ndarray], filename: str, fps: int):
 
     # Release resources
     out.release()
+
+
+def _collate(sequences: List[List], dtype: torch.dtype) -> Tuple[FloatTensor, BoolTensor]:
+    """
+    Collates a list of vectors into a single tensor.
+
+    Args:
+        sequences (`List[List]`):
+            List of sequences, i.e. list of object that can be either single value or nested structure.
+
+    Returns:
+        collated (`torch.Tensor`):
+            Collated tensor of shape `(batch_size, max_seq_len, ...)`.
+        mask (`torch.BoolTensor` of shape `(batch_size, max_seq_len)`):
+            Boolean mask indicating valid timesteps.
+    """
+    batch_size = len(sequences)
+    max_seq_len = max([len(sequence) for sequence in sequences])
+
+    data_shape = torch.tensor(sequences[0][0]).shape
+    collated = torch.zeros(batch_size, max_seq_len, *data_shape, dtype=dtype)
+    mask = torch.zeros(batch_size, max_seq_len, dtype=torch.bool)
+
+    # Pad sequences with zeros
+    for i, sequence in enumerate(sequences):
+        seq_len = min(len(sequence), max_seq_len)
+        collated[i, :seq_len] = torch.tensor(sequence[:seq_len])
+        mask[i, :seq_len] = 1
+
+    return collated, mask
+
+
+def collate_fn(batch: List[Dict[str, List]]) -> Dict[str, Tensor]:
+    collated = {}
+
+    continuous_keys = ["continuous_observations", "continuous_actions", "rewards"]
+    for key in continuous_keys:
+        if key in batch[0]:
+            values = [x[key] for x in batch]
+            collated[key], collated["attention_mask"] = _collate(values, dtype=torch.float32)
+
+    discrete_keys = ["discrete_observations", "discrete_actions", "text_observations"]
+    for key in discrete_keys:
+        if key in batch[0]:
+            values = [x[key] for x in batch]
+            collated[key], _ = _collate(values, dtype=torch.int64)
+
+    image_keys = ["image_observations"]
+    for key in image_keys:
+        if key in batch[0]:
+            values = [x[key] for x in batch]
+            collated[key], _ = _collate(values, dtype=torch.float32)
+
+    return collated
+
+
+if __name__ == "__main__":
+    # Example: Batch with different sequence lengths and feature sizes
+    batch1 = [
+        {
+            "continuous_observations": torch.rand(2, 4).tolist(),
+            "continuous_actions": torch.rand(2, 3).tolist(),
+            "rewards": torch.rand(2).tolist(),
+        },
+        {
+            "continuous_observations": torch.rand(3, 4).tolist(),
+            "continuous_actions": torch.rand(3, 3).tolist(),
+            "rewards": torch.rand(3).tolist(),
+        },
+    ]
+    result1 = collate_fn(batch1)
+    print("Example:", result1)
