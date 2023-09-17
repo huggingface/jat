@@ -1,7 +1,7 @@
 import json
 import random
 from dataclasses import dataclass
-from typing import Optional
+from typing import List, Optional
 
 import cv2
 import datasets
@@ -70,13 +70,13 @@ class MuJoCoModel(GPTNeoPreTrainedModel):
         super().__init__(config)
 
         # Encoders
-        self.continuous_encoder = nn.Linear(config.continuous_max_size, config.hidden_size)
+        self.continuous_encoder = nn.Linear(config.max_continuous_size, config.hidden_size)
 
         # Transformer
         self.transformer = GPTNeoModel(config)
 
         # Decoders
-        self.continuous_decoder = nn.Linear(config.hidden_size, config.continuous_max_size, bias=False)
+        self.continuous_decoder = nn.Linear(config.hidden_size, config.max_continuous_size)
 
         # Initialize weights and apply final processing
         self.post_init()
@@ -91,12 +91,12 @@ class MuJoCoModel(GPTNeoPreTrainedModel):
     ):
         # Pad observations with zeros
         batch_size, seq_len, observation_size = continuous_observations.shape
-        padded_observations = F.pad(continuous_observations, (0, self.config.continuous_max_size - observation_size))
+        padded_observations = F.pad(continuous_observations, (0, self.config.max_continuous_size - observation_size))
         inputs_embeds_observations = self.continuous_encoder(padded_observations)
 
         # Pad actions and actions with zeros and mask them
         batch_size, seq_len, action_size = continuous_actions.shape
-        padded_actions = F.pad(continuous_actions, (0, self.config.continuous_max_size - action_size))
+        padded_actions = F.pad(continuous_actions, (0, self.config.max_continuous_size - action_size))
         inputs_embeds_actions = self.continuous_encoder(padded_actions)
 
         # Interleave observations and actions
@@ -295,9 +295,10 @@ class AtariModel(GPTNeoPreTrainedModel):
 
 
 class MyBatchSampler(BatchSampler):
-    def __init__(self, sizes, batch_size, loss_weights=None):
+    def __init__(self, sizes: List[int], batch_size: int, weights: List[int] = None):
         self.sizes = sizes
         self.batch_size = batch_size
+        self.weights = weights
 
     def __iter__(self):
         # Create a list of indices for each dataset
@@ -306,6 +307,8 @@ class MyBatchSampler(BatchSampler):
 
         for size in self.sizes:
             sublist = list(range(cum_sum, cum_sum + size))
+            # or randomly select n indices between cum_sum and cum_sum + size
+            # sublist = random.sample(range(cum_sum, cum_sum + size), n)
             random.shuffle(sublist)
             indices_list.append(sublist)
             cum_sum += size
@@ -363,7 +366,7 @@ class MyTrainer(Trainer):
 
 def train_mujoco(tasks, experience):
     num_layers = 8
-    continuous_max_size = 39
+    max_continuous_size = 39
 
     config = GPTNeoConfig(
         num_layers=num_layers,
@@ -372,7 +375,7 @@ def train_mujoco(tasks, experience):
         attention_types=[[["global", "local"], num_layers // 2]],
         window_size=512,
     )
-    config.continuous_max_size = continuous_max_size
+    config.max_continuous_size = max_continuous_size
 
     model = MuJoCoModel(config)
 
