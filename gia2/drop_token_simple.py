@@ -148,6 +148,7 @@ if __name__ == "__main__":
         "checkpoints/v2_with_collator_all_mujoco_cyclic_fill",
         auto_find_batch_size=True,
         gradient_accumulation_steps=9,
+        do_eval=True,
         eval_delay=0,
         eval_steps=0.1,
         save_steps=0.1,
@@ -189,7 +190,7 @@ if __name__ == "__main__":
                     torch.tensor([*actions, action_placeholder], dtype=torch.float32).unsqueeze(0).to("cuda")
                 )
                 output = model(continuous_observations[:, -256:], continuous_actions[:, -256:], return_loss=False)
-                action = output.pred_actions[0][-1]
+                action = output.pred_actions[0, -1].cpu().numpy()
             observation, reward, termined, truncated, _ = env.step(action)
             done = termined or truncated
             observations.append(observation["continuous_observations"])
