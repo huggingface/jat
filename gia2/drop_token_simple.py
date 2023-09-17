@@ -10,7 +10,6 @@ from transformers import GPTNeoConfig, GPTNeoModel, GPTNeoPreTrainedModel, Train
 from transformers.modeling_outputs import ModelOutput
 from transformers.training_args import TrainingArguments
 
-from gia2.data_collator import ContinuousDataCollator
 from gia2.sampler import MyBatchSampler
 from gia2.trainer import MyTrainer
 from gia2.utils import compute_mse_loss, cyclic_expand_dim
@@ -99,7 +98,7 @@ class GIA2Model(GPTNeoPreTrainedModel):
 
 
 if __name__ == "__main__":
-    from gia2.data_collator import ContinuousDataCollator
+    from gia2.data_collator import DataCollator
 
     num_layers = 8
     continuous_max_size = 27
@@ -161,7 +160,7 @@ if __name__ == "__main__":
         model=model,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
-        data_collator=ContinuousDataCollator(continuous_max_size),
+        data_collator=DataCollator(continuous_max_size),
         args=args,
         train_sampler=sampler,
     )

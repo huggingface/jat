@@ -1,13 +1,12 @@
 from typing import List, Tuple
 
 import torch
-import torch.nn.functional as F
 from torch import BoolTensor, FloatTensor
 
 from gia2.utils import compute_mse_loss, filter_tensor
 
 
-class ContinuousDataCollator:
+class DataCollator:
     """
     Collates a list of dictionaries containing continuous observations, actions, and rewards into a single batch.
 
@@ -76,13 +75,13 @@ class ContinuousDataCollator:
             if key in batch[0]:
                 values = [x[key] for x in batch]
                 collated[key], collated["attention_mask"] = self._collate(values, dtype=torch.float32)
-        
+
         discrete_keys = ["discrete_observations", "discrete_actions", "text_observations"]
         for key in discrete_keys:
             if key in batch[0]:
                 values = [x[key] for x in batch]
                 collated[key], _ = self._collate(values, dtype=torch.int64)
-        
+
         image_keys = ["image_observations"]
         for key in image_keys:
             if key in batch[0]:
@@ -94,7 +93,7 @@ class ContinuousDataCollator:
 
 if __name__ == "__main__":
     # Initialize the collator with max_size=10
-    collator = ContinuousDataCollator(max_size=10)
+    collator = DataCollator(max_size=10)
 
     # Example 1: Batch with different sequence lengths and feature sizes
     batch1 = [
