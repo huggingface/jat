@@ -60,7 +60,7 @@ class Gia2Config(GPTNeoConfig):
             The maximum size of the continuous values.
     """
 
-    model_type = "gia"
+    model_type = "gpt_neo"
 
     def __init__(
         self,
