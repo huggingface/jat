@@ -51,6 +51,11 @@ class DataTrainingArguments:
     )
 
 
+LOSS_WEIGHTS = {
+    "mujoco-pendulum": 10.0,
+}
+
+
 def main():
     parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments))
 
@@ -80,9 +85,22 @@ def main():
         tasks = [env_id for env_id in TASK_NAME_TO_ENV_ID.keys() if env_id.startswith(tasks)]
 
     # Load the dataset
-    dataset = {task: load_dataset("gia-project/gia-dataset-parquet", task) for task in tasks}
+    dataset = {t: load_dataset("gia-project/gia-dataset-parquet", t) for t in tasks}
+
+    # Add loss weight
+    for task in dataset.keys():
+        for split in dataset[task].keys():
+            loss_weight = [LOSS_WEIGHTS.get(task, 1.0)] * len(dataset[task][split])
+            dataset[task][split] = dataset[task][split].add_column("loss_weight", loss_weight)
+
+    # Preprocess the dataset
     dataset = {
-        t: d.map(preprocess_function, batched=True, fn_kwargs={"max_len": 256}, num_proc=data_args.preprocess_num_proc)
+        t: d.map(
+            preprocess_function,
+            batched=True,
+            fn_kwargs={"max_len": config.max_position_embeddings // 2},
+            num_proc=data_args.preprocess_num_proc,
+        )
         for t, d in dataset.items()
     }
     train_dataset = {t: d["train"] for t, d in dataset.items()}
