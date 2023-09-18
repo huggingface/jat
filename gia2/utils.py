@@ -1,12 +1,21 @@
+import json
+import os
+import shutil
+import tempfile
 from typing import Any, Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
 import torch
+from huggingface_hub import EvalResult, HfApi, ModelCard, ModelCardData
 from torch import BoolTensor, FloatTensor, LongTensor, Tensor, nn
 
+from gia.eval.rl.envs.core import TASK_NAME_TO_ENV_ID
 
-def compute_mse_loss(predicted: FloatTensor, true: FloatTensor, mask: BoolTensor) -> FloatTensor:
+
+def compute_mse_loss(
+    predicted: FloatTensor, true: FloatTensor, mask: BoolTensor, weights: FloatTensor = None
+) -> FloatTensor:
     """
     Compute the Mean Squared Error (MSE) loss between predicted and true observations, considering valid timesteps.
 
@@ -30,11 +39,18 @@ def compute_mse_loss(predicted: FloatTensor, true: FloatTensor, mask: BoolTensor
     masked_true = true * expanded_mask
 
     # Compute MSE loss
-    criterion = nn.MSELoss(reduction="sum")
+    criterion = nn.MSELoss(reduction="none")
     loss = criterion(masked_predicted, masked_true)
+    # Sum overall dimensions except the first one (batch size)
+    loss = torch.sum(loss, dim=tuple(range(1, loss.ndim)))
+    # Apply weights and sum
+    if weights is not None:
+        loss = loss * weights
+
+    loss = torch.sum(loss)
 
     # Normalize by the number of valid elements
-    loss /= expanded_mask.sum()
+    loss /= torch.sum(expanded_mask)
 
     return loss
 
@@ -215,6 +231,9 @@ def collate_fn(batch: List[Dict[str, List]]) -> Dict[str, Tensor]:
             values = [x[key] for x in batch]
             collated[key], _ = _collate(values, dtype=torch.float32)
 
+    if "loss_weight" in batch[0]:
+        collated["loss_weight"] = torch.tensor([x["loss_weight"] for x in batch], dtype=torch.float32)
+
     return collated
 
 
@@ -248,25 +267,189 @@ def preprocess_function(examples: Dict[str, Any], max_len: int) -> Dict[str, Any
         ep_len = len(first_ep_batch[ep_idx])
         for t in range(0, ep_len, max_len):
             for key in examples.keys():
-                chunk = examples[key][ep_idx][t : t + max_len]
+                if hasattr(examples[key][ep_idx], "__len__"):
+                    chunk = examples[key][ep_idx][t : t + max_len]
+                else:
+                    chunk = examples[key][ep_idx]
                 out_dict[key].append(chunk)
 
     return out_dict
 
 
-if __name__ == "__main__":
-    # Example: Batch with different sequence lengths and feature sizes
-    batch = [
-        {
-            "continuous_observations": torch.rand(2, 4).tolist(),
-            "continuous_actions": torch.rand(2, 3).tolist(),
-            "rewards": torch.rand(2).tolist(),
-        },
-        {
-            "continuous_observations": torch.rand(3, 4).tolist(),
-            "continuous_actions": torch.rand(3, 3).tolist(),
-            "rewards": torch.rand(3).tolist(),
-        },
-    ]
-    result = collate_fn(batch)
-    print("Example:", result)
+def generate_eval_results(scores_dict: Dict[str, List[float]]) -> List[EvalResult]:
+    """
+    Generate a list of EvalResult objects.
+
+    Args:
+        scores_dict (`Dict[str, List[float]]`):
+            Dictionary containing the scores for each task.
+
+    Returns:
+        `List[EvalResult]`:
+            A list of EvalResult objects.
+    """
+    eval_results = []
+    for task_name, scores in scores_dict.items():
+        mean_reward = np.mean(scores)
+        std_reward = np.std(scores)
+
+        eval_results.append(
+            EvalResult(
+                task_type="reinforcement-learning",
+                task_name="Reinforcement Learning",
+                dataset_type=task_name,
+                dataset_name=TASK_NAME_TO_ENV_ID[task_name],
+                metric_type="total_reward",
+                metric_name="Total reward",
+                metric_value=f"{mean_reward:.2f} +/- {std_reward:.2f}",
+            )
+        )
+
+    for task_name, scores in scores_dict.items():
+        mean_reward = np.mean(scores)
+        std_reward = np.std(scores)
+        with open("gia/eval/rl/scores_dict.json", "r") as file:
+            scores_dict = json.load(file)
+
+        expert_score = scores_dict[task_name]["expert"]["mean"]
+        random_score = scores_dict[task_name]["random"]["mean"]
+        norm_mean_reward = (mean_reward - random_score) / (expert_score - random_score)
+        norm_std_reward = std_reward / (expert_score - random_score)
+
+        eval_results.append(
+            EvalResult(
+                task_type="reinforcement-learning",
+                task_name="Reinforcement Learning",
+                dataset_type=task_name,
+                dataset_name=TASK_NAME_TO_ENV_ID[task_name],
+                metric_type="expert_normalized_total_reward",
+                metric_name="Expert normalized total reward",
+                metric_value=f"{norm_mean_reward:.2f} +/- {norm_std_reward:.2f}",
+            )
+        )
+    return eval_results
+
+
+def generate_model_card(model_name: str, scores_dict: Dict[str, List[float]]) -> ModelCard:
+    """
+    Generate a ModelCard from a template.
+
+    Args:
+        model_name (`str`):
+            Model name.
+        scores_dict (`Dict[str, List[float]]`):
+            Dictionary containing the scores for each task.
+
+    Returns:
+        `ModelCard`:
+            A ModelCard object.
+    """
+    card_data = ModelCardData(
+        tags=["reinforcement-learning", *scores_dict.keys()],
+        eval_results=generate_eval_results(scores_dict),
+        model_name=model_name,
+        datasets="gia-project/gia-dataset-parquet",
+    )
+    card = ModelCard.from_template(
+        card_data,
+        template_path="templates/model_card.md",
+        model_name=model_name,
+        model_id="GIA2",
+        tasks=[TASK_NAME_TO_ENV_ID[task_name] for task_name in scores_dict.keys()],
+    )
+    return card
+
+
+def push_to_hub(path: str, repo_id: str, scores_dict: Dict[str, List[float]]) -> None:
+    """
+    Push a model to the Hugging Face Hub.
+
+    Args:
+        path (`str`):
+            Path to the model directory.
+        repo_id (`str`):
+            Repository ID to push to.
+        scores_dict (`Dict[str, List[float]]`):
+            Dictionary containing the scores for each task.
+    """
+    # Create a temporary directory
+    tmp_dir = tempfile.mkdtemp()
+
+    # Copy the files to the temporary directory
+    for file in ["pytorch_model.bin", "config.json", "replay.mp4"]:
+        if os.path.exists(os.path.join(path, file)):
+            source_file = os.path.join(path, file)
+            shutil.copy(source_file, tmp_dir)
+        else:
+            print(f"WARNING: {file} not found in {path}")
+
+    # Create a README.md using a template
+    model_card = generate_model_card(repo_id, scores_dict)
+    model_card.save(os.path.join(tmp_dir, "README.md"))
+
+    print(f"All tasks completed. Files moved to: {tmp_dir}")
+
+    api = HfApi()
+    api.create_repo(repo_id=repo_id, repo_type="model", exist_ok=True)
+    api.upload_folder(repo_id=repo_id, folder_path=tmp_dir, commit_message="Upload model", repo_type="model")
+
+
+def save_video_grid(
+    videos: List[List[np.ndarray]],
+    output_filename: str = "output.mp4",
+    fps: int = 30,
+    max_length_seconds: Optional[int] = None,
+) -> None:
+    """
+    Save a grid video from a list of videos.
+
+    Args:
+        videos (`List[List[np.ndarray]]`):
+            List of videos, where each video is a list of frames in RGB format.
+        output_filename (`str`, **optional**):
+            Output video filename including the extension.
+        fps (`int`, **optional**):
+            Frames per second for the output video.
+        max_length_seconds (`Optional[int]`, **optional**):
+            Maximum length of the output video in seconds. If None, the length of the longest video is used.
+    """
+    # Check if there are any videos
+    if not videos:
+        raise ValueError("No videos provided")
+
+    # Get the shape of a frame from the first video
+    frame_height, frame_width, _ = videos[0][0].shape
+
+    # Determine grid size based on the number of videos
+    num_cols = int(np.ceil(np.sqrt(len(videos))))
+    num_rows = int(np.ceil(len(videos) / num_cols))
+    grid_height = frame_height * num_rows
+    grid_width = frame_width * num_cols
+
+    # Define the codec and create a VideoWriter object
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    temp_filename = tempfile.mktemp(suffix=".mp4")
+    out = cv2.VideoWriter(temp_filename, fourcc, fps, (grid_width, grid_height))
+
+    # Number of frames in the longest video, if max_length_seconds is specified, adjust max_frames
+    max_frames = max(len(video) for video in videos)
+    if max_length_seconds is not None:
+        max_frames = min(max_frames, fps * max_length_seconds)
+
+    for frame_idx in range(max_frames):
+        # Create an empty grid
+        grid = np.zeros((grid_height, grid_width, 3), dtype=np.uint8)
+
+        for video_idx, video in enumerate(videos):
+            # Use modulo to loop over the frames of each video
+            looped_frame_idx = frame_idx % len(video)
+            frame = video[looped_frame_idx]
+            row = video_idx // num_cols
+            col = video_idx % num_cols
+            grid[row * frame_height : (row + 1) * frame_height, col * frame_width : (col + 1) * frame_width] = frame
+
+        grid = grid[..., [2, 1, 0]]  # RGB to BGR
+        out.write(grid)
+
+    out.release()
+    os.system(f"ffmpeg -y -i {temp_filename} -vcodec h264 {output_filename}")
