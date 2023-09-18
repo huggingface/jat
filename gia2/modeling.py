@@ -155,6 +155,7 @@ class GIA2Model(GPTNeoPreTrainedModel):
         rewards: Optional[FloatTensor] = None,
         attention_mask: Optional[BoolTensor] = None,
         return_loss: bool = True,
+        loss_weight: Optional[FloatTensor] = None,
     ) -> GIA2Output:
         if continuous_observations is not None:
             batch_size, seq_len, obs_size = continuous_observations.shape
@@ -194,7 +195,10 @@ class GIA2Model(GPTNeoPreTrainedModel):
             pred_observations = self.continuous_decoder(hidden_observations)
             if return_loss:
                 observation_loss = compute_mse_loss(
-                    pred_observations[:, :-1], continuous_observations[:, 1:], attention_mask[:, 1:]
+                    pred_observations[:, :-1],
+                    continuous_observations[:, 1:],
+                    attention_mask[:, 1:],
+                    weights=loss_weight,
                 )
             pred_observations = pred_observations[..., :obs_size]
         elif discrete_observations is not None:
@@ -205,7 +209,7 @@ class GIA2Model(GPTNeoPreTrainedModel):
         if continuous_actions is not None:
             pred_actions = self.continuous_decoder(hidden_actions)
             if return_loss:
-                action_loss = compute_mse_loss(pred_actions, continuous_actions, attention_mask)
+                action_loss = compute_mse_loss(pred_actions, continuous_actions, attention_mask, weights=loss_weight)
             pred_actions = pred_actions[..., :action_size]
         elif discrete_actions is not None:
             raise NotImplementedError
