@@ -1,11 +1,12 @@
 import random
 import warnings
 from functools import partial
-from typing import Dict, List, TypeVar, Union
+from typing import Dict, List, TypeVar, Union, Tuple
 
 import numpy as np
 from datasets import Dataset, get_dataset_config_names, load_dataset
-
+from datasets import concatenate_datasets, Dataset
+from gia.processing import GiaProcessor
 
 T = TypeVar("T", List, np.ndarray)
 
@@ -171,6 +172,50 @@ class Prompter:
             for key in examples:
                 examples[key][to_prompt_idx] = self._cat(prompts[key][idx], examples[key][to_prompt_idx])
         return examples
+
+
+def load_datasets(args: "Arguments") -> Tuple[Dataset, Dict[str, Dataset]]:
+    if args.load_tokenized:
+        return load_tokenized_dataset(args)
+    else:
+        return load_raw_datasets(args)
+
+
+def load_tokenized_dataset(args: "Arguments") -> Tuple[Dataset, Dict[str, Dataset]]:
+    train_dataset_dict = {
+        task_name: load_dataset("gia-project/gia-dataset-tokenized-1024", task_name, split="train")
+        for task_name in args.task_names
+    }
+    train_dataset = concatenate_datasets(list(train_dataset_dict.values()))
+
+    test_datasets = {
+        task_name: load_dataset("gia-project/gia-dataset-tokenized-1024", task_name, split="test")
+        for task_name in args.task_names
+    }
+
+    if args.max_eval_samples is not None:
+        test_datasets = {
+            task_name: dataset.select(range(args.max_eval_samples)) for task_name, dataset in test_datasets.items()
+        }
+    return train_dataset, test_datasets
+
+
+def load_raw_datasets(args: "Arguments") -> Tuple[Dataset, Dict[str, Dataset]]:
+    processor = GiaProcessor.from_pretrained(
+        args.config_name or args.model_name_or_path,
+        cache_dir=args.cache_dir,
+        revision=args.model_revision,
+        use_auth_token=True if args.use_auth_token else None,
+    )
+    train_datasets = load_and_process_dataset(args, args.train_split, processor)
+    train_dataset = concatenate_datasets(list(train_datasets.values()))
+    test_datasets = load_and_process_dataset(args, args.test_split, processor)
+    if args.max_eval_samples is not None:
+        test_datasets = {
+            task_name: dataset.select(range(args.max_eval_samples)) for task_name, dataset in test_datasets.items()
+        }
+
+    return train_dataset, test_datasets
 
 
 def load_and_process_dataset(data_args, split: str, processor) -> Dict[str, Dataset]:

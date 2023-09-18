@@ -100,9 +100,7 @@ class DatasetArguments:
     )
     use_separator: bool = field(
         default=True,
-        metadata={
-            "help": "Whether to include a separator token between observations and actions. Defaults to `True`."
-        },
+        metadata={"help": "Whether to include a separator token between observations and actions. Defaults to `True`."},
     )
     p_prompt: float = field(
         default=0.25,
@@ -185,6 +183,10 @@ class DatasetArguments:
                 "observations."
             )
         },
+    )
+    load_tokenized: bool = field(
+        default=False,
+        metadata={"help": ("Whether to load the pre-tokenized dataset from 'gia-project/gia-dataset-tokenized-1024'")},
     )
 
 
