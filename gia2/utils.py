@@ -1,21 +1,47 @@
 import json
 import os
 import shutil
+import sys
 import tempfile
+from contextlib import contextmanager
 from typing import Any, Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
 import torch
+import torch.nn.functional as F
 from huggingface_hub import EvalResult, HfApi, ModelCard, ModelCardData
 from torch import BoolTensor, FloatTensor, LongTensor, Tensor, nn
 
 from gia.eval.rl.envs.core import TASK_NAME_TO_ENV_ID
 
 
+@contextmanager
+def suppress_stdout():
+    class DummyFile(object):
+        def write(self, x):
+            pass
+
+    # Save the current stdout
+    original_stdout = sys.stdout
+    sys.stdout = DummyFile()
+    try:
+        yield
+    finally:
+        sys.stdout = original_stdout
+
+
+def no_print_decorator(func):
+    def wrapper(*args, **kwargs):
+        with suppress_stdout():
+            return func(*args, **kwargs)
+
+    return wrapper
+
+
 def compute_mse_loss(
-    predicted: FloatTensor, true: FloatTensor, mask: BoolTensor, weights: FloatTensor = None
-) -> FloatTensor:
+    predicted: torch.FloatTensor, true: torch.FloatTensor, mask: torch.BoolTensor, weights: torch.FloatTensor = None
+) -> torch.FloatTensor:
     """
     Compute the Mean Squared Error (MSE) loss between predicted and true observations, considering valid timesteps.
 
@@ -31,60 +57,58 @@ def compute_mse_loss(
         loss (`torch.FloatTensor` of shape `(,)`):
             MSE loss between predicted and true observations.
     """
-    # Expand timestep mask and apply observation size mask
-    expanded_mask = mask.unsqueeze(-1).expand_as(predicted)
+    # Compute element-wise MSE loss
+    loss = F.mse_loss(predicted, true, reduction="none")
 
-    # Mask the predicted and true observations
-    masked_predicted = predicted * expanded_mask
-    masked_true = true * expanded_mask
+    # Average the loss over all dimensions after the second one
+    for dim in reversed(range(2, loss.dim())):
+        loss = loss.mean(dim=dim)
 
-    # Compute MSE loss
-    criterion = nn.MSELoss(reduction="none")
-    loss = criterion(masked_predicted, masked_true)
-    # Sum overall dimensions except the first one (batch size)
-    loss = torch.sum(loss, dim=tuple(range(1, loss.ndim)))
-    # Apply weights and sum
+    # Use the mask to zero out invalid entries
+    loss = torch.sum(loss * mask, dim=1)
+
+    # Apply weights if provided
     if weights is not None:
         loss = loss * weights
 
-    loss = torch.sum(loss)
-
-    # Normalize by the number of valid elements
-    loss /= torch.sum(expanded_mask)
+    # Sum the loss and normalize by the number of valid elements
+    loss = loss.sum() / mask.sum()
 
     return loss
 
 
-def compute_ce_loss(predicted: torch.FloatTensor, true: torch.LongTensor, mask: torch.BoolTensor) -> torch.FloatTensor:
+def compute_ce_loss(
+    predicted: torch.FloatTensor, true: torch.LongTensor, mask: torch.BoolTensor, weights: torch.FloatTensor = None
+) -> torch.FloatTensor:
     """
-    Compute the Cross Entropy (CE) loss between predicted logits and true labels, considering valid timesteps.
+    Compute the Cross Entropy (CE) loss between predicted logits and true class labels, considering valid timesteps.
 
     Args:
         predicted (`torch.FloatTensor` of shape `(batch_size, max_seq_len, num_classes)`):
             Predicted logits at the output of the model.
         true (`torch.LongTensor` of shape `(batch_size, max_seq_len)`):
-            Ground truth integer labels.
+            Ground truth class labels.
         mask (`torch.BoolTensor` of shape `(batch_size, max_seq_len)`):
             Boolean mask indicating valid timesteps.
 
     Returns:
         loss (`torch.FloatTensor` of shape `(,)`):
-            CE loss between predicted logits and true labels.
+            CE loss between predicted logits and true class labels.
     """
-    # Flatten the tensors to fit the loss function's expected input shapes
-    flat_predicted = predicted.view(-1, predicted.size(-1))
-    flat_true = true.view(-1)
-    flat_mask = mask.view(-1)
 
-    # Compute CE loss
-    criterion = nn.CrossEntropyLoss(reduction="none")
-    losses = criterion(flat_predicted, flat_true)
+    # Compute element-wise CE loss
+    loss = F.cross_entropy(predicted.view(-1, predicted.size(-1)), true.view(-1), reduction="none")
+    loss = loss.view(true.size())
 
-    # Apply the mask to the losses
-    masked_losses = losses * flat_mask.float()
+    # Use the mask to zero out invalid entries
+    loss = torch.sum(loss * mask, dim=1)
 
-    # Compute the mean loss over the masked elements
-    loss = masked_losses.sum() / flat_mask.float().sum()
+    # Apply weights if provided
+    if weights is not None:
+        loss = loss * weights
+
+    # Sum the loss and normalize by the number of valid elements
+    loss = loss.sum() / mask.sum()
 
     return loss
 
@@ -180,6 +204,38 @@ def write_video(frames: List[np.ndarray], filename: str, fps: int):
     out.release()
 
 
+def stack_input(input_list: List[Any]) -> Tensor:
+    # If the first element is a torch tensor
+    if isinstance(input_list[0], torch.Tensor):
+        return torch.stack(input_list)
+
+    # If the first element is a numpy array
+    elif isinstance(input_list[0], np.ndarray):
+        return torch.stack([torch.tensor(item) for item in input_list])
+
+    # If the input_list is a list of values (like Python lists or scalars)
+    else:
+        return torch.tensor(input_list)
+
+
+def get_inner_shape(elmt):
+    # If the first element is a torch tensor
+    if isinstance(elmt, torch.Tensor):
+        return elmt.shape
+
+    # If the first element is a numpy array
+    elif isinstance(elmt, np.ndarray):
+        return elmt.shape
+
+    # If the elmt is a list of values (like Python lists or scalars)
+    else:
+        # If the first element is a list or a scalar
+        if isinstance(elmt, (list, int, float)):
+            return (len(elmt),) if isinstance(elmt, list) else ()
+        else:
+            raise ValueError(f"Unsupported data type: {type(elmt)}")
+
+
 def _collate(sequences: List[List], dtype: torch.dtype) -> Tuple[FloatTensor, BoolTensor]:
     """
     Collates a list of vectors into a single tensor.
@@ -197,14 +253,14 @@ def _collate(sequences: List[List], dtype: torch.dtype) -> Tuple[FloatTensor, Bo
     batch_size = len(sequences)
     max_seq_len = max([len(sequence) for sequence in sequences])
 
-    data_shape = torch.tensor(sequences[0][0]).shape
+    data_shape = get_inner_shape(sequences[0][0])
     collated = torch.zeros(batch_size, max_seq_len, *data_shape, dtype=dtype)
     mask = torch.zeros(batch_size, max_seq_len, dtype=torch.bool)
 
     # Pad sequences with zeros
     for i, sequence in enumerate(sequences):
         seq_len = min(len(sequence), max_seq_len)
-        collated[i, :seq_len] = torch.tensor(sequence[:seq_len])
+        collated[i, :seq_len] = stack_input(sequence[:seq_len])
         mask[i, :seq_len] = 1
 
     return collated, mask
@@ -215,19 +271,19 @@ def collate_fn(batch: List[Dict[str, List]]) -> Dict[str, Tensor]:
 
     continuous_keys = ["continuous_observations", "continuous_actions", "rewards"]
     for key in continuous_keys:
-        if key in batch[0]:
+        if key in batch[0] and batch[0][key] is not None:
             values = [x[key] for x in batch]
             collated[key], collated["attention_mask"] = _collate(values, dtype=torch.float32)
 
     discrete_keys = ["discrete_observations", "discrete_actions", "text_observations"]
     for key in discrete_keys:
-        if key in batch[0]:
+        if key in batch[0] and batch[0][key] is not None:
             values = [x[key] for x in batch]
             collated[key], _ = _collate(values, dtype=torch.int64)
 
     image_keys = ["image_observations"]
     for key in image_keys:
-        if key in batch[0]:
+        if key in batch[0] and batch[0][key] is not None:
             values = [x[key] for x in batch]
             collated[key], _ = _collate(values, dtype=torch.float32)
 
@@ -396,8 +452,10 @@ def push_to_hub(path: str, repo_id: str, scores_dict: Dict[str, List[float]]) ->
 
 def save_video_grid(
     videos: List[List[np.ndarray]],
+    input_fps: List[int],
     output_filename: str = "output.mp4",
-    fps: int = 30,
+    width: int = 640,
+    output_fps: int = 30,
     max_length_seconds: Optional[int] = None,
 ) -> None:
     """
@@ -406,9 +464,11 @@ def save_video_grid(
     Args:
         videos (`List[List[np.ndarray]]`):
             List of videos, where each video is a list of frames in RGB format.
+        input_fps (`List[int]`):
+            List of FPS values for each video.
         output_filename (`str`, **optional**):
             Output video filename including the extension.
-        fps (`int`, **optional**):
+        output_fps (`int`, **optional**):
             Frames per second for the output video.
         max_length_seconds (`Optional[int]`, **optional**):
             Maximum length of the output video in seconds. If None, the length of the longest video is used.
@@ -417,39 +477,75 @@ def save_video_grid(
     if not videos:
         raise ValueError("No videos provided")
 
-    # Get the shape of a frame from the first video
-    frame_height, frame_width, _ = videos[0][0].shape
+    if len(videos) != len(input_fps):
+        raise ValueError("The number of videos must match the number of FPS values")
 
     # Determine grid size based on the number of videos
     num_cols = int(np.ceil(np.sqrt(len(videos))))
     num_rows = int(np.ceil(len(videos) / num_cols))
-    grid_height = frame_height * num_rows
-    grid_width = frame_width * num_cols
+    height = width * num_rows // num_cols
 
     # Define the codec and create a VideoWriter object
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
     temp_filename = tempfile.mktemp(suffix=".mp4")
-    out = cv2.VideoWriter(temp_filename, fourcc, fps, (grid_width, grid_height))
+    out = cv2.VideoWriter(temp_filename, fourcc, output_fps, (width, height))
 
     # Number of frames in the longest video, if max_length_seconds is specified, adjust max_frames
     max_frames = max(len(video) for video in videos)
     if max_length_seconds is not None:
-        max_frames = min(max_frames, fps * max_length_seconds)
+        max_frames = min(max_frames, output_fps * max_length_seconds)
 
     for frame_idx in range(max_frames):
         # Create an empty grid
-        grid = np.zeros((grid_height, grid_width, 3), dtype=np.uint8)
+        grid = np.zeros((height, width, 3), dtype=np.uint8)
 
         for video_idx, video in enumerate(videos):
-            # Use modulo to loop over the frames of each video
-            looped_frame_idx = frame_idx % len(video)
+            # Adjust for different FPS values
+            adjusted_frame_idx = int((frame_idx * input_fps[video_idx]) / output_fps)
+            looped_frame_idx = adjusted_frame_idx % len(video)
             frame = video[looped_frame_idx]
             row = video_idx // num_cols
             col = video_idx % num_cols
-            grid[row * frame_height : (row + 1) * frame_height, col * frame_width : (col + 1) * frame_width] = frame
+            # resize the frame to the grid size
+            w = width // num_cols
+            h = height // num_rows
+            frame = cv2.resize(frame, (w, h))
+            grid[row * h : (row + 1) * h, col * w : (col + 1) * w] = frame
 
         grid = grid[..., [2, 1, 0]]  # RGB to BGR
         out.write(grid)
 
     out.release()
     os.system(f"ffmpeg -y -i {temp_filename} -vcodec h264 {output_filename}")
+
+
+if __name__ == "__main__":
+    import torch
+
+    # Define the compute_mse_loss function here (from the previous answer)
+    # Sample data
+    batch_size = 2
+    max_seq_len = 3
+    feature_dim_1 = 4
+    feature_dim_2 = 5
+
+    # Randomly generated predicted and true tensors
+    predicted = torch.randn(batch_size, max_seq_len, feature_dim_1, feature_dim_2)
+    true = torch.randn(batch_size, max_seq_len, feature_dim_1, feature_dim_2)
+
+    # Sample mask with some random invalid timesteps
+    mask = torch.tensor(
+        [
+            [True, True, False],
+            [True, False, True],
+        ]
+    )
+
+    # Compute the MSE loss
+    loss = compute_mse_loss(predicted, true, mask)
+    print(f"MSE Loss: {loss.item()}")
+
+    # Optionally, you can also provide weights
+    weights = torch.tensor([0.5, 1.0])
+    loss_with_weights = compute_mse_loss(predicted, true, mask, weights)
+    print(f"MSE Loss with weights: {loss_with_weights.item()}")

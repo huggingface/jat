@@ -98,7 +98,7 @@ class GIA2Model(GPTNeoPreTrainedModel):
 
 
 if __name__ == "__main__":
-    from gia2.data_collator import DataCollator
+    # from gia2.data_collator import DataCollator
 
     num_layers = 8
     continuous_max_size = 27
@@ -134,43 +134,41 @@ if __name__ == "__main__":
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-    model = GIA2Model(config)
+    # model = GIA2Model(config)
 
     # Load the dataset
-    dataset = {task: load_dataset("gia-project/gia-dataset-parquet", task) for task in tasks}
-    train_dataset = {task: dataset[task]["train"] for task in tasks}
-    eval_dataset = {task: dataset[task]["test"] for task in tasks}
-    sampler = MyBatchSampler(train_dataset, weights=weights)
-    train_dataset = concatenate_datasets(list(train_dataset.values()))
+    # dataset = {task: load_dataset("gia-project/gia-dataset-parquet", task) for task in tasks}
+    # train_dataset = {task: dataset[task]["train"] for task in tasks}
+    # eval_dataset = {task: dataset[task]["test"] for task in tasks}
+    # sampler = MyBatchSampler(train_dataset, weights=weights)
+    # train_dataset = concatenate_datasets(list(train_dataset.values()))
 
-    args = TrainingArguments(
-        "checkpoints/v2_with_collator_all_mujoco_cyclic_fill",
-        auto_find_batch_size=True,
-        gradient_accumulation_steps=9,
-        do_eval=True,
-        eval_delay=0,
-        eval_steps=0.1,
-        save_steps=0.1,
-        logging_steps=100,
-        logging_first_step=True,
-        seed=seed,
-    )
+    # args = TrainingArguments(
+    #     "checkpoints/v2_with_collator_all_mujoco_cyclic_fill",
+    #     auto_find_batch_size=True,
+    #     gradient_accumulation_steps=9,
+    #     do_eval=True,
+    #     eval_delay=0,
+    #     eval_steps=0.1,
+    #     save_steps=0.1,
+    #     logging_steps=100,
+    #     logging_first_step=True,
+    #     seed=seed,
+    # )
 
-    trainer = MyTrainer(
-        model=model,
-        train_dataset=train_dataset,
-        eval_dataset=eval_dataset,
-        data_collator=DataCollator(continuous_max_size),
-        args=args,
-        train_sampler=sampler,
-    )
-    trainer.train()
+    # trainer = MyTrainer(
+    #     model=model,
+    #     train_dataset=train_dataset,
+    #     eval_dataset=eval_dataset,
+    #     data_collator=DataCollator(continuous_max_size),
+    #     args=args,
+    #     train_sampler=sampler,
+    # )
+    # trainer.train()
 
     # Test the model
     task = "mujoco-ant"
-    model = GIA2Model.from_pretrained("checkpoints/v2_with_collator_all_mujoco_cyclic_fill/checkpoint-10000").to(
-        "cuda"
-    )
+    model = GIA2Model.from_pretrained("checkpoints/train_script/checkpoint-2124").to("cuda")
 
     env = make(task, render_mode="rgb_array")
 

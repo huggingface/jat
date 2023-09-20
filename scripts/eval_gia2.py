@@ -9,11 +9,12 @@ from typing import List, Optional
 
 import numpy as np
 import torch
+from gymnasium import spaces
 from tqdm import tqdm
 from transformers import HfArgumentParser
 
 from gia2.modeling import GIA2Model
-from gia2.utils import push_to_hub, save_video_grid
+from gia2.utils import push_to_hub, save_video_grid, suppress_stdout
 from gia.eval.rl import make
 
 
@@ -76,45 +77,55 @@ def main():
     model = GIA2Model.from_pretrained(model_args.model_name_or_path, cache_dir=model_args.cache_dir).to(device)
 
     video_list = []
+    input_fps = []
     model_scores_dict = {}
 
     for task in tqdm(eval_args.tasks, desc="Evaluation", unit="task", leave=True):
-        env = make(task, render_mode="rgb_array" if eval_args.save_video else None)
-        action_placeholder = np.zeros(env.action_space.shape, dtype=np.float32)
-        all_returns = []
+        # Create the environment
+        env_kwargs = {}
+        if task.startswith("atari"):
+            env_kwargs["clip_reward"] = False
+        if eval_args.save_video:
+            env_kwargs["render_mode"] = "rgb_array"
+        with suppress_stdout():  # avoid printing the env info
+            env = make(task, **env_kwargs)
+
+        action_size = env.action_space.shape[0] if isinstance(env.action_space, spaces.Box) else env.action_space.n
+        model_scores_dict[task] = []
         frames = []
         for episode in tqdm(range(eval_args.num_episodes), desc=task, unit="episode", leave=False):
             observation, _ = env.reset()
-            observations = [observation["continuous_observations"]]
-            actions = []
+            observations = {key: [val] for key, val in observation.items()}
+            action_key = "continuous_actions" if isinstance(env.action_space, spaces.Box) else "discrete_actions"
+            actions = {action_key: []}
             ep_return = 0
             done = False
             while not done:
-                continuous_observations = (
-                    torch.from_numpy(np.array(observations, dtype=np.float32)).unsqueeze(0).to(device)
-                )
-                continuous_actions = (
-                    torch.from_numpy(np.array([*actions, action_placeholder], dtype=np.float32))
-                    .unsqueeze(0)
-                    .to(device)
-                )
-                with torch.inference_mode():
-                    output = model(
-                        continuous_observations=continuous_observations[:, -256:],
-                        continuous_actions=continuous_actions[:, -256:],
-                        return_loss=False,
-                    )
-                    action = output.pred_actions[0, -1].cpu().numpy()
-                observation, reward, termined, truncated, _ = env.step(action)
+                action = model.get_next_action(**observations, **actions, action_size=action_size)
+                observation, reward, termined, truncated, info = env.step(action)
                 done = termined or truncated
-                observations.append(observation["continuous_observations"])
-                actions.append(action)
+
+                # Handle "fake done" for atari
+                if done and task.startswith("atari"):
+                    if not "episode" in info:
+                        observation, info = env.reset()
+                        done = False
+                    else:
+                        print("Episode done, score:", info["episode"]["r"], ep_return + reward)
+
+                # Store the observation and action
+                for key, val in observation.items():
+                    observations[key].append(val)
+                actions[action_key].append(action)
+
+                # Update the return
                 ep_return += reward
 
+                # Render the environment
                 if eval_args.save_video:
                     frames.append(np.array(env.render(), dtype=np.uint8))
 
-            all_returns.append(ep_return)
+            model_scores_dict[task].append(ep_return)
         env.close()
 
         # Get the mean and std of the expert and random scores
@@ -125,27 +136,33 @@ def main():
         random_mean = scores_dict[task]["random"]["mean"]
 
         # Normalize the scores
-        raw_mean = np.mean(all_returns)
-        raw_std = np.std(all_returns)
+        raw_mean = np.mean(model_scores_dict[task])
+        raw_std = np.std(model_scores_dict[task])
         norm_mean = (raw_mean - random_mean) / (expert_mean - random_mean)
         norm_std = raw_std / (expert_mean - random_mean)
 
+        # Print the results
         tqdm.write(
             f"Task {task} Raw score: {raw_mean:.2f} ± {raw_std:.2f} "
             f"Normalized score: {norm_mean:.2f} ± {norm_std:.2f}"
         )
-        model_scores_dict[task] = all_returns
 
         # Save the video
         if eval_args.save_video:
             video_list.append(frames)
+            input_fps.append(env.metadata["render_fps"])
 
+    # Save the video
     if eval_args.save_video:
-        save_video_grid(video_list, f"{model_args.model_name_or_path}/replay.mp4", env.metadata["render_fps"], 180)
+        save_video_grid(
+            video_list, input_fps, f"{model_args.model_name_or_path}/replay.mp4", output_fps=30, max_length_seconds=180
+        )
 
+    # Push the model to the hub
     if eval_args.push_to_hub:
         assert eval_args.repo_id is not None, "You need to specify a repo_id to push to."
         push_to_hub(model_args.model_name_or_path, eval_args.repo_id, scores_dict=model_scores_dict)
+        print(f"Pushed model to https://huggingface.co/{eval_args.repo_id}")
 
 
 if __name__ == "__main__":
