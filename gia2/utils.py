@@ -517,35 +517,3 @@ def save_video_grid(
 
     out.release()
     os.system(f"ffmpeg -y -i {temp_filename} -vcodec h264 {output_filename}")
-
-
-if __name__ == "__main__":
-    import torch
-
-    # Define the compute_mse_loss function here (from the previous answer)
-    # Sample data
-    batch_size = 2
-    max_seq_len = 3
-    feature_dim_1 = 4
-    feature_dim_2 = 5
-
-    # Randomly generated predicted and true tensors
-    predicted = torch.randn(batch_size, max_seq_len, feature_dim_1, feature_dim_2)
-    true = torch.randn(batch_size, max_seq_len, feature_dim_1, feature_dim_2)
-
-    # Sample mask with some random invalid timesteps
-    mask = torch.tensor(
-        [
-            [True, True, False],
-            [True, False, True],
-        ]
-    )
-
-    # Compute the MSE loss
-    loss = compute_mse_loss(predicted, true, mask)
-    print(f"MSE Loss: {loss.item()}")
-
-    # Optionally, you can also provide weights
-    weights = torch.tensor([0.5, 1.0])
-    loss_with_weights = compute_mse_loss(predicted, true, mask, weights)
-    print(f"MSE Loss with weights: {loss_with_weights.item()}")
