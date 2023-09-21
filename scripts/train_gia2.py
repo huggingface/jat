@@ -7,10 +7,11 @@ import os
 import sys
 from dataclasses import dataclass, field
 from typing import List, Optional
-from torchvision.transforms import RandomResizedCrop, Compose, Normalize, ToTensor, Resize
+
 from datasets import concatenate_datasets, load_dataset
-from transformers import HfArgumentParser, TrainingArguments
 from torchvision.transforms.functional import to_tensor
+from transformers import HfArgumentParser, TrainingArguments
+
 from gia2.config import Gia2Config
 from gia2.modeling import GIA2Model
 from gia2.sampler import MyBatchSampler
@@ -56,14 +57,6 @@ LOSS_WEIGHTS = {
     "mujoco-doublependulum": 10.0,
 }
 
-image_transforms = Compose(
-    [
-        # Resize((84, 84)),
-        ToTensor(),
-        Normalize(mean=[0.5, 0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5, 0.5]),
-    ]
-)
-
 
 def transforms(examples):
     # Remove keys with lists containing only None values
@@ -72,7 +65,7 @@ def transforms(examples):
         for ep_idx, episode in enumerate(examples["image_observations"]):
             examples["image_observations"][ep_idx] = [(to_tensor(img) - 0.5) / 0.5 for img in episode]
     if "image" in examples:
-        examples["image"] = [image_transforms(img.convert("RGBA")) for img in examples["image"]]
+        examples["image"] = [(to_tensor(img) - 0.5) / 0.5 for img in examples["image"]]
     return examples
 
 
