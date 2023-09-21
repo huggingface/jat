@@ -29,7 +29,7 @@ class ResidualBlock(nn.Module):
 class ImageEncoder(nn.Module):
     def __init__(self, hidden_size):
         super().__init__()
-        self.enc1 = ResidualBlock((3, 84, 84), 32)
+        self.enc1 = ResidualBlock((4, 84, 84), 32)
         self.enc2 = ResidualBlock((32, 42, 42), 64)
         self.enc3 = ResidualBlock((64, 21, 21), 128)
         self.fc_enc = nn.Linear(10 * 10 * 128, hidden_size)
@@ -52,7 +52,7 @@ class ImageDecoder(nn.Module):
         self.fc_dec = nn.Linear(hidden_size, 10 * 10 * 128)
         self.dec1 = ResidualBlock((128, 21, 21), 64)
         self.dec2 = ResidualBlock((64, 42, 42), 32)
-        self.dec3 =  nn.Conv2d(32, 3, kernel_size=3, stride=1, padding=1)
+        self.dec3 = nn.Conv2d(32, 4, kernel_size=3, stride=1, padding=1)
 
     def forward(self, x):
         x = self.fc_dec(x)
@@ -64,10 +64,3 @@ class ImageDecoder(nn.Module):
         x = F.interpolate(x, scale_factor=2)
         x = torch.sigmoid(self.dec3(x))
         return x
-
-
-# Instantiate the model
-model = nn.Sequential(ImageEncoder(128), ImageDecoder(128))
-print(model)
-x = torch.rand((2, 3, 84, 84))
-print(model(x).shape)
