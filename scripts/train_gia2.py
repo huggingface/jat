@@ -13,7 +13,7 @@ from torchvision.transforms.functional import to_tensor
 from transformers import HfArgumentParser, TrainingArguments
 
 from gia2.config import Gia2Config
-from gia2.modeling import GIA2Model
+from gia2.modeling import Gia2Model
 from gia2.sampler import MyBatchSampler
 from gia2.trainer import MyTrainer
 from gia2.utils import collate_fn, preprocess_function
@@ -90,7 +90,7 @@ def main():
         model_args.config_name if model_args.config_name else model_args.model_name_or_path,
         cache_dir=model_args.cache_dir,
     )
-    model = GIA2Model(config)
+    model = Gia2Model(config)
 
     # Set the tasks
     tasks = data_args.tasks

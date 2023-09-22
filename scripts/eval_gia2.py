@@ -13,7 +13,7 @@ from gymnasium import spaces
 from tqdm import tqdm
 from transformers import HfArgumentParser
 
-from gia2.modeling import GIA2Model
+from gia2.modeling import Gia2Model
 from gia2.utils import push_to_hub, save_video_grid, suppress_stdout
 from gia.eval.rl import make
 
@@ -74,7 +74,7 @@ def main():
     )
 
     device = torch.device("cpu") if eval_args.use_cpu else get_default_device()
-    model = GIA2Model.from_pretrained(model_args.model_name_or_path, cache_dir=model_args.cache_dir).to(device)
+    model = Gia2Model.from_pretrained(model_args.model_name_or_path, cache_dir=model_args.cache_dir).to(device)
 
     video_list = []
     input_fps = []

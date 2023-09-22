@@ -5,7 +5,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from torch import BoolTensor, FloatTensor, LongTensor, nn
-from transformers import GPTNeoModel, GPTNeoPreTrainedModel
+from transformers import AutoModel, GPTNeoModel, GPTNeoPreTrainedModel
 from transformers.modeling_outputs import ModelOutput
 
 from gia2.config import Gia2Config
@@ -35,7 +35,7 @@ class DualBatchReshapeWrapper(nn.Module):
 
 
 @dataclass
-class GIA2Output(ModelOutput):
+class Gia2Output(ModelOutput):
     pred_observations: torch.FloatTensor = None
     pred_actions: torch.FloatTensor = None
     observation_loss: Optional[FloatTensor] = None
@@ -43,7 +43,9 @@ class GIA2Output(ModelOutput):
     loss: Optional[FloatTensor] = None
 
 
-class GIA2Model(GPTNeoPreTrainedModel):
+class Gia2Model(GPTNeoPreTrainedModel):
+    config_class = Gia2Config
+
     def __init__(self, config: Gia2Config) -> None:
         super().__init__(config)
 
@@ -74,7 +76,7 @@ class GIA2Model(GPTNeoPreTrainedModel):
         attention_mask: Optional[BoolTensor] = None,
         return_loss: bool = True,
         loss_weight: Optional[FloatTensor] = None,
-    ) -> GIA2Output:
+    ) -> Gia2Output:
         if continuous_observations is not None:
             batch_size, seq_len, obs_size = continuous_observations.shape
             continuous_observations = cyclic_expand_dim(continuous_observations, self.config.max_continuous_size)
@@ -139,7 +141,7 @@ class GIA2Model(GPTNeoPreTrainedModel):
                 action_loss = compute_ce_loss(pred_actions, discrete_actions, attention_mask, weights=loss_weight)
 
         if return_loss:
-            return GIA2Output(
+            return Gia2Output(
                 pred_observations=pred_observations,
                 pred_actions=pred_actions,
                 observation_loss=observation_loss,
@@ -147,7 +149,7 @@ class GIA2Model(GPTNeoPreTrainedModel):
                 loss=0.0 * observation_loss + 1.0 * action_loss,
             )
         else:
-            return GIA2Output(
+            return Gia2Output(
                 pred_observations=pred_observations,
                 pred_actions=pred_actions,
             )
@@ -229,3 +231,6 @@ class GIA2Model(GPTNeoPreTrainedModel):
                 return logits.argmax().cpu().numpy()
             else:  # sample
                 return torch.multinomial(logits.softmax(dim=-1), num_samples=1)[0].item()
+
+
+AutoModel.register(Gia2Config, Gia2Model)

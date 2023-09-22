@@ -175,6 +175,10 @@ def cyclic_expand_dim(tensor: Tensor, expanded_dim_size: int) -> Tensor:
         tensor([[[1, 2, 1, 2, 1], [3, 4, 3, 4, 3]], [[5, 6, 5, 6, 5], [7, 8, 7, 8, 7]]])
     """
     B, L, X = tensor.shape
+    if expanded_dim_size < X:
+        raise ValueError(
+            f"Expanded dimension size ({expanded_dim_size}) must be greater than the original dimension size ({X})."
+        )
     indices = torch.arange(expanded_dim_size) % X
     return tensor[..., indices]
 
@@ -410,7 +414,7 @@ def generate_model_card(model_name: str, scores_dict: Dict[str, List[float]]) ->
         card_data,
         template_path="templates/model_card.md",
         model_name=model_name,
-        model_id="GIA2",
+        model_id="Gia2",
         tasks=[TASK_NAME_TO_ENV_ID[task_name] for task_name in scores_dict.keys()],
     )
     return card
