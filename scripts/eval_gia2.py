@@ -13,9 +13,9 @@ from gymnasium import spaces
 from tqdm import tqdm
 from transformers import HfArgumentParser
 
+from gia.eval.rl import make
 from gia2.modeling import Gia2Model
 from gia2.utils import push_to_hub, save_video_grid, suppress_stdout
-from gia.eval.rl import make
 
 
 @dataclass
@@ -107,7 +107,7 @@ def main():
 
                 # Handle "fake done" for atari
                 if done and task.startswith("atari"):
-                    if not "episode" in info:
+                    if "episode" not in info:
                         observation, info = env.reset()
                         done = False
                     else:

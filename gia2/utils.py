@@ -11,7 +11,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from huggingface_hub import EvalResult, HfApi, ModelCard, ModelCardData
-from torch import BoolTensor, FloatTensor, LongTensor, Tensor, nn
+from torch import BoolTensor, FloatTensor, LongTensor, Tensor
 
 from gia.eval.rl.envs.core import TASK_NAME_TO_ENV_ID
 
