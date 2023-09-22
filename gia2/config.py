@@ -60,7 +60,7 @@ class Gia2Config(GPTNeoConfig):
             The maximum size of the continuous values.
     """
 
-    model_type = "gpt_neo"
+    model_type = "gia2"
 
     def __init__(
         self,
@@ -83,6 +83,7 @@ class Gia2Config(GPTNeoConfig):
         bos_token_id=50256,
         eos_token_id=50256,
         max_continuous_size=27,
+        tokenizer_class="GPT2Tokenizer",
         **kwargs,
     ):
         super().__init__(
@@ -104,6 +105,7 @@ class Gia2Config(GPTNeoConfig):
             use_cache,
             bos_token_id,
             eos_token_id,
+            tokenizer_class=tokenizer_class,
             **kwargs,
         )
         self.max_continuous_size = max_continuous_size
