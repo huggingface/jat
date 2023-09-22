@@ -3,22 +3,263 @@ from typing import List, Optional, Tuple
 
 import numpy as np
 import torch
-from torch import BoolTensor, FloatTensor, LongTensor, nn
+import torch.nn.functional as F
+from torch import BoolTensor, FloatTensor, LongTensor, Tensor, nn
 from transformers import GPTNeoModel, GPTNeoPreTrainedModel
 from transformers.modeling_outputs import ModelOutput
 
-from gia2.config import Gia2Config
-from gia2.image_model import ImageDecoder, ImageEncoder
-from gia2.utils import compute_ce_loss, compute_mse_loss, cyclic_expand_dim
+from .configuration_gia2 import Gia2Config
+
+
+def compute_mse_loss(
+    predicted: FloatTensor, true: FloatTensor, mask: BoolTensor, weights: FloatTensor = None
+) -> FloatTensor:
+    """
+    Compute the Mean Squared Error (MSE) loss between predicted and true observations, considering valid timesteps.
+
+    Args:
+        predicted (`FloatTensor` of shape `(batch_size, max_seq_len, ...)`):
+            Predicted observations at the output of the model.
+        true (`FloatTensor` of shape `(batch_size, max_seq_len, ...)`):
+            Ground truth observations.
+        mask (`BoolTensor` of shape `(batch_size, max_seq_len)`):
+            Boolean mask indicating valid timesteps.
+
+    Returns:
+        loss (`FloatTensor` of shape `(,)`):
+            MSE loss between predicted and true observations.
+    """
+    # Compute element-wise MSE loss
+    loss = F.mse_loss(predicted, true, reduction="none")
+
+    # Average the loss over all dimensions after the second one
+    for dim in reversed(range(2, loss.dim())):
+        loss = loss.mean(dim=dim)
+
+    # Use the mask to zero out invalid entries
+    loss = torch.sum(loss * mask, dim=1)
+
+    # Apply weights if provided
+    if weights is not None:
+        loss = loss * weights
+
+    # Sum the loss and normalize by the number of valid elements
+    loss = loss.sum() / mask.sum()
+
+    return loss
+
+
+def compute_ce_loss(
+    predicted: FloatTensor, true: torch.LongTensor, mask: BoolTensor, weights: FloatTensor = None
+) -> FloatTensor:
+    """
+    Compute the Cross Entropy (CE) loss between predicted logits and true class labels, considering valid timesteps.
+
+    Args:
+        predicted (`FloatTensor` of shape `(batch_size, max_seq_len, num_classes)`):
+            Predicted logits at the output of the model.
+        true (`torch.LongTensor` of shape `(batch_size, max_seq_len)`):
+            Ground truth class labels.
+        mask (`BoolTensor` of shape `(batch_size, max_seq_len)`):
+            Boolean mask indicating valid timesteps.
+
+    Returns:
+        loss (`FloatTensor` of shape `(,)`):
+            CE loss between predicted logits and true class labels.
+    """
+
+    # Compute element-wise CE loss
+    loss = F.cross_entropy(predicted.view(-1, predicted.size(-1)), true.view(-1), reduction="none")
+    loss = loss.view(true.size())
+
+    # Use the mask to zero out invalid entries
+    loss = torch.sum(loss * mask, dim=1)
+
+    # Apply weights if provided
+    if weights is not None:
+        loss = loss * weights
+
+    # Sum the loss and normalize by the number of valid elements
+    loss = loss.sum() / mask.sum()
+
+    return loss
+
+
+def cyclic_expand_dim(tensor: Tensor, expanded_dim_size: int) -> Tensor:
+    """
+    Expands the last dimension of a tensor cyclically to a specified size.
+
+    Args:
+        tensor (`torch.Tensor` of shape `(batch_size, seq_len, ...)`):
+            Input tensor whose last dimension is to be expanded cyclically.
+        expanded_dim_size (`int`):
+            The desired size of the last dimension after expansion.
+
+    Returns:
+        `torch.Tensor` of shape `(batch_size, seq_len, expanded_dim_size)`:
+            A tensor with its last dimension expanded cyclically to the specified size.
+
+    Examples:
+        >>> tensor = torch.tensor([[[1, 2], [3, 4]], [[5, 6], [7, 8]]])
+        >>> cyclic_expand_dim(tensor, 5)
+        tensor([[[1, 2, 1, 2, 1], [3, 4, 3, 4, 3]], [[5, 6, 5, 6, 5], [7, 8, 7, 8, 7]]])
+    """
+    B, L, X = tensor.shape
+    if expanded_dim_size < X:
+        raise ValueError(
+            f"Expanded dimension size ({expanded_dim_size}) must be greater than the original dimension size ({X})."
+        )
+    indices = torch.arange(expanded_dim_size) % X
+    return tensor[..., indices]
+
+
+class ResidualBlock(nn.Module):
+    """
+    A residual block module that consists of two convolutional layers with a residual connection.
+
+    Args:
+        in_shape (`Tuple[int, int, int]`):
+            Shape of the input tensor.
+        out_channels (`int`):
+            Number of output channels.
+
+    Returns:
+        `torch.Tensor` of shape `(batch_size, out_channels, in_shape[1], in_shape[2])`:
+            Output tensor.
+    """
+
+    def __init__(self, in_shape: Tuple[int, int, int], out_channels: int) -> None:
+        super().__init__()
+        out_shape = (out_channels, in_shape[1], in_shape[2])
+
+        self.conv1 = nn.Conv2d(in_shape[0], out_channels, kernel_size=3, stride=1, padding=1)
+        self.norm1 = nn.LayerNorm(out_shape)
+        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=1, padding=1)
+        self.norm2 = nn.LayerNorm(out_shape)
+
+        # Handling the change in dimensions with a 1x1 convolution
+        self.shortcut = nn.Sequential(
+            nn.Conv2d(in_shape[0], out_channels, kernel_size=1, stride=1), nn.LayerNorm(out_shape)
+        )
+
+    def forward(self, x: FloatTensor) -> FloatTensor:
+        out = F.leaky_relu(self.norm1(self.conv1(x)))
+        out = self.norm2(self.conv2(out))
+        out += self.shortcut(x)
+        return F.leaky_relu(out)
+
+
+class AttentionLayer(nn.Module):
+    """
+    Attention layer that applies an attention mechanism to the input tensor.
+
+    Args:
+        num_channels (`int`):
+            Number of channels.
+
+    Returns:
+        `torch.Tensor`:
+            Output tensor of the same shape as the input tensor.
+    """
+
+    def __init__(self, num_channels: int) -> None:
+        super().__init__()
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.fc = nn.Sequential(
+            nn.Linear(num_channels, num_channels // 8, bias=False),
+            nn.ReLU(inplace=True),
+            nn.Linear(num_channels // 8, num_channels, bias=False),
+            nn.Sigmoid(),
+        )
+
+    def forward(self, x: FloatTensor) -> FloatTensor:
+        b, c, _, _ = x.size()
+        y = self.avg_pool(x).view(b, c)
+        y = self.fc(y).view(b, c, 1, 1)
+        return x * y.expand_as(x)
+
+
+class ImageEncoder(nn.Module):
+    """
+    Image encoder that encodes a batch of images.
+
+    Args:
+        hidden_size (`int`):
+            Size of the output hidden state.
+
+    Returns:
+        `torch.Tensor` of shape `(batch_size, hidden_size)`:
+            Output tensor.
+    """
+
+    def __init__(self, hidden_size: int) -> None:
+        super().__init__()
+        self.conv1 = nn.Conv2d(4, 32, kernel_size=3, stride=2, padding=1)  # 42x42
+        self.norm1 = nn.InstanceNorm2d(32)
+        self.att1 = AttentionLayer(32)
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1)  # 21x21
+        self.norm2 = nn.InstanceNorm2d(64)
+        self.att2 = AttentionLayer(64)
+        self.conv3 = nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=1)  # 11x11
+        self.norm3 = nn.InstanceNorm2d(128)
+        self.att3 = AttentionLayer(128)
+        self.fc = nn.Linear(128 * 11 * 11, hidden_size)  # Adjusted to the new spatial dimension
+
+    def forward(self, x: FloatTensor) -> FloatTensor:
+        x = F.leaky_relu(self.norm1(self.conv1(x)))
+        x = self.att1(x)
+        x = F.leaky_relu(self.norm2(self.conv2(x)))
+        x = self.att2(x)
+        x = F.leaky_relu(self.norm3(self.conv3(x)))
+        x = self.att3(x)
+        x = x.view(x.size(0), -1)  # Flatten the tensor
+        x = self.fc(x)
+        return x
+
+
+class ImageDecoder(nn.Module):
+    """
+    Image decoder that decodes a batch of encoded representations.
+
+    Args:
+        hidden_size (`int`):
+            Size of the input hidden state.
+
+    Returns:
+        `torch.Tensor` of shape `(batch_size, 4, 84, 84)`:
+            Output tensor representing the reconstructed images.
+    """
+
+    def __init__(self, hidden_size: int) -> None:
+        super().__init__()
+        self.fc = nn.Linear(hidden_size, 128 * 11 * 11)
+        self.deconv1 = nn.ConvTranspose2d(128, 64, kernel_size=3, stride=2, padding=1, output_padding=1)  # 21x21
+        self.norm1 = nn.InstanceNorm2d(64)
+        self.att1 = AttentionLayer(64)
+        self.deconv2 = nn.ConvTranspose2d(64, 32, kernel_size=3, stride=2, padding=1, output_padding=1)  # 42x42
+        self.norm2 = nn.InstanceNorm2d(32)
+        self.att2 = AttentionLayer(32)
+        self.deconv3 = nn.ConvTranspose2d(32, 4, kernel_size=3, stride=2, padding=1, output_padding=1)  # 84x84
+
+    def forward(self, x: FloatTensor) -> FloatTensor:
+        x = self.fc(x)
+        x = x.view(x.size(0), 128, 11, 11)  # Reshape to the spatial dimension of encoder's last conv layer
+        x = F.leaky_relu(self.norm1(self.deconv1(x)))  # 22x22
+        x = F.interpolate(x, size=(21, 21))  # 21x21
+        x = self.att1(x)
+        x = F.leaky_relu(self.norm2(self.deconv2(x)))
+        x = self.att2(x)
+        x = F.tanh(self.deconv3(x))
+        return x
 
 
 class DualBatchReshapeWrapper(nn.Module):
     """
-    Wrapper to apply a module to a batch of sequences of batches.
+    Wrapper to make a module designed for a single batch work with a dual batch.
 
     Args:
         module (`nn.Module`):
-            Module to apply to each batch.
+            Module to be wrapped.
     """
 
     def __init__(self, module: nn.Module) -> None:
@@ -35,18 +276,71 @@ class DualBatchReshapeWrapper(nn.Module):
 
 @dataclass
 class Gia2Output(ModelOutput):
-    loss: Optional[torch.FloatTensor] = None
+    """
+    Output of the Gia2 model.
+
+    The model can be used for both RL and NLP tasks. For RL tasks, the model takes in observations and actions
+    (`continuous_observations`, `discrete_actions`, etc.). For textual tasks, the model takes in a sequence of tokens
+    and/or images (`input_ids`, `image`). The output depends on the type of input.
+
+    Args:
+        loss (`torch.FloatTensor` of shape `(1,)`, *optional*, returned when `return_loss` is `True`):
+            For RL input, the loss is the sum of the observation loss and the action loss.
+            For textual input, the causal language modeling loss.
+        observation_loss (`torch.FloatTensor` of shape `(1,)`, *optional*, returned when `return_loss` is `True`):
+            Only returned when RL input is provided. The MSE loss between predicted and true observations for
+            continuous observations and the cross-entropy loss for discrete observations.
+        action_loss (`torch.FloatTensor` of shape `(1,)`, *optional*, returned when `return_loss` is `True`):
+            Only returned when RL input is provided. The MSE loss between predicted and true actions for
+            continuous actions and the cross-entropy loss for discrete actions.
+        pred_observations (`torch.FloatTensor` of shape `(batch_size, max_seq_len, ...)`):
+            Only returned when RL input is provided. Predicted observations from t=1 to t=max_seq_len+1.
+        pred_actions (`torch.FloatTensor` of shape `(batch_size, max_seq_len, ...)`):
+            Only returned when RL input is provided. Predicted actions from t=0 to t=max_seq_len. When input actions
+            are discrete, the predicted actions are logits.
+        last_hidden_state (`torch.FloatTensor` of shape `(batch_size, sequence_length, hidden_size)`):
+            Sequence of hidden-states at the output of the last layer of the model.
+
+            If `past_key_values` is used only the last hidden-state of the sequences of shape `(batch_size, 1,
+            hidden_size)` is output.
+        past_key_values (`tuple(tuple(torch.FloatTensor))`, *optional*, returned when `use_cache=True` is passed or when `config.use_cache=True`):
+            Tuple of `tuple(torch.FloatTensor)` of length `config.n_layers`, with each tuple having 2 tensors of shape
+            `(batch_size, num_heads, sequence_length, embed_size_per_head)`) and optionally if
+            `config.is_encoder_decoder=True` 2 additional tensors of shape `(batch_size, num_heads,
+            encoder_sequence_length, embed_size_per_head)`.
+
+            Contains pre-computed hidden-states (key and values in the self-attention blocks and optionally if
+            `config.is_encoder_decoder=True` in the cross-attention blocks) that can be used (see `past_key_values`
+            input) to speed up sequential decoding.
+        hidden_states (`tuple(torch.FloatTensor)`, *optional*, returned when `output_hidden_states=True` is passed or when `config.output_hidden_states=True`):
+            Tuple of `torch.FloatTensor` (one for the output of the embeddings, if the model has an embedding layer, +
+            one for the output of each layer) of shape `(batch_size, sequence_length, hidden_size)`.
+
+            Hidden-states of the model at the output of each layer plus the optional initial embedding outputs.
+        attentions (`tuple(torch.FloatTensor)`, *optional*, returned when `output_attentions=True` is passed or when `config.output_attentions=True`):
+            Tuple of `torch.FloatTensor` (one for each layer) of shape `(batch_size, num_heads, sequence_length,
+            sequence_length)`.
+
+            Attentions weights after the attention softmax, used to compute the weighted average in the self-attention
+            heads.
+    """
+
+    loss: Optional[FloatTensor] = None
     observation_loss: Optional[FloatTensor] = None
     action_loss: Optional[FloatTensor] = None
-    pred_observations: torch.FloatTensor = None
-    pred_actions: torch.FloatTensor = None
-    logits: torch.FloatTensor = None
-    past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None
-    hidden_states: Optional[Tuple[torch.FloatTensor]] = None
-    attentions: Optional[Tuple[torch.FloatTensor]] = None
+    pred_observations: Optional[FloatTensor] = None
+    pred_actions: Optional[FloatTensor] = None
+    logits: Optional[FloatTensor] = None
+    past_key_values: Optional[Tuple[Tuple[FloatTensor]]] = None
+    hidden_states: Optional[Tuple[FloatTensor]] = None
+    attentions: Optional[Tuple[FloatTensor]] = None
 
 
 class Gia2Model(GPTNeoPreTrainedModel):
+    """
+    Gia2 model.
+    """
+
     config_class = Gia2Config
 
     def __init__(self, config: Gia2Config) -> None:
@@ -54,7 +348,7 @@ class Gia2Model(GPTNeoPreTrainedModel):
 
         # Encoders
         self.continuous_encoder = nn.Linear(config.max_continuous_size, config.hidden_size)
-        self.discrete_encoder = nn.Embedding(18, config.hidden_size)
+        self.discrete_encoder = nn.Embedding(config.max_discrete_value, config.hidden_size)
         self.image_encoder = DualBatchReshapeWrapper(ImageEncoder(config.hidden_size))
 
         # Transformer
@@ -62,7 +356,7 @@ class Gia2Model(GPTNeoPreTrainedModel):
 
         # Decoders
         self.continuous_decoder = nn.Linear(config.hidden_size, config.max_continuous_size, bias=False)
-        self.discrete_decoder = nn.Linear(config.hidden_size, 18, bias=False)
+        self.discrete_decoder = nn.Linear(config.hidden_size, config.max_discrete_value, bias=False)
         self.image_decoder = DualBatchReshapeWrapper(ImageDecoder(config.hidden_size))
 
         # Initialize weights and apply final processing
@@ -89,32 +383,6 @@ class Gia2Model(GPTNeoPreTrainedModel):
         return_loss: bool = True,
         loss_weight: Optional[FloatTensor] = None,
     ) -> Gia2Output:
-        """
-        Forward pass of the Gia2 model.
-
-        Args:
-            input_ids (LongTensor, optional): Input sequence ids. Defaults to None.
-            continuous_observations (FloatTensor, optional): Continuous observations. Defaults to None.
-            discrete_observations (LongTensor, optional): Discrete observations. Defaults to None.
-            image_observations (FloatTensor, optional): Image observations. Defaults to None.
-            continuous_actions (FloatTensor, optional): Continuous actions. Defaults to None.
-            discrete_actions (LongTensor, optional): Discrete actions. Defaults to None.
-            rewards (FloatTensor, optional): Rewards. Defaults to None.
-            past_key_values (Tuple[Tuple[FloatTensor]], optional): Past key values. Defaults to None.
-            attention_mask (BoolTensor, optional): Attention mask. Defaults to None.
-            token_type_ids (LongTensor, optional): Token type ids. Defaults to None.
-            position_ids (LongTensor, optional): Position ids. Defaults to None.
-            inputs_embeds (FloatTensor, optional): Input embeddings. Defaults to None.
-            use_cache (bool, optional): Use cache. Defaults to None.
-            output_attentions (bool, optional): Output attentions. Defaults to None.
-            output_hidden_states (bool, optional): Output hidden states. Defaults to None.
-            return_dict (bool, optional): Return dictionary. Defaults to None.
-            return_loss (bool, optional): Return loss. Defaults to True.
-            loss_weight (FloatTensor, optional): Loss weight. Defaults to None.
-
-        Returns:
-            Gia2Output: Output of the Gia2 model.
-        """
         # Encode continuous observations
         if continuous_observations is not None:
             batch_size, seq_len, obs_size = continuous_observations.shape
@@ -318,6 +586,7 @@ class Gia2Model(GPTNeoPreTrainedModel):
             else:  # sample
                 return torch.multinomial(logits.softmax(dim=-1), num_samples=1)[0].item()
 
+    # copied from gpt-neo, allows to use .generate()
     def prepare_inputs_for_generation(self, input_ids, past_key_values=None, inputs_embeds=None, **kwargs):
         token_type_ids = kwargs.get("token_type_ids", None)
         # only last token for inputs_ids if past is defined in kwargs
@@ -353,3 +622,6 @@ class Gia2Model(GPTNeoPreTrainedModel):
         )
 
         return model_inputs
+
+
+Gia2Model.register_for_auto_class("AutoModelForCausalLM")

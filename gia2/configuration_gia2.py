@@ -56,8 +56,12 @@ class Gia2Config(GPTNeoConfig):
             The id of the beginning of sentence token in the vocabulary.
         eos_token_id (`int`, *optional*, defaults to 50256):
             The id of the end of sentence token in the vocabulary.
-        max_continuous_size (`int`, *optional*, default to 27):
+        max_continuous_size (`int`, *optional*, default to 376):
             The maximum size of the continuous values.
+        max_discrete_value (`int`, *optional*, default to 18):
+            The maximum value of the discrete values.
+        tokenizer_class (`str`, *optional*, defaults to `"GPT2Tokenizer"`):
+            The name of the tokenizer class to use.
     """
 
     model_type = "gia2"
@@ -82,7 +86,8 @@ class Gia2Config(GPTNeoConfig):
         use_cache=True,
         bos_token_id=50256,
         eos_token_id=50256,
-        max_continuous_size=27,
+        max_continuous_size=376,
+        max_discrete_value=18,
         tokenizer_class="GPT2Tokenizer",
         **kwargs,
     ):
@@ -109,3 +114,7 @@ class Gia2Config(GPTNeoConfig):
             **kwargs,
         )
         self.max_continuous_size = max_continuous_size
+        self.max_discrete_value = max_discrete_value
+
+
+Gia2Config.register_for_auto_class()
