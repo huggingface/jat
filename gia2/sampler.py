@@ -1,5 +1,5 @@
 import random
-from typing import Dict, List, Optional, Sized
+from typing import Dict, Optional, Sized
 
 import torch
 from torch.utils.data import BatchSampler
@@ -79,8 +79,3 @@ if __name__ == "__main__":
     # Iterate over the dataloader
     for batch in dataloader:
         print(batch)
-
-# This sampler sould be used to only sample batches from a same dataset.
-# You should implement wieghts as it is ignored for now.
-# It should be jointly used with gradient accumulation to balance the effect of the strong auto correlation within a sample
-# After that, you can remove the data collator and use the default one (no need to mix complex structures anymore) and also simplify the tmodel to drop sizes etc. and assume that all input data are of the same size
