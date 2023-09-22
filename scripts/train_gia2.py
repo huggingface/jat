@@ -13,8 +13,8 @@ from torchvision.transforms.functional import to_tensor
 from transformers import HfArgumentParser, TrainingArguments
 
 from gia.eval.rl.envs.core import TASK_NAME_TO_ENV_ID
-from gia2.config import Gia2Config
-from gia2.modeling import Gia2Model
+from gia2.configuration_gia2 import Gia2Config
+from gia2.modeling_gia2 import Gia2Model
 from gia2.sampler import MyBatchSampler
 from gia2.trainer import MyTrainer
 from gia2.utils import collate_fn, preprocess_function
