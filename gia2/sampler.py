@@ -1,7 +1,6 @@
 import random
 from typing import Dict, Optional, Sized
 
-import torch
 from torch.utils.data import BatchSampler
 
 

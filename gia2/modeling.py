@@ -3,7 +3,6 @@ from typing import List, Optional
 
 import numpy as np
 import torch
-import torch.nn.functional as F
 from torch import BoolTensor, FloatTensor, LongTensor, nn
 from transformers import AutoModel, GPTNeoModel, GPTNeoPreTrainedModel
 from transformers.modeling_outputs import ModelOutput
