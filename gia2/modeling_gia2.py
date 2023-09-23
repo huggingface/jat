@@ -12,7 +12,7 @@ from .configuration_gia2 import Gia2Config
 
 
 def compute_mse_loss(
-    predicted: FloatTensor, true: FloatTensor, mask: BoolTensor, weights: FloatTensor = None
+    predicted: FloatTensor, true: FloatTensor, mask: Optional[BoolTensor], weights: Optional[FloatTensor] = None
 ) -> FloatTensor:
     """
     Compute the Mean Squared Error (MSE) loss between predicted and true observations, considering valid timesteps.
@@ -22,8 +22,10 @@ def compute_mse_loss(
             Predicted observations at the output of the model.
         true (`FloatTensor` of shape `(batch_size, max_seq_len, ...)`):
             Ground truth observations.
-        mask (`BoolTensor` of shape `(batch_size, max_seq_len)`):
+        mask (`BoolTensor` of shape `(batch_size, max_seq_len)`, *optional*):
             Boolean mask indicating valid timesteps.
+        weights (`FloatTensor` of shape `(batch_size, max_seq_len)`, *optional*):
+            Weights to be applied to the loss.
 
     Returns:
         loss (`FloatTensor` of shape `(,)`):
@@ -37,7 +39,7 @@ def compute_mse_loss(
         loss = loss.mean(dim=dim)
 
     # Use the mask to zero out invalid entries
-    loss = torch.sum(loss * mask, dim=1)
+    loss = torch.sum(loss * mask, dim=1) if mask is not None else torch.sum(loss, dim=1)
 
     # Apply weights if provided
     if weights is not None:
@@ -50,7 +52,7 @@ def compute_mse_loss(
 
 
 def compute_ce_loss(
-    predicted: FloatTensor, true: torch.LongTensor, mask: BoolTensor, weights: FloatTensor = None
+    predicted: FloatTensor, true: torch.LongTensor, mask: Optional[BoolTensor], weights: Optional[FloatTensor] = None
 ) -> FloatTensor:
     """
     Compute the Cross Entropy (CE) loss between predicted logits and true class labels, considering valid timesteps.
@@ -60,8 +62,10 @@ def compute_ce_loss(
             Predicted logits at the output of the model.
         true (`torch.LongTensor` of shape `(batch_size, max_seq_len)`):
             Ground truth class labels.
-        mask (`BoolTensor` of shape `(batch_size, max_seq_len)`):
+        mask (`BoolTensor` of shape `(batch_size, max_seq_len)`, *optional*):
             Boolean mask indicating valid timesteps.
+        weights (`FloatTensor` of shape `(batch_size, max_seq_len)`, *optional*):
+            Weights to be applied to the loss.
 
     Returns:
         loss (`FloatTensor` of shape `(,)`):
@@ -73,7 +77,7 @@ def compute_ce_loss(
     loss = loss.view(true.size())
 
     # Use the mask to zero out invalid entries
-    loss = torch.sum(loss * mask, dim=1)
+    loss = torch.sum(loss * mask, dim=1) if mask is not None else torch.sum(loss, dim=1)
 
     # Apply weights if provided
     if weights is not None:
@@ -303,7 +307,8 @@ class Gia2Output(ModelOutput):
 
             If `past_key_values` is used only the last hidden-state of the sequences of shape `(batch_size, 1,
             hidden_size)` is output.
-        past_key_values (`tuple(tuple(torch.FloatTensor))`, *optional*, returned when `use_cache=True` is passed or when `config.use_cache=True`):
+        past_key_values (`tuple(tuple(torch.FloatTensor))`, *optional*, returned when `use_cache=True` is passed or
+            when `config.use_cache=True`):
             Tuple of `tuple(torch.FloatTensor)` of length `config.n_layers`, with each tuple having 2 tensors of shape
             `(batch_size, num_heads, sequence_length, embed_size_per_head)`) and optionally if
             `config.is_encoder_decoder=True` 2 additional tensors of shape `(batch_size, num_heads,
@@ -312,12 +317,14 @@ class Gia2Output(ModelOutput):
             Contains pre-computed hidden-states (key and values in the self-attention blocks and optionally if
             `config.is_encoder_decoder=True` in the cross-attention blocks) that can be used (see `past_key_values`
             input) to speed up sequential decoding.
-        hidden_states (`tuple(torch.FloatTensor)`, *optional*, returned when `output_hidden_states=True` is passed or when `config.output_hidden_states=True`):
+        hidden_states (`tuple(torch.FloatTensor)`, *optional*, returned when `output_hidden_states=True` is passed or
+            when `config.output_hidden_states=True`):
             Tuple of `torch.FloatTensor` (one for the output of the embeddings, if the model has an embedding layer, +
             one for the output of each layer) of shape `(batch_size, sequence_length, hidden_size)`.
 
             Hidden-states of the model at the output of each layer plus the optional initial embedding outputs.
-        attentions (`tuple(torch.FloatTensor)`, *optional*, returned when `output_attentions=True` is passed or when `config.output_attentions=True`):
+        attentions (`tuple(torch.FloatTensor)`, *optional*, returned when `output_attentions=True` is passed or when
+            `config.output_attentions=True`):
             Tuple of `torch.FloatTensor` (one for each layer) of shape `(batch_size, num_heads, sequence_length,
             sequence_length)`.
 
@@ -448,12 +455,12 @@ class Gia2Model(GPTNeoPreTrainedModel):
         # Decode continuous observations
         if continuous_observations is not None:
             pred_observations = self.continuous_decoder(hidden_states[:, 1::2])
-            mask = attention_mask[:, 1::2]
+            mask = attention_mask[:, 1::2] if attention_mask is not None else None
             if return_loss:
                 observation_loss = compute_mse_loss(
                     pred_observations[:, :-1],
                     continuous_observations[:, 1:],
-                    mask[:, 1:], 
+                    mask[:, 1:] if mask is not None else None,
                     weights=loss_weight,
                 )
             pred_observations = pred_observations[..., :obs_size]
@@ -463,23 +470,26 @@ class Gia2Model(GPTNeoPreTrainedModel):
         # Decode image observations
         elif image_observations is not None:
             pred_observations = self.image_decoder(hidden_states[:, 1::2])
-            mask = attention_mask[:, 1::2]
+            mask = attention_mask[:, 1::2] if attention_mask is not None else None
             if return_loss:
                 observation_loss = compute_mse_loss(
-                    pred_observations[:, :-1], image_observations[:, 1:], mask[:, 1:], weights=loss_weight
+                    pred_observations[:, :-1],
+                    image_observations[:, 1:],
+                    mask[:, 1:] if mask is not None else None,
+                    weights=loss_weight,
                 )
 
         # Decode continuous actions
         if continuous_actions is not None:
             pred_actions = self.continuous_decoder(hidden_states[:, ::2])
-            mask = attention_mask[:, ::2]
+            mask = attention_mask[:, ::2] if attention_mask is not None else None
             if return_loss:
                 action_loss = compute_mse_loss(pred_actions, continuous_actions, mask, weights=loss_weight)
             pred_actions = pred_actions[..., :action_size]
         # Decode discrete actions
         elif discrete_actions is not None:
             pred_actions = self.discrete_decoder(hidden_states[:, ::2])
-            mask = attention_mask[:, ::2]
+            mask = attention_mask[:, ::2] if attention_mask is not None else None
             if return_loss:
                 action_loss = compute_ce_loss(pred_actions, discrete_actions, mask, weights=loss_weight)
 
