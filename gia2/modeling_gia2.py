@@ -448,11 +448,12 @@ class Gia2Model(GPTNeoPreTrainedModel):
         # Decode continuous observations
         if continuous_observations is not None:
             pred_observations = self.continuous_decoder(hidden_states[:, 1::2])
+            mask = attention_mask[:, 1::2]
             if return_loss:
                 observation_loss = compute_mse_loss(
                     pred_observations[:, :-1],
                     continuous_observations[:, 1:],
-                    attention_mask[:, 1:],
+                    mask[:, 1:], 
                     weights=loss_weight,
                 )
             pred_observations = pred_observations[..., :obs_size]
@@ -462,22 +463,25 @@ class Gia2Model(GPTNeoPreTrainedModel):
         # Decode image observations
         elif image_observations is not None:
             pred_observations = self.image_decoder(hidden_states[:, 1::2])
+            mask = attention_mask[:, 1::2]
             if return_loss:
                 observation_loss = compute_mse_loss(
-                    pred_observations[:, :-1], image_observations[:, 1:], attention_mask[:, 1:], weights=loss_weight
+                    pred_observations[:, :-1], image_observations[:, 1:], mask[:, 1:], weights=loss_weight
                 )
 
         # Decode continuous actions
         if continuous_actions is not None:
             pred_actions = self.continuous_decoder(hidden_states[:, ::2])
+            mask = attention_mask[:, ::2]
             if return_loss:
-                action_loss = compute_mse_loss(pred_actions, continuous_actions, attention_mask, weights=loss_weight)
+                action_loss = compute_mse_loss(pred_actions, continuous_actions, mask, weights=loss_weight)
             pred_actions = pred_actions[..., :action_size]
         # Decode discrete actions
         elif discrete_actions is not None:
             pred_actions = self.discrete_decoder(hidden_states[:, ::2])
+            mask = attention_mask[:, ::2]
             if return_loss:
-                action_loss = compute_ce_loss(pred_actions, discrete_actions, attention_mask, weights=loss_weight)
+                action_loss = compute_ce_loss(pred_actions, discrete_actions, mask, weights=loss_weight)
 
         # Return output
         if return_loss:
