@@ -95,8 +95,10 @@ def main():
 
     # Set the tasks
     tasks = data_args.tasks
-    if tasks in ["atari", "babyai", "metaworld", "mujoco"]:
-        tasks = [env_id for env_id in TASK_NAME_TO_ENV_ID.keys() if env_id.startswith(tasks)]
+    for domain in ["atari", "babyai", "metaworld", "mujoco"]:
+        if domain in tasks:
+            tasks.remove(domain)
+            tasks.extend([env_id for env_id in TASK_NAME_TO_ENV_ID.keys() if env_id.startswith(domain)])
 
     # Load the dataset
     dataset = {t: load_dataset("gia-project/gia-dataset-parquet", t) for t in tasks}
