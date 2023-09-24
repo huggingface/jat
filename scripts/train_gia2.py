@@ -114,6 +114,7 @@ def main():
         t: d.map(
             preprocess_function,
             batched=True,
+            batch_size=10,
             fn_kwargs={"max_len": config.max_position_embeddings // 2},
             num_proc=data_args.preprocess_num_proc,
         )
