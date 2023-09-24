@@ -409,6 +409,7 @@ def generate_model_card(model_name: str, scores_dict: Dict[str, List[float]]) ->
         eval_results=generate_eval_results(scores_dict),
         model_name=model_name,
         datasets="gia-project/gia-dataset-parquet",
+        pipeline_tag="reinforcement-learning",
     )
     card = ModelCard.from_template(
         card_data,
