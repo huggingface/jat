@@ -34,8 +34,8 @@ The model was trained on the following tasks:
 Use the code below to get started with the model.
 
 ```python
-from gia import GIAModel
+from transformers import AutoModelForCausalLM
 
-model = GIAModel.from_pretrained("{{ model_name | default("[More Information Needed]", true)}}")
+model = AutoModelForCausalLM.from_pretrained("{{ model_name | default("[More Information Needed]", true)}}")
 ```
 
