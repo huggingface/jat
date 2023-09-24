@@ -1,6 +1,5 @@
 import json
 import os
-import shutil
 import sys
 import tempfile
 from contextlib import contextmanager
@@ -12,6 +11,7 @@ import torch
 import torch.nn.functional as F
 from huggingface_hub import EvalResult, HfApi, ModelCard, ModelCardData
 from torch import BoolTensor, FloatTensor, LongTensor, Tensor
+from transformers import AutoTokenizer, PreTrainedModel
 
 from gia.eval.rl.envs.core import TASK_NAME_TO_ENV_ID
 
@@ -420,7 +420,7 @@ def generate_model_card(model_name: str, scores_dict: Dict[str, List[float]]) ->
     return card
 
 
-def push_to_hub(path: str, repo_id: str, scores_dict: Dict[str, List[float]]) -> None:
+def push_to_hub(model: PreTrainedModel, repo_id: str, scores_dict: Dict[str, List[float]], replay_path: str) -> None:
     """
     Push a model to the Hugging Face Hub.
 
@@ -432,26 +432,29 @@ def push_to_hub(path: str, repo_id: str, scores_dict: Dict[str, List[float]]) ->
         scores_dict (`Dict[str, List[float]]`):
             Dictionary containing the scores for each task.
     """
-    # Create a temporary directory
-    tmp_dir = tempfile.mkdtemp()
-
-    # Copy the files to the temporary directory
-    for file in ["pytorch_model.bin", "config.json", "replay.mp4"]:
-        if os.path.exists(os.path.join(path, file)):
-            source_file = os.path.join(path, file)
-            shutil.copy(source_file, tmp_dir)
-        else:
-            print(f"WARNING: {file} not found in {path}")
+    api = HfApi()
 
     # Create a README.md using a template
     model_card = generate_model_card(repo_id, scores_dict)
-    model_card.save(os.path.join(tmp_dir, "README.md"))
+    model_card.push_to_hub(repo_id, commit_message="Upload model card")
 
-    print(f"All tasks completed. Files moved to: {tmp_dir}")
+    # Push the model
+    model.push_to_hub(repo_id, commit_message="Upload model")
 
-    api = HfApi()
-    api.create_repo(repo_id=repo_id, repo_type="model", exist_ok=True)
-    api.upload_folder(repo_id=repo_id, folder_path=tmp_dir, commit_message="Upload model", repo_type="model")
+    # As long as the the trainer does not use tokenizer, we mannually save it
+    tokenizer = AutoTokenizer.from_pretrained("bert-base-cased")
+    tokenizer.push_to_hub(repo_id, commit_message="Upload tokenizer")
+
+    # Push the replay
+    api.upload_file(
+        path_or_fileobj=replay_path,
+        path_in_repo="replay.mp4",
+        repo_id=repo_id,
+        commit_message="Upload replay",
+        repo_type="model",
+    )
+
+    print(f"Pushed model to https://huggingface.co/{repo_id}")
 
 
 def save_video_grid(
