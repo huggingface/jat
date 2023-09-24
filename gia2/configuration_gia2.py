@@ -116,5 +116,3 @@ class Gia2Config(GPTNeoConfig):
         self.max_continuous_size = max_continuous_size
         self.max_discrete_value = max_discrete_value
 
-
-Gia2Config.register_for_auto_class()

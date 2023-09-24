@@ -636,6 +636,3 @@ class Gia2Model(GPTNeoPreTrainedModel):
         )
 
         return model_inputs
-
-
-Gia2Model.register_for_auto_class("AutoModelForCausalLM")

@@ -13,9 +13,10 @@ from gymnasium import spaces
 from tqdm import tqdm
 from transformers import AutoTokenizer, HfArgumentParser
 
-from gia.eval.rl import make
+from gia2.configuration_gia2 import Gia2Config
 from gia2.modeling_gia2 import Gia2Model
 from gia2.utils import push_to_hub, save_video_grid, suppress_stdout
+from gia.eval.rl import make
 
 
 @dataclass
@@ -161,9 +162,11 @@ def main():
     # Push the model to the hub
     if eval_args.push_to_hub:
         assert eval_args.repo_id is not None, "You need to specify a repo_id to push to."
+        Gia2Model.register_for_auto_class("AutoModelForCausalLM")
+        Gia2Config.register_for_auto_class()
         # As long as the the trainer does not use tokenizer, we mannually save it
         tokenizer = AutoTokenizer.from_pretrained("bert-base-cased")
-        tokenizer.save_pretrained(model_args.model_name_or_path)
+        tokenizer.push_to_hub(model_args.model_name_or_path)
         push_to_hub(model_args.model_name_or_path, eval_args.repo_id, scores_dict=model_scores_dict)
         print(f"Pushed model to https://huggingface.co/{eval_args.repo_id}")
 
