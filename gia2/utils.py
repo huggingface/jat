@@ -434,6 +434,9 @@ def push_to_hub(model: PreTrainedModel, repo_id: str, scores_dict: Dict[str, Lis
     """
     api = HfApi()
 
+    # Create the repo
+    api.create_repo(repo_id=repo_id, repo_type="model", exist_ok=True)
+
     # Create a README.md using a template
     model_card = generate_model_card(repo_id, scores_dict)
     model_card.push_to_hub(repo_id, commit_message="Upload model card")
