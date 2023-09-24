@@ -166,7 +166,7 @@ def main():
         Gia2Config.register_for_auto_class()
         # As long as the the trainer does not use tokenizer, we mannually save it
         tokenizer = AutoTokenizer.from_pretrained("bert-base-cased")
-        tokenizer.push_to_hub(model_args.model_name_or_path)
+        tokenizer.push_to_hub(eval_args.repo_id)
         push_to_hub(model_args.model_name_or_path, eval_args.repo_id, scores_dict=model_scores_dict)
         print(f"Pushed model to https://huggingface.co/{eval_args.repo_id}")
 
