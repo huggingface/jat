@@ -86,7 +86,7 @@ class Gia2Config(GPTNeoConfig):
         use_cache=True,
         bos_token_id=50256,
         eos_token_id=50256,
-        max_continuous_size=376,
+        max_continuous_size=377,
         max_discrete_value=18,
         tokenizer_class="GPT2Tokenizer",
         **kwargs,
