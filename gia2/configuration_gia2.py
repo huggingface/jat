@@ -60,6 +60,10 @@ class Gia2Config(GPTNeoConfig):
             The maximum size of the continuous values.
         max_discrete_value (`int`, *optional*, default to 18):
             The maximum value of the discrete values.
+        image_size (`int`, *optional*, defaults to 224):
+            The size (resolution) of each image.
+        patch_size (`int`, *optional*, defaults to 16):
+            The size (resolution) of each patch.
         tokenizer_class (`str`, *optional*, defaults to `"GPT2Tokenizer"`):
             The name of the tokenizer class to use.
     """
@@ -86,8 +90,11 @@ class Gia2Config(GPTNeoConfig):
         use_cache=True,
         bos_token_id=50256,
         eos_token_id=50256,
-        max_continuous_size=376,
+        max_continuous_size=377,
         max_discrete_value=18,
+        image_size=224,
+        num_channels=3,
+        patch_size=16,
         tokenizer_class="GPT2Tokenizer",
         **kwargs,
     ):
@@ -115,6 +122,9 @@ class Gia2Config(GPTNeoConfig):
         )
         self.max_continuous_size = max_continuous_size
         self.max_discrete_value = max_discrete_value
+        self.image_size = image_size
+        self.num_channels = num_channels
+        self.patch_size = patch_size
 
 
 Gia2Config.register_for_auto_class()

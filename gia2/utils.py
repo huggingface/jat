@@ -273,6 +273,13 @@ def _collate(sequences: List[List], dtype: torch.dtype) -> Tuple[FloatTensor, Bo
 def collate_fn(batch: List[Dict[str, List]]) -> Dict[str, Tensor]:
     collated = {}
 
+    if "input_ids" in batch[0] and batch[0]["input_ids"] is not None:
+        collated["input_ids"] = torch.tensor([x["input_ids"] for x in batch], dtype=torch.int64)
+        collated["attention_mask"] = torch.tensor([x["attention_mask"] for x in batch], dtype=torch.bool)
+
+    if "pixel_values" in batch[0] and batch[0]["pixel_values"] is not None:
+        collated["pixel_values"] = torch.stack([torch.from_numpy(x["pixel_values"]) for x in batch])
+
     continuous_keys = ["continuous_observations", "continuous_actions", "rewards"]
     for key in continuous_keys:
         if key in batch[0] and batch[0][key] is not None:
@@ -285,11 +292,10 @@ def collate_fn(batch: List[Dict[str, List]]) -> Dict[str, Tensor]:
             values = [x[key] for x in batch]
             collated[key], _ = _collate(values, dtype=torch.int64)
 
-    image_keys = ["image_observations"]
-    for key in image_keys:
-        if key in batch[0] and batch[0][key] is not None:
-            values = [x[key] for x in batch]
-            collated[key], _ = _collate(values, dtype=torch.float32)
+    key = "image_observations"
+    if key in batch[0] and batch[0][key] is not None:
+        values = [x[key] for x in batch]
+        collated[key], _ = _collate(values, dtype=torch.float32)
 
     if "loss_weight" in batch[0]:
         collated["loss_weight"] = torch.tensor([x["loss_weight"] for x in batch], dtype=torch.float32)
