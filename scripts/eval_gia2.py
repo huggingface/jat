@@ -96,10 +96,10 @@ def main():
         for episode in tqdm(range(eval_args.num_episodes), desc=task, unit="episode", leave=False):
             observation, _ = env.reset()
             observations = {key: [val] for key, val in observation.items()}
-            rewards = [0]
+            rewards = [0.0]
             action_key = "continuous_actions" if isinstance(env.action_space, spaces.Box) else "discrete_actions"
             actions = {action_key: []}
-            ep_return = 0
+            ep_return = 0.0
             done = False
             while not done:
                 action = model.get_next_action(**observations, **actions, rewards=rewards, action_size=action_size)
