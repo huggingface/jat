@@ -362,16 +362,152 @@ class Gia2Model(GPTNeoPreTrainedModel):
         self.transformer = GPTNeoModel(config)
 
         # Decoders
-        self.continuous_decoder = nn.Linear(config.hidden_size, config.max_continuous_size, bias=False)
+        self.continuous_decoder = nn.Linear(config.hidden_size, config.max_continuous_size)
         self.discrete_decoder = nn.Linear(config.hidden_size, config.max_discrete_value, bias=False)
         self.image_decoder = DualBatchReshapeWrapper(ImageDecoder(config.hidden_size))
 
         # Initialize weights and apply final processing
         self.post_init()
 
+    def embed_rl(
+        self,
+        continuous_observations: Optional[FloatTensor] = None,
+        discrete_observations: Optional[LongTensor] = None,
+        image_observations: Optional[FloatTensor] = None,
+        continuous_actions: Optional[FloatTensor] = None,
+        discrete_actions: Optional[LongTensor] = None,
+        rewards: Optional[FloatTensor] = None,
+        attention_mask: Optional[BoolTensor] = None,
+    ):
+        # Prepare RL inputs (pad and cat rewards to observations)
+        assert rewards is not None
+        if continuous_observations is not None:
+            # Modify the rewards to move from [r_1, r_2, ..., r_T] to [0, r_1, r_2, ..., r_T-1]
+            rewards = torch.cat((torch.zeros_like(rewards[:, :1]), rewards[:, :-1]), dim=1)
+            continuous_observations = torch.cat((continuous_observations, rewards.unsqueeze(-1)), dim=-1)
+            continuous_observations = cyclic_expand_dim(continuous_observations, self.config.max_continuous_size)
+        if discrete_observations is not None:
+            raise NotImplementedError
+        if continuous_actions is not None:
+            continuous_actions = cyclic_expand_dim(continuous_actions, self.config.max_continuous_size)
+
+        # Encode
+        if continuous_observations is not None:
+            batch_size, seq_len = continuous_observations.shape[:2]
+            inputs_embeds_observations = self.continuous_encoder(continuous_observations)
+        elif discrete_observations is not None:
+            batch_size, seq_len = discrete_observations.shape
+            inputs_embeds_observations = self.discrete_encoder(discrete_observations)
+        elif image_observations is not None:
+            batch_size, seq_len = image_observations.shape[:2]
+            inputs_embeds_observations = self.image_encoder(image_observations)
+        else:
+            raise ValueError("Missing observations.")
+        if continuous_actions is not None:
+            inputs_embeds_actions = self.continuous_encoder(continuous_actions)
+        elif discrete_actions is not None:
+            inputs_embeds_actions = self.discrete_encoder(discrete_actions)
+        else:
+            raise ValueError("Missing actions.")
+
+        # Concatenate observations and actions
+        inputs_embeds = torch.cat((inputs_embeds_observations, inputs_embeds_actions), dim=2)
+        input_embeds = input_embeds.view(batch_size, 2 * seq_len, self.config.hidden_size)
+        if attention_mask is not None:
+            attention_mask = torch.repeat_interleave(attention_mask, repeats=2, dim=1)
+        return inputs_embeds, attention_mask
+
+    def output_rl(
+        self,
+        transformer_outputs,
+        continuous_observations: Optional[FloatTensor] = None,
+        discrete_observations: Optional[LongTensor] = None,
+        image_observations: Optional[FloatTensor] = None,
+        continuous_actions: Optional[FloatTensor] = None,
+        discrete_actions: Optional[LongTensor] = None,
+        rewards: Optional[FloatTensor] = None,
+        attention_mask: Optional[BoolTensor] = None,
+        return_loss: bool = True,
+        loss_weight: Optional[FloatTensor] = None,
+    ):
+        hidden_states = transformer_outputs.last_hidden_state
+        # Observations
+        assert rewards is not None
+        observations_mask = attention_mask[:, 1::2] if attention_mask is not None else None
+        if continuous_observations is not None:
+            # Modify the rewards to move from [r_1, r_2, ..., r_T] to [0, r_1, r_2, ..., r_T-1]
+            obs_size = continuous_observations.shape[-1]
+            rewards = torch.cat((torch.zeros_like(rewards[:, :1]), rewards[:, :-1]), dim=1)
+            continuous_observations = torch.cat((continuous_observations, rewards.unsqueeze(-1)), dim=-1)
+            continuous_observations = cyclic_expand_dim(continuous_observations, self.config.max_continuous_size)
+            pred_observations = self.continuous_decoder(hidden_states[:, 1::2])
+            if return_loss:
+                observation_loss = compute_mse_loss(
+                    pred_observations[:, :-1],
+                    continuous_observations[:, 1:],
+                    observations_mask[:, 1:] if observations_mask is not None else None,
+                    weights=loss_weight,
+                )
+            pred_observations = pred_observations[..., :obs_size]
+        elif discrete_observations is not None:
+            pred_observations = self.discrete_decoder(hidden_states[:, 1::2])
+            if return_loss:
+                observation_loss = compute_ce_loss(
+                    pred_observations[:, :-1],
+                    discrete_observations[:, 1:],
+                    observations_mask[:, 1:] if observations_mask is not None else None,
+                    weights=loss_weight,
+                )
+        elif image_observations is not None:
+            pred_observations = self.image_decoder(hidden_states[:, 1::2])
+            if return_loss:
+                observation_loss = compute_mse_loss(
+                    pred_observations[:, :-1],
+                    image_observations[:, 1:],
+                    observations_mask[:, 1:] if observations_mask is not None else None,
+                    weights=loss_weight,
+                )
+
+        # Actions
+        actions_mask = attention_mask[:, ::2] if attention_mask is not None else None
+        if continuous_actions is not None:
+            act_size = continuous_actions.shape[-1]
+            continuous_actions = cyclic_expand_dim(continuous_actions, self.config.max_continuous_size)
+            pred_actions = self.continuous_decoder(hidden_states[:, ::2])
+            if return_loss:
+                action_loss = compute_mse_loss(pred_actions, continuous_actions, actions_mask, weights=loss_weight)
+            pred_actions = pred_actions[..., :act_size]
+        elif discrete_actions is not None:
+            pred_actions = self.discrete_decoder(hidden_states[:, ::2])
+            if return_loss:
+                action_loss = compute_ce_loss(pred_actions, discrete_actions, actions_mask, weights=loss_weight)
+
+        # Return output
+        if return_loss:
+            loss = 0.0 * observation_loss + 1.0 * action_loss
+            return Gia2Output(
+                loss=loss,
+                observation_loss=observation_loss,
+                action_loss=action_loss,
+                pred_observations=pred_observations,
+                pred_actions=pred_actions,
+                past_key_values=transformer_outputs.past_key_values,
+                hidden_states=transformer_outputs.hidden_states,
+                attentions=transformer_outputs.attentions,
+            )
+        else:
+            return Gia2Output(
+                pred_observations=pred_observations,
+                pred_actions=pred_actions,
+                past_key_values=transformer_outputs.past_key_values,
+                hidden_states=transformer_outputs.hidden_states,
+                attentions=transformer_outputs.attentions,
+            )
+
     def forward(
         self,
         input_ids: Optional[LongTensor] = None,
+        pixel_values: Optional[FloatTensor] = None,
         continuous_observations: Optional[FloatTensor] = None,
         discrete_observations: Optional[LongTensor] = None,
         image_observations: Optional[FloatTensor] = None,
@@ -390,43 +526,27 @@ class Gia2Model(GPTNeoPreTrainedModel):
         return_loss: bool = True,
         loss_weight: Optional[FloatTensor] = None,
     ) -> Gia2Output:
-        # Encode continuous observations
-        if continuous_observations is not None:
-            batch_size, seq_len, obs_size = continuous_observations.shape
-            continuous_observations = cyclic_expand_dim(continuous_observations, self.config.max_continuous_size)
-            inputs_embeds_observations = self.continuous_encoder(continuous_observations)
-        # Encode discrete observations
-        elif discrete_observations is not None:
+        # Textual tasks
+        if input_ids is not None or pixel_values is not None:
             raise NotImplementedError
-        # Encode image observations
-        elif image_observations is not None:
-            inputs_embeds_observations = self.image_encoder(image_observations)
-        else:
-            inputs_embeds_observations = None
-
-        # Encode continuous actions
-        if continuous_actions is not None:
-            batch_size, seq_len, action_size = continuous_actions.shape
-            continuous_actions = cyclic_expand_dim(continuous_actions, self.config.max_continuous_size)
-            inputs_embeds_actions = self.continuous_encoder(continuous_actions)
-        # Encode discrete actions
-        elif discrete_actions is not None:
-            batch_size, seq_len = discrete_actions.shape
-            inputs_embeds_actions = self.discrete_encoder(discrete_actions)
-        else:
-            inputs_embeds_actions = None
-
-        # Concatenate observations and actions
-        if inputs_embeds_observations is not None and inputs_embeds_actions is not None:
-            inputs_embeds = torch.cat((inputs_embeds_observations, inputs_embeds_actions), dim=2).view(
-                batch_size, 2 * seq_len, self.config.hidden_size
+        # RL tasks
+        elif (
+            continuous_observations is not None or discrete_observations is not None or image_observations is not None
+        ):
+            inputs_embeds, attention_mask = self.embed_rl(
+                continuous_observations,
+                discrete_observations,
+                image_observations,
+                continuous_actions,
+                discrete_actions,
+                rewards,
+                attention_mask,
             )
-            if attention_mask is not None:
-                attention_mask = torch.repeat_interleave(attention_mask, repeats=2, dim=1)
+        else:
+            raise ValueError("Input not provided.")
 
         # Pass through transformer
         transformer_outputs = self.transformer(
-            input_ids=input_ids,
             past_key_values=past_key_values,
             attention_mask=attention_mask,
             token_type_ids=token_type_ids,
@@ -438,88 +558,19 @@ class Gia2Model(GPTNeoPreTrainedModel):
             return_dict=return_dict,
         )
 
-        hidden_states = transformer_outputs[0]
-
-        # The following will be overwritten if needed
-        lm_loss, observation_loss, action_loss = None, None, None
-        lm_logits, pred_observations, pred_actions = None, None, None
-
-        # Decode language model TODO: @Clément implement this
-        if input_ids is not None:
-            lm_logits = torch.randn(
-                input_ids.shape[0], input_ids.shape[1], self.config.vocab_size, device=input_ids.device
-            )
-            if return_loss:
-                lm_loss = torch.randn(1, device=input_ids.device)
-
-        # Decode continuous observations
-        if continuous_observations is not None:
-            pred_observations = self.continuous_decoder(hidden_states[:, 1::2])
-            mask = attention_mask[:, 1::2] if attention_mask is not None else None
-            if return_loss:
-                observation_loss = compute_mse_loss(
-                    pred_observations[:, :-1],
-                    continuous_observations[:, 1:],
-                    mask[:, 1:] if mask is not None else None,
-                    weights=loss_weight,
-                )
-            pred_observations = pred_observations[..., :obs_size]
-        # Decode discrete observations
-        elif discrete_observations is not None:
+        if input_ids is not None or pixel_values is not None:
             raise NotImplementedError
-        # Decode image observations
-        elif image_observations is not None:
-            pred_observations = self.image_decoder(hidden_states[:, 1::2])
-            mask = attention_mask[:, 1::2] if attention_mask is not None else None
-            if return_loss:
-                observation_loss = compute_mse_loss(
-                    pred_observations[:, :-1],
-                    image_observations[:, 1:],
-                    mask[:, 1:] if mask is not None else None,
-                    weights=loss_weight,
-                )
-
-        # Decode continuous actions
-        if continuous_actions is not None:
-            pred_actions = self.continuous_decoder(hidden_states[:, ::2])
-            mask = attention_mask[:, ::2] if attention_mask is not None else None
-            if return_loss:
-                action_loss = compute_mse_loss(pred_actions, continuous_actions, mask, weights=loss_weight)
-            pred_actions = pred_actions[..., :action_size]
-        # Decode discrete actions
-        elif discrete_actions is not None:
-            pred_actions = self.discrete_decoder(hidden_states[:, ::2])
-            mask = attention_mask[:, ::2] if attention_mask is not None else None
-            if return_loss:
-                action_loss = compute_ce_loss(pred_actions, discrete_actions, mask, weights=loss_weight)
-
-        # Return output
-        if return_loss:
-            if observation_loss is not None and action_loss is not None:
-                loss = 0.0 * observation_loss + 1.0 * action_loss
-            elif lm_loss is not None:
-                loss = lm_loss
-            else:
-                raise RuntimeError("No loss to return")
-            return Gia2Output(
-                loss=loss,
-                observation_loss=observation_loss,
-                action_loss=action_loss,
-                logits=lm_logits,
-                pred_observations=pred_observations,
-                pred_actions=pred_actions,
-                past_key_values=transformer_outputs.past_key_values,
-                hidden_states=transformer_outputs.hidden_states,
-                attentions=transformer_outputs.attentions,
-            )
         else:
-            return Gia2Output(
-                pred_observations=pred_observations,
-                pred_actions=pred_actions,
-                logits=lm_logits,
-                past_key_values=transformer_outputs.past_key_values,
-                hidden_states=transformer_outputs.hidden_states,
-                attentions=transformer_outputs.attentions,
+            return self.output_rl(
+                transformer_outputs,
+                continuous_observations,
+                discrete_observations,
+                image_observations,
+                continuous_actions,
+                discrete_actions,
+                rewards,
+                return_loss,
+                loss_weight,
             )
 
     @torch.no_grad()
