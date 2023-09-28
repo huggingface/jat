@@ -6,8 +6,8 @@ import torch
 import torch.nn.functional as F
 from torch import BoolTensor, FloatTensor, LongTensor, Tensor, nn
 from transformers import GPTNeoModel, GPTNeoPreTrainedModel
-from transformers.models.vit.modeling_vit import ViTPatchEmbeddings
 from transformers.modeling_outputs import ModelOutput
+from transformers.models.vit.modeling_vit import ViTPatchEmbeddings
 
 from .configuration_gia2 import Gia2Config
 
@@ -439,7 +439,7 @@ class Gia2Model(GPTNeoPreTrainedModel):
 
         # Concatenate observations and actions
         inputs_embeds = torch.cat((inputs_embeds_observations, inputs_embeds_actions), dim=2)
-        input_embeds = input_embeds.view(batch_size, 2 * seq_len, self.config.hidden_size)
+        inputs_embeds = inputs_embeds.view(batch_size, 2 * seq_len, self.config.hidden_size)
         if attention_mask is not None:
             attention_mask = torch.repeat_interleave(attention_mask, repeats=2, dim=1)
         return inputs_embeds, attention_mask

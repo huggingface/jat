@@ -3,6 +3,7 @@ from transformers import AutoTokenizer, CLIPImageProcessor
 from gia2.configuration_gia2 import Gia2Config
 from gia2.processor import GIAProcessor
 
+
 # Small model
 config = Gia2Config(
     attention_types=[[["global", "local"], 6]],
