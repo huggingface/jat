@@ -92,7 +92,8 @@ def main():
         cache_dir=model_args.cache_dir,
     )
     model = Gia2Model(config)
-    processor = AutoProcessor.from_pretrained(model_args.model_name_or_path, cache_dir=model_args.cache_dir)
+    processor = AutoProcessor.from_pretrained(model_args.model_name_or_path, cache_dir=model_args.cache_dir,
+                                              trust_remote_code=True)
 
     # Set the tasks
     tasks = data_args.tasks
@@ -102,7 +103,14 @@ def main():
             tasks.extend([env_id for env_id in TASK_NAME_TO_ENV_ID.keys() if env_id.startswith(domain)])
 
     # Load the dataset
-    dataset = {t: load_dataset("gia-project/gia-dataset-parquet", t, streaming=True) for t in tasks}
+    if "oscar" in tasks:
+        dataset = {"oscar": load_dataset("ClementRomac/cleaned_deduplicated_oscar", streaming=True)}
+        tasks.remove("oscar")
+    else:
+        dataset = {}
+
+    for _task in tasks:
+        dataset[_task] = load_dataset("gia-project/gia-dataset-parquet", _task, streaming=True)
 
     # Add loss weight
     # for task in dataset.keys():
@@ -122,19 +130,20 @@ def main():
     #     for t, d in dataset.items()
     # }
 
-    def transforms(example_batch):
-        images = [x for x in example_batch["images"]]
-        captions = [x for x in example_batch["text"]]
-        inputs = processor(images=images, text=captions, padding="max_length")
-        inputs.update({"labels": inputs["input_ids"]})
+    def transforms(example_batch, max_input_size):
+        inputs = processor(example_batch, max_input_size, padding="max_length")
         return inputs
 
-    dataset = {t: d.map(transforms, batched=True, batch_size=2) for t, d in dataset.items()}
+    dataset = {
+        t: d.map(transforms, batched=True, batch_size=2, fn_kwargs={"max_input_size": config.max_position_embeddings})
+    for t, d in dataset.items()}
+
     train_dataset = {t: d["train"] for t, d in dataset.items()}
     eval_dataset = {t: d["test"] for t, d in dataset.items()}
     sampler = MyBatchSampler(train_dataset)
     # train_dataset = concatenate_datasets(list(train_dataset.values()))#.with_transform(transforms)
-    train_dataset = train_dataset["conceptual-captions"]
+    # train_dataset = train_dataset["conceptual-captions"]
+    train_dataset = train_dataset["oscar"]
     # Instanciate the trainer and train
     trainer = Trainer(
         model=model,
