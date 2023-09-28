@@ -559,6 +559,8 @@ def mix_iterable_datasets(
     def generator(datasets: List[IterableDataset], batch_size: int, stopping_strategy: str = "first_exhausted"):
         assert stopping_strategy in ["first_exhausted", "all_exhausted"]
         iterators = [iter(dataset) for dataset in datasets]
+        exhausted = [False] * len(datasets)  # A list to keep track of which iterators are exhausted
+
         while True:
             for i, it in enumerate(iterators):
                 for _ in range(batch_size):
@@ -568,8 +570,18 @@ def mix_iterable_datasets(
                         if stopping_strategy == "first_exhausted":
                             return
                         else:
+                            # Mark the iterator as exhausted
+                            exhausted[i] = True
+                            # Check if all iterators are exhausted
+                            if all(exhausted):
+                                return
+                            # Reinitialize the exhausted iterator
                             iterators[i] = iter(datasets[i])
-                            yield next(iterators[i])
+                            try:
+                                yield next(iterators[i])
+                            except StopIteration:
+                                # Handle the case when the reinitialized iterator is also exhausted immediately
+                                return
 
     gen_kwargs = {"datasets": datasets, "batch_size": batch_size, "stopping_strategy": stopping_strategy}
     return IterableDataset.from_generator(generator=generator, gen_kwargs=gen_kwargs)
