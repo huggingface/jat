@@ -9,6 +9,7 @@ import cv2
 import numpy as np
 import torch
 import torch.nn.functional as F
+from datasets import IterableDataset
 from huggingface_hub import EvalResult, HfApi, ModelCard, ModelCardData
 from torch import BoolTensor, FloatTensor, LongTensor, Tensor
 from transformers import AutoTokenizer, PreTrainedModel
@@ -534,3 +535,41 @@ def save_video_grid(
 
     out.release()
     os.system(f"ffmpeg -y -i {temp_filename} -vcodec h264 {output_filename}")
+
+
+def mix_iterable_datasets(
+    datasets: List[IterableDataset], batch_size: int, stopping_strategy: str = "first_exhausted"
+):
+    """
+    Mixes multiple IterableDataset objects into a single IterableDataset.
+
+    Args:
+        datasets (`List[IterableDataset]`):
+            List of IterableDataset objects.
+        batch_size (`int`):
+            Batch size.
+        stopping_strategy (`str`, **optional**):
+            Stopping strategy. Can be either "first_exhausted" or "all_exhausted".
+
+    Returns:
+        `IterableDataset`:
+            A mixed IterableDataset object.
+    """
+
+    def generator(datasets: List[IterableDataset], batch_size: int, stopping_strategy: str = "first_exhausted"):
+        assert stopping_strategy in ["first_exhausted", "all_exhausted"]
+        iterators = [iter(dataset) for dataset in datasets]
+        while True:
+            for i, it in enumerate(iterators):
+                for _ in range(batch_size):
+                    try:
+                        yield next(it)
+                    except StopIteration:
+                        if stopping_strategy == "first_exhausted":
+                            return
+                        else:
+                            iterators[i] = iter(datasets[i])
+                            yield next(iterators[i])
+
+    gen_kwargs = {"datasets": datasets, "batch_size": batch_size, "stopping_strategy": stopping_strategy}
+    return IterableDataset.from_generator(generator=generator, gen_kwargs=gen_kwargs)

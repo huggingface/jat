@@ -8,16 +8,14 @@ import sys
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-from datasets import concatenate_datasets, load_dataset
+from datasets import load_dataset
 from torchvision.transforms.functional import to_tensor
-from transformers import AutoProcessor, HfArgumentParser, TrainingArguments
+from transformers import AutoProcessor, HfArgumentParser, Trainer, TrainingArguments
 
 from gia.eval.rl.envs.core import TASK_NAME_TO_ENV_ID
 from gia2.configuration_gia2 import Gia2Config
 from gia2.modeling_gia2 import Gia2Model
-from gia2.sampler import MyBatchSampler
-from gia2.trainer import Trainer
-from gia2.utils import collate_fn, preprocess_function
+from gia2.utils import collate_fn, mix_iterable_datasets
 
 
 logger = logging.getLogger(__name__)
@@ -92,8 +90,9 @@ def main():
         cache_dir=model_args.cache_dir,
     )
     model = Gia2Model(config)
-    processor = AutoProcessor.from_pretrained(model_args.model_name_or_path, cache_dir=model_args.cache_dir,
-                                              trust_remote_code=True)
+    processor = AutoProcessor.from_pretrained(
+        model_args.model_name_or_path, cache_dir=model_args.cache_dir, trust_remote_code=True
+    )
 
     # Set the tasks
     tasks = data_args.tasks
@@ -135,15 +134,19 @@ def main():
         return inputs
 
     dataset = {
-        t: d.map(transforms, batched=True, batch_size=2, fn_kwargs={"max_input_size": config.max_position_embeddings})
-    for t, d in dataset.items()}
+        t: d.map(
+            transforms,
+            batched=True,
+            batch_size=2,
+            fn_kwargs={"max_input_size": config.max_position_embeddings},
+            remove_columns={"text", "images"}.intersection(d["test"].column_names),
+        )
+        for t, d in dataset.items()
+    }
 
     train_dataset = {t: d["train"] for t, d in dataset.items()}
     eval_dataset = {t: d["test"] for t, d in dataset.items()}
-    sampler = MyBatchSampler(train_dataset)
-    # train_dataset = concatenate_datasets(list(train_dataset.values()))#.with_transform(transforms)
-    # train_dataset = train_dataset["conceptual-captions"]
-    train_dataset = train_dataset["oscar"]
+    train_dataset = mix_iterable_datasets(train_dataset.values(), batch_size=8)
     # Instanciate the trainer and train
     trainer = Trainer(
         model=model,
@@ -151,7 +154,6 @@ def main():
         data_collator=collate_fn,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
-        # train_sampler=sampler,
     )
     trainer.train()
 
