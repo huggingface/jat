@@ -4,8 +4,7 @@
 
 # Model Card for {{ model_id | default("Model name", true) }}
 
-This is a multi-modal and multi-task model. 
-
+This is a multi-modal and multi-task model.
 
 ## Model Details
 
@@ -16,7 +15,7 @@ This is a multi-modal and multi-task model.
 
 ### Model Sources
 
-- **Repository:** https://github.com/huggingface/gia
+- **Repository:** <https://github.com/huggingface/gia>
 - **Paper:** Coming soon
 - **Demo:** Coming soon
 
@@ -27,8 +26,6 @@ The model was trained on the following tasks:
 {% for task in tasks -%}
 - {{ task }}
 {% endfor %}
-
-
 ## How to Get Started with the Model
 
 Use the code below to get started with the model.
