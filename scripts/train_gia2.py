@@ -117,29 +117,13 @@ def main():
     #         loss_weight = [LOSS_WEIGHTS.get(task, 1.0)] * len(dataset[task][split])
     #         dataset[task][split] = dataset[task][split].add_column("loss_weight", loss_weight)
 
-    # Preprocess the dataset
-    # dataset = {
-    #     t: d.map(
-    #         preprocess_function,
-    #         batched=True,
-    #         batch_size=10,
-    #         fn_kwargs={"max_len": config.max_position_embeddings // 2},
-    #         num_proc=data_args.preprocess_num_proc,
-    #     )
-    #     for t, d in dataset.items()
-    # }
-
-    def transforms(example_batch, max_input_size):
-        inputs = processor(example_batch, max_input_size, padding="max_length")
-        return inputs
-
     dataset = {
         t: d.map(
-            transforms,
+            lambda example_batch: processor(**example_batch, padding="max_length", truncation=True),
             batched=True,
-            batch_size=2,
-            fn_kwargs={"max_input_size": config.max_position_embeddings},
+            batch_size=10,
             remove_columns={"text", "images"}.intersection(d["test"].column_names),
+            num_proc=data_args.preprocess_num_proc,
         )
         for t, d in dataset.items()
     }
@@ -148,13 +132,7 @@ def main():
     eval_dataset = {t: d["test"] for t, d in dataset.items()}
     train_dataset = mix_iterable_datasets(train_dataset.values(), batch_size=8)
     # Instanciate the trainer and train
-    trainer = Trainer(
-        model=model,
-        args=training_args,
-        data_collator=collate_fn,
-        train_dataset=train_dataset,
-        eval_dataset=eval_dataset,
-    )
+    trainer = Trainer(model=model, args=training_args, train_dataset=train_dataset, eval_dataset=eval_dataset)
     trainer.train()
 
 
