@@ -12,9 +12,170 @@ import torch.nn.functional as F
 from datasets import IterableDataset
 from huggingface_hub import EvalResult, HfApi, ModelCard, ModelCardData
 from torch import BoolTensor, FloatTensor, LongTensor, Tensor
-from transformers import AutoTokenizer, PreTrainedModel
+from transformers import PreTrainedModel, ProcessorMixin
 
-from gia.eval.rl.envs.core import TASK_NAME_TO_ENV_ID
+
+PRETTY_TASK_NAMES = {
+    "atari-alien": "ALE/Alien-v5",
+    "atari-amidar": "ALE/Amidar-v5",
+    "atari-assault": "ALE/Assault-v5",
+    "atari-asterix": "ALE/Asterix-v5",
+    "atari-asteroids": "ALE/Asteroids-v5",
+    "atari-atlantis": "ALE/Atlantis-v5",
+    "atari-bankheist": "ALE/BankHeist-v5",
+    "atari-battlezone": "ALE/BattleZone-v5",
+    "atari-beamrider": "ALE/BeamRider-v5",
+    "atari-berzerk": "ALE/Berzerk-v5",
+    "atari-bowling": "ALE/Bowling-v5",
+    "atari-boxing": "ALE/Boxing-v5",
+    "atari-breakout": "ALE/Breakout-v5",
+    "atari-centipede": "ALE/Centipede-v5",
+    "atari-choppercommand": "ALE/ChopperCommand-v5",
+    "atari-crazyclimber": "ALE/CrazyClimber-v5",
+    "atari-defender": "ALE/Defender-v5",
+    "atari-demonattack": "ALE/DemonAttack-v5",
+    "atari-doubledunk": "ALE/DoubleDunk-v5",
+    "atari-enduro": "ALE/Enduro-v5",
+    "atari-fishingderby": "ALE/FishingDerby-v5",
+    "atari-freeway": "ALE/Freeway-v5",
+    "atari-frostbite": "ALE/Frostbite-v5",
+    "atari-gopher": "ALE/Gopher-v5",
+    "atari-gravitar": "ALE/Gravitar-v5",
+    "atari-hero": "ALE/Hero-v5",
+    "atari-icehockey": "ALE/IceHockey-v5",
+    "atari-jamesbond": "ALE/Jamesbond-v5",
+    "atari-kangaroo": "ALE/Kangaroo-v5",
+    "atari-krull": "ALE/Krull-v5",
+    "atari-kungfumaster": "ALE/KungFuMaster-v5",
+    "atari-montezumarevenge": "ALE/MontezumaRevenge-v5",
+    "atari-mspacman": "ALE/MsPacman-v5",
+    "atari-namethisgame": "ALE/NameThisGame-v5",
+    "atari-phoenix": "ALE/Phoenix-v5",
+    "atari-pitfall": "ALE/Pitfall-v5",
+    "atari-pong": "ALE/Pong-v5",
+    "atari-privateeye": "ALE/PrivateEye-v5",
+    "atari-qbert": "ALE/Qbert-v5",
+    "atari-riverraid": "ALE/Riverraid-v5",
+    "atari-roadrunner": "ALE/RoadRunner-v5",
+    "atari-robotank": "ALE/Robotank-v5",
+    "atari-seaquest": "ALE/Seaquest-v5",
+    "atari-skiing": "ALE/Skiing-v5",
+    "atari-solaris": "ALE/Solaris-v5",
+    "atari-spaceinvaders": "ALE/SpaceInvaders-v5",
+    "atari-stargunner": "ALE/StarGunner-v5",
+    "atari-surround": "ALE/Surround-v5",
+    "atari-tennis": "ALE/Tennis-v5",
+    "atari-timepilot": "ALE/TimePilot-v5",
+    "atari-tutankham": "ALE/Tutankham-v5",
+    "atari-upndown": "ALE/UpNDown-v5",
+    "atari-venture": "ALE/Venture-v5",
+    "atari-videopinball": "ALE/VideoPinball-v5",
+    "atari-wizardofwor": "ALE/WizardOfWor-v5",
+    "atari-yarsrevenge": "ALE/YarsRevenge-v5",
+    "atari-zaxxon": "ALE/Zaxxon-v5",
+    "babyai-action-obj-door": "BabyAI-ActionObjDoor-v0",
+    "babyai-blocked-unlock-pickup": "BabyAI-BlockedUnlockPickup-v0",
+    "babyai-boss-level-no-unlock": "BabyAI-BossLevelNoUnlock-v0",
+    "babyai-boss-level": "BabyAI-BossLevel-v0",
+    "babyai-find-obj-s5": "BabyAI-FindObjS5-v0",
+    "babyai-go-to-door": "BabyAI-GoToDoor-v0",
+    "babyai-go-to-imp-unlock": "BabyAI-GoToImpUnlock-v0",
+    "babyai-go-to-local": "BabyAI-GoToLocal-v0",
+    "babyai-go-to-obj-door": "BabyAI-GoToObjDoor-v0",
+    "babyai-go-to-obj": "BabyAI-GoToObj-v0",
+    "babyai-go-to-red-ball-grey": "BabyAI-GoToRedBallGrey-v0",
+    "babyai-go-to-red-ball-no-dists": "BabyAI-GoToRedBallNoDists-v0",
+    "babyai-go-to-red-ball": "BabyAI-GoToRedBall-v0",
+    "babyai-go-to-red-blue-ball": "BabyAI-GoToRedBlueBall-v0",
+    "babyai-go-to-seq": "BabyAI-GoToSeq-v0",
+    "babyai-go-to": "BabyAI-GoTo-v0",
+    "babyai-key-corridor": "BabyAI-KeyCorridor-v0",
+    "babyai-key-in-box": "BabyAI-KeyInBox-v0",
+    "babyai-mini-boss-level": "BabyAI-MiniBossLevel-v0",
+    "babyai-move-two-across": "BabyAI-MoveTwoAcrossS8N9-v0",
+    "babyai-one-room-s8": "BabyAI-OneRoomS8-v0",
+    "babyai-open-door": "BabyAI-OpenDoor-v0",
+    "babyai-open-doors-order": "BabyAI-OpenDoorsOrderN4-v0",
+    "babyai-open-red-door": "BabyAI-OpenRedDoor-v0",
+    "babyai-open-two-doors": "BabyAI-OpenTwoDoors-v0",
+    "babyai-open": "BabyAI-Open-v0",
+    "babyai-pickup-above": "BabyAI-PickupAbove-v0",
+    "babyai-pickup-dist": "BabyAI-PickupDist-v0",
+    "babyai-pickup-loc": "BabyAI-PickupLoc-v0",
+    "babyai-pickup": "BabyAI-Pickup-v0",
+    "babyai-synth-loc": "BabyAI-SynthLoc-v0",
+    "babyai-synth-seq": "BabyAI-SynthSeq-v0",
+    "babyai-synth": "BabyAI-Synth-v0",
+    "babyai-unblock-pickup": "BabyAI-UnblockPickup-v0",
+    "babyai-unlock-local": "BabyAI-UnlockLocal-v0",
+    "babyai-unlock-pickup": "BabyAI-UnlockPickup-v0",
+    "babyai-unlock-to-unlock": "BabyAI-UnlockToUnlock-v0",
+    "babyai-unlock": "BabyAI-Unlock-v0",
+    "conceptual-captions": "Conceptual Captions",
+    "metaworld-assembly": "assembly-v2",
+    "metaworld-basketball": "basketball-v2",
+    "metaworld-bin-picking": "bin-picking-v2",
+    "metaworld-box-close": "box-close-v2",
+    "metaworld-button-press-topdown-wall": "button-press-topdown-wall-v2",
+    "metaworld-button-press-topdown": "button-press-topdown-v2",
+    "metaworld-button-press-wall": "button-press-wall-v2",
+    "metaworld-button-press": "button-press-v2",
+    "metaworld-coffee-button": "coffee-button-v2",
+    "metaworld-coffee-pull": "coffee-pull-v2",
+    "metaworld-coffee-push": "coffee-push-v2",
+    "metaworld-dial-turn": "dial-turn-v2",
+    "metaworld-disassemble": "disassemble-v2",
+    "metaworld-door-close": "door-close-v2",
+    "metaworld-door-lock": "door-lock-v2",
+    "metaworld-door-open": "door-open-v2",
+    "metaworld-door-unlock": "door-unlock-v2",
+    "metaworld-drawer-close": "drawer-close-v2",
+    "metaworld-drawer-open": "drawer-open-v2",
+    "metaworld-faucet-close": "faucet-close-v2",
+    "metaworld-faucet-open": "faucet-open-v2",
+    "metaworld-hammer": "hammer-v2",
+    "metaworld-hand-insert": "hand-insert-v2",
+    "metaworld-handle-press-side": "handle-press-side-v2",
+    "metaworld-handle-press": "handle-press-v2",
+    "metaworld-handle-pull-side": "handle-pull-side-v2",
+    "metaworld-handle-pull": "handle-pull-v2",
+    "metaworld-lever-pull": "lever-pull-v2",
+    "metaworld-peg-insert-side": "peg-insert-side-v2",
+    "metaworld-peg-unplug-side": "peg-unplug-side-v2",
+    "metaworld-pick-out-of-hole": "pick-out-of-hole-v2",
+    "metaworld-pick-place-wall": "pick-place-wall-v2",
+    "metaworld-pick-place": "pick-place-v2",
+    "metaworld-plate-slide-back-side": "plate-slide-back-side-v2",
+    "metaworld-plate-slide-back": "plate-slide-back-v2",
+    "metaworld-plate-slide-side": "plate-slide-side-v2",
+    "metaworld-plate-slide": "plate-slide-v2",
+    "metaworld-push-back": "push-back-v2",
+    "metaworld-push-wall": "push-wall-v2",
+    "metaworld-push": "push-v2",
+    "metaworld-reach-wall": "reach-wall-v2",
+    "metaworld-reach": "reach-v2",
+    "metaworld-shelf-place": "shelf-place-v2",
+    "metaworld-soccer": "soccer-v2",
+    "metaworld-stick-pull": "stick-pull-v2",
+    "metaworld-stick-push": "stick-push-v2",
+    "metaworld-sweep-into": "sweep-into-v2",
+    "metaworld-sweep": "sweep-v2",
+    "metaworld-window-close": "window-close-v2",
+    "metaworld-window-open": "window-open-v2",
+    "mujoco-ant": "Ant-v4",
+    "mujoco-doublependulum": "InvertedDoublePendulum-v4",
+    "mujoco-halfcheetah": "HalfCheetah-v4",
+    "mujoco-hopper": "Hopper-v4",
+    "mujoco-humanoid": "Humanoid-v4",
+    "mujoco-pendulum": "InvertedPendulum-v4",
+    "mujoco-pusher": "Pusher-v4",
+    "mujoco-reacher": "Reacher-v4",
+    "mujoco-standup": "HumanoidStandup-v4",
+    "mujoco-swimmer": "Swimmer-v4",
+    "mujoco-walker": "Walker2d-v4",
+    "ok-vqa": "OK-VQA",
+    "oscar": "OSCAR",
+}
 
 
 @contextmanager
@@ -343,7 +504,7 @@ def preprocess_function(examples: Dict[str, Any], max_len: int) -> Dict[str, Any
     return out_dict
 
 
-def generate_eval_results(scores_dict: Dict[str, List[float]]) -> List[EvalResult]:
+def generate_rl_eval_results(scores_dict: Dict[str, List[float]]) -> List[EvalResult]:
     """
     Generate a list of EvalResult objects.
 
@@ -365,7 +526,7 @@ def generate_eval_results(scores_dict: Dict[str, List[float]]) -> List[EvalResul
                 task_type="reinforcement-learning",
                 task_name="Reinforcement Learning",
                 dataset_type=task_name,
-                dataset_name=TASK_NAME_TO_ENV_ID[task_name],
+                dataset_name=PRETTY_TASK_NAMES[task_name],
                 metric_type="total_reward",
                 metric_name="Total reward",
                 metric_value=f"{mean_reward:.2f} +/- {std_reward:.2f}",
@@ -388,7 +549,7 @@ def generate_eval_results(scores_dict: Dict[str, List[float]]) -> List[EvalResul
                 task_type="reinforcement-learning",
                 task_name="Reinforcement Learning",
                 dataset_type=task_name,
-                dataset_name=TASK_NAME_TO_ENV_ID[task_name],
+                dataset_name=PRETTY_TASK_NAMES[task_name],
                 metric_type="expert_normalized_total_reward",
                 metric_name="Expert normalized total reward",
                 metric_value=f"{norm_mean_reward:.2f} +/- {norm_std_reward:.2f}",
@@ -397,7 +558,7 @@ def generate_eval_results(scores_dict: Dict[str, List[float]]) -> List[EvalResul
     return eval_results
 
 
-def generate_model_card(model_name: str, scores_dict: Dict[str, List[float]]) -> ModelCard:
+def generate_model_card(model_name: str, scores_dict: Optional[Dict[str, List[float]]] = None) -> ModelCard:
     """
     Generate a ModelCard from a template.
 
@@ -411,9 +572,12 @@ def generate_model_card(model_name: str, scores_dict: Dict[str, List[float]]) ->
         `ModelCard`:
             A ModelCard object.
     """
+    tags = ["reinforcement-learning"]
+    if scores_dict is not None:
+        tags.extend(scores_dict.keys())
     card_data = ModelCardData(
-        tags=["reinforcement-learning", *scores_dict.keys()],
-        eval_results=generate_eval_results(scores_dict),
+        tags=tags,
+        eval_results=generate_rl_eval_results(scores_dict) if scores_dict is not None else None,
         model_name=model_name,
         datasets="gia-project/gia-dataset-parquet",
         pipeline_tag="reinforcement-learning",
@@ -423,22 +587,32 @@ def generate_model_card(model_name: str, scores_dict: Dict[str, List[float]]) ->
         template_path="templates/model_card.md",
         model_name=model_name,
         model_id="Gia2",
-        tasks=[TASK_NAME_TO_ENV_ID[task_name] for task_name in scores_dict.keys()],
+        tasks=[PRETTY_TASK_NAMES[task_name] for task_name in scores_dict.keys()] if scores_dict is not None else [],
     )
     return card
 
 
-def push_to_hub(model: PreTrainedModel, repo_id: str, scores_dict: Dict[str, List[float]], replay_path: str) -> None:
+def push_to_hub(
+    model: PreTrainedModel,
+    processor: ProcessorMixin,
+    repo_id: str,
+    scores_dict: Optional[Dict[str, List[float]]] = None,
+    replay_path: Optional[str] = None,
+) -> None:
     """
     Push a model to the Hugging Face Hub.
 
     Args:
-        path (`str`):
-            Path to the model directory.
+        model (`PreTrainedModel`):
+            Model to push.
+        processor (`ProcessorMixin`):
+            Processor to push.
         repo_id (`str`):
             Repository ID to push to.
-        scores_dict (`Dict[str, List[float]]`):
+        scores_dict (`Dict[str, List[float]]` or `None`, **optional**):
             Dictionary containing the scores for each task.
+        replay_path (`str` or `None`, **optional**):
+            Path to the replay video.
     """
     api = HfApi()
 
@@ -452,9 +626,8 @@ def push_to_hub(model: PreTrainedModel, repo_id: str, scores_dict: Dict[str, Lis
     # Push the model
     model.push_to_hub(repo_id, commit_message="Upload model")
 
-    # As long as the the trainer does not use tokenizer, we mannually save it
-    tokenizer = AutoTokenizer.from_pretrained("bert-base-cased")
-    tokenizer.push_to_hub(repo_id, commit_message="Upload tokenizer")
+    # Push the processor
+    processor.push_to_hub(repo_id, commit_message="Upload processor")
 
     # Push the replay
     api.upload_file(

@@ -17,6 +17,7 @@ from transformers import HfArgumentParser
 from gia.eval.rl import make
 from gia.eval.rl.envs.core import TASK_NAME_TO_ENV_ID
 from gia2.modeling_gia2 import Gia2Model
+from gia2.processing_gia2 import Gia2Processor
 from gia2.utils import push_to_hub, save_video_grid, suppress_stdout
 
 
@@ -146,6 +147,7 @@ def main():
 
     device = torch.device("cpu") if eval_args.use_cpu else get_default_device()
     model = Gia2Model.from_pretrained(model_args.model_name_or_path, cache_dir=model_args.cache_dir).to(device)
+    processor = Gia2Processor.from_pretrained(model_args.model_name_or_path, cache_dir=model_args.cache_dir)
 
     scores_dict = {}
     video_list = []
@@ -172,7 +174,7 @@ def main():
     # Push the model to the hub
     if eval_args.push_to_hub:
         assert eval_args.repo_id is not None, "You need to specify a repo_id to push to."
-        push_to_hub(model, eval_args.repo_id, scores_dict=scores_dict, replay_path=replay_path)
+        push_to_hub(model, processor, eval_args.repo_id, scores_dict=scores_dict, replay_path=replay_path)
 
 
 if __name__ == "__main__":
