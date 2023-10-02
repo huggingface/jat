@@ -283,6 +283,12 @@ class Gia2Processor(ProcessorMixin):
         if rewards is not None:
             encoding["rewards"] = rewards
 
+        # Handle image+text case, need to reduce the max_len as the image and text will be concatenated
+        if text is not None and images is not None:
+            if max_length is None:
+                max_length = self.tokenizer.model_max_length
+            max_length -= (224 // 16) ** 2  # substract the number of image tokens
+
         encoding = self._truncate_and_pad(encoding, padding, truncation, max_length)
 
         # Particular case, we handle the conversion to tensor of image_observations, as the format used
