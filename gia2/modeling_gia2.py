@@ -444,8 +444,15 @@ class Gia2Model(GPTNeoPreTrainedModel):
             attention_mask = torch.repeat_interleave(attention_mask, repeats=2, dim=1)
         return inputs_embeds, attention_mask
 
-    def output_textual(self, transformer_outputs, input_ids: Optional[LongTensor] = None, return_loss: bool = True):
+    def output_textual(
+        self,
+        transformer_outputs,
+        input_ids: Optional[LongTensor] = None,
+        return_dict: Optional[bool] = None,
+        return_loss: bool = True,
+    ):
         hidden_states = transformer_outputs[0]
+        loss = None
         # Get only textual hidden states
         lm_logits = self.lm_head(hidden_states)
         if return_loss:
@@ -458,21 +465,18 @@ class Gia2Model(GPTNeoPreTrainedModel):
             shift_labels = input_ids[:, 1:].contiguous()
             loss_fct = nn.CrossEntropyLoss()
             loss = loss_fct(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
-            return Gia2Output(
-                loss=loss,
-                logits=lm_logits,
-                past_key_values=transformer_outputs.past_key_values,
-                hidden_states=transformer_outputs.hidden_states,
-                attentions=transformer_outputs.attentions,
-            )
 
-        else:
-            return Gia2Output(
-                logits=lm_logits,
-                past_key_values=transformer_outputs.past_key_values,
-                hidden_states=transformer_outputs.hidden_states,
-                attentions=transformer_outputs.attentions,
-            )
+        if not return_dict:
+            output = (lm_logits,) + transformer_outputs[1:]
+            return ((loss,) + output) if loss is not None else output
+
+        return Gia2Output(
+            loss=loss,
+            logits=lm_logits,
+            past_key_values=transformer_outputs.past_key_values,
+            hidden_states=transformer_outputs.hidden_states,
+            attentions=transformer_outputs.attentions,
+        )
 
     def output_rl(
         self,
@@ -484,10 +488,12 @@ class Gia2Model(GPTNeoPreTrainedModel):
         discrete_actions: Optional[LongTensor] = None,
         rewards: Optional[FloatTensor] = None,
         attention_mask: Optional[BoolTensor] = None,
+        return_dict: Optional[bool] = None,
         return_loss: bool = True,
         loss_weight: Optional[FloatTensor] = None,
     ):
         hidden_states = transformer_outputs.last_hidden_state
+        loss, observation_loss, action_loss = None, None, None
         # Observations
         assert rewards is not None
         observations_mask = attention_mask[:, 1::2] if attention_mask is not None else None
@@ -542,24 +548,21 @@ class Gia2Model(GPTNeoPreTrainedModel):
         # Return output
         if return_loss:
             loss = 0.0 * observation_loss + 1.0 * action_loss
-            return Gia2Output(
-                loss=loss,
-                observation_loss=observation_loss,
-                action_loss=action_loss,
-                pred_observations=pred_observations,
-                pred_actions=pred_actions,
-                past_key_values=transformer_outputs.past_key_values,
-                hidden_states=transformer_outputs.hidden_states,
-                attentions=transformer_outputs.attentions,
-            )
-        else:
-            return Gia2Output(
-                pred_observations=pred_observations,
-                pred_actions=pred_actions,
-                past_key_values=transformer_outputs.past_key_values,
-                hidden_states=transformer_outputs.hidden_states,
-                attentions=transformer_outputs.attentions,
-            )
+
+        if not return_dict:
+            output = (pred_observations, pred_actions) + transformer_outputs[1:]
+            return ((loss, observation_loss, action_loss) + output) if loss is not None else output
+
+        return Gia2Output(
+            loss=loss,
+            observation_loss=observation_loss,
+            action_loss=action_loss,
+            pred_observations=pred_observations,
+            pred_actions=pred_actions,
+            past_key_values=transformer_outputs.past_key_values,
+            hidden_states=transformer_outputs.hidden_states,
+            attentions=transformer_outputs.attentions,
+        )
 
     def forward(
         self,
@@ -583,6 +586,8 @@ class Gia2Model(GPTNeoPreTrainedModel):
         return_loss: bool = True,
         loss_weight: Optional[FloatTensor] = None,
     ) -> Gia2Output:
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
         # Textual tasks
         if input_ids is not None or pixel_values is not None:
             inputs_embeds, attention_mask = self.embed_textual(input_ids, pixel_values, attention_mask)
@@ -616,7 +621,7 @@ class Gia2Model(GPTNeoPreTrainedModel):
         )
 
         if input_ids is not None or pixel_values is not None:
-            return self.output_textual(transformer_outputs, input_ids, return_loss)
+            return self.output_textual(transformer_outputs, input_ids, return_dict, return_loss)
         else:
             return self.output_rl(
                 transformer_outputs,
@@ -626,6 +631,7 @@ class Gia2Model(GPTNeoPreTrainedModel):
                 continuous_actions,
                 discrete_actions,
                 rewards,
+                return_dict,
                 return_loss,
                 loss_weight,
             )

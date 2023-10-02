@@ -9,13 +9,11 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 
 from datasets import load_dataset
-from torchvision.transforms.functional import to_tensor
-from transformers import AutoProcessor, HfArgumentParser, Trainer, TrainingArguments
+from transformers import AutoConfig, AutoProcessor, HfArgumentParser, Trainer, TrainingArguments
 
 from gia.eval.rl.envs.core import TASK_NAME_TO_ENV_ID
-from gia2.configuration_gia2 import Gia2Config
 from gia2.modeling_gia2 import Gia2Model
-from gia2.utils import collate_fn, mix_iterable_datasets
+from gia2.utils import mix_iterable_datasets
 
 
 logger = logging.getLogger(__name__)
@@ -37,6 +35,16 @@ class ModelArguments:
         default=None,
         metadata={"help": "Where do you want to store the pretrained models downloaded from huggingface.co"},
     )
+    trust_remote_code: bool = field(
+        default=False,
+        metadata={
+            "help": (
+                "Whether or not to allow for custom models defined on the Hub in their own modeling files. This option"
+                "should only be set to `True` for repositories you trust and in which you have read the code, as it "
+                "will execute code present on the Hub on your local machine."
+            )
+        },
+    )
 
 
 @dataclass
@@ -57,17 +65,6 @@ LOSS_WEIGHTS = {
 }
 
 
-def transforms(examples):
-    # Remove keys with lists containing only None values
-    examples = {k: v for k, v in examples.items() if not all(item is None for item in v)}
-    if "image_observations" in examples:
-        for ep_idx, episode in enumerate(examples["image_observations"]):
-            examples["image_observations"][ep_idx] = [(to_tensor(img) - 0.5) / 0.5 for img in episode]
-    if "image" in examples:
-        examples["image"] = [(to_tensor(img) - 0.5) / 0.5 for img in examples["image"]]
-    return examples
-
-
 def main():
     parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments))
 
@@ -85,13 +82,16 @@ def main():
         level=logging.INFO if training_args.local_rank in [-1, 0] else logging.WARN,
     )
 
-    config = Gia2Config.from_pretrained(
+    config = AutoConfig.from_pretrained(
         model_args.config_name if model_args.config_name else model_args.model_name_or_path,
         cache_dir=model_args.cache_dir,
+        trust_remote_code=model_args.trust_remote_code,
     )
     model = Gia2Model(config)
     processor = AutoProcessor.from_pretrained(
-        model_args.model_name_or_path, cache_dir=model_args.cache_dir, trust_remote_code=True
+        model_args.config_name if model_args.config_name else model_args.model_name_or_path,
+        cache_dir=model_args.cache_dir,
+        trust_remote_code=model_args.trust_remote_code,
     )
 
     # Set the tasks
@@ -111,7 +111,7 @@ def main():
     for _task in tasks:
         dataset[_task] = load_dataset("gia-project/gia-dataset-parquet", _task, streaming=True)
 
-    # Add loss weight
+    # Add loss weight #TODO
     # for task in dataset.keys():
     #     for split in dataset[task].keys():
     #         loss_weight = [LOSS_WEIGHTS.get(task, 1.0)] * len(dataset[task][split])
@@ -123,14 +123,18 @@ def main():
             batched=True,
             batch_size=10,
             remove_columns={"text", "images"}.intersection(d["test"].column_names),
-            num_proc=data_args.preprocess_num_proc,
         )
         for t, d in dataset.items()
     }
 
     train_dataset = {t: d["train"] for t, d in dataset.items()}
     eval_dataset = {t: d["test"] for t, d in dataset.items()}
+
+    if "oscar" in dataset:  # Reduce the number of eval samples for oscar
+        eval_dataset["oscar"] = eval_dataset["oscar"].take(100)
+
     train_dataset = mix_iterable_datasets(train_dataset.values(), batch_size=8)
+
     # Instanciate the trainer and train
     trainer = Trainer(model=model, args=training_args, train_dataset=train_dataset, eval_dataset=eval_dataset)
     trainer.train()
