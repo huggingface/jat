@@ -630,13 +630,14 @@ def push_to_hub(
     processor.push_to_hub(repo_id, commit_message="Upload processor")
 
     # Push the replay
-    api.upload_file(
-        path_or_fileobj=replay_path,
-        path_in_repo="replay.mp4",
-        repo_id=repo_id,
-        commit_message="Upload replay",
-        repo_type="model",
-    )
+    if replay_path is not None:
+        api.upload_file(
+            path_or_fileobj=replay_path,
+            path_in_repo="replay.mp4",
+            repo_id=repo_id,
+            commit_message="Upload replay",
+            repo_type="model",
+        )
 
     print(f"Pushed model to https://huggingface.co/{repo_id}")
 
