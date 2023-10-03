@@ -3,7 +3,7 @@ import os
 import sys
 import tempfile
 from contextlib import contextmanager
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 import cv2
 import numpy as np
@@ -11,7 +11,7 @@ import torch
 import torch.nn.functional as F
 from datasets import IterableDataset
 from huggingface_hub import EvalResult, HfApi, ModelCard, ModelCardData
-from torch import BoolTensor, FloatTensor, LongTensor, Tensor
+from torch import Tensor
 from transformers import PreTrainedModel, ProcessorMixin
 
 
@@ -275,48 +275,6 @@ def compute_ce_loss(
     return loss
 
 
-def filter_tensor(
-    tensor: Tensor, mask: Optional[BoolTensor] = None, sizes: Optional[LongTensor] = None
-) -> List[List[Any]]:
-    """
-    Filters a tensor based on a mask and sizes, and returns a nested list of values.
-
-    Args:
-        tensor (`torch.Tensor` of shape `(batch_size, seq_len, ...)`):
-            Input tensor to be filtered.
-        mask (`Optional[torch.BoolTensor]` of shape `(batch_size, seq_len)`, **optional**):
-            Boolean mask indicating valid timesteps. If None, all timesteps are considered valid.
-        sizes (`Optional[torch.LongTensor]` of shape `(batch_size,)`, **optional**):
-            Observation size for each example in the batch. If None, all sizes are considered valid.
-
-    Returns:
-        `List[List[Any]]`:
-            A nested list containing filtered values, considering only valid timesteps and sizes.
-
-    Examples:
-        >>> tensor = torch.arange(12).reshape(2, 3, 2)
-        >>> mask = torch.tensor([[True, True, False], [True, False, False]])
-        >>> filter_tensor(tensor, mask)
-        [[[0, 1], [2, 3]], [[6, 7]]]
-        >>> sizes = torch.tensor([2, 1])
-        >>> filter_tensor(tensor, sizes=sizes)
-        [[[0, 1], [2, 3], [4, 5]], [[6], [8], [10]]]
-    """
-    batch_size, seq_len = tensor.shape[:2]
-    nested_list = []
-
-    for i in range(batch_size):
-        batch_list = []
-        for j in range(seq_len):
-            if mask is None or mask[i, j].item() == 1:
-                obs_size = sizes[i].item() if sizes is not None else tensor.shape[-1]
-                values = tensor[i, j, :obs_size].tolist()
-                batch_list.append(values)
-        nested_list.append(batch_list)
-
-    return nested_list
-
-
 def cyclic_expand_dim(tensor: Tensor, expanded_dim_size: int) -> Tensor:
     """
     Expands the last dimension of a tensor cyclically to a specified size.
@@ -343,165 +301,6 @@ def cyclic_expand_dim(tensor: Tensor, expanded_dim_size: int) -> Tensor:
         )
     indices = torch.arange(expanded_dim_size) % X
     return tensor[..., indices]
-
-
-def write_video(frames: List[np.ndarray], filename: str, fps: int):
-    """
-    Writes a list of frames into a video file.
-
-    Args:
-        frames (`List[np.ndarray]`):
-            List of frames in RGB format.
-        filename (`str`):
-            Output video filename including the extension.
-        fps (`int`):
-            Frames per second for the output video.
-    """
-    # Initialize video writer
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    shape = (frames[0].shape[1], frames[0].shape[0])
-    out = cv2.VideoWriter(filename, fourcc, fps, shape)
-
-    # Write frames to video
-    for frame in frames:
-        out.write(frame[..., [2, 1, 0]])  # convert RGB to BGR and write
-
-    # Release resources
-    out.release()
-
-
-def stack_input(input_list: List[Any]) -> Tensor:
-    # If the first element is a torch tensor
-    if isinstance(input_list[0], torch.Tensor):
-        return torch.stack(input_list)
-
-    # If the first element is a numpy array
-    elif isinstance(input_list[0], np.ndarray):
-        return torch.stack([torch.tensor(item) for item in input_list])
-
-    # If the input_list is a list of values (like Python lists or scalars)
-    else:
-        return torch.tensor(input_list)
-
-
-def get_inner_shape(elmt):
-    # If the first element is a torch tensor
-    if isinstance(elmt, torch.Tensor):
-        return elmt.shape
-
-    # If the first element is a numpy array
-    elif isinstance(elmt, np.ndarray):
-        return elmt.shape
-
-    # If the elmt is a list of values (like Python lists or scalars)
-    else:
-        # If the first element is a list or a scalar
-        if isinstance(elmt, (list, int, float)):
-            return (len(elmt),) if isinstance(elmt, list) else ()
-        else:
-            raise ValueError(f"Unsupported data type: {type(elmt)}")
-
-
-def _collate(sequences: List[List], dtype: torch.dtype) -> Tuple[FloatTensor, BoolTensor]:
-    """
-    Collates a list of vectors into a single tensor.
-
-    Args:
-        sequences (`List[List]`):
-            List of sequences, i.e. list of object that can be either single value or nested structure.
-
-    Returns:
-        collated (`torch.Tensor`):
-            Collated tensor of shape `(batch_size, max_seq_len, ...)`.
-        mask (`torch.BoolTensor` of shape `(batch_size, max_seq_len)`):
-            Boolean mask indicating valid timesteps.
-    """
-    batch_size = len(sequences)
-    max_seq_len = max([len(sequence) for sequence in sequences])
-
-    data_shape = get_inner_shape(sequences[0][0])
-    collated = torch.zeros(batch_size, max_seq_len, *data_shape, dtype=dtype)
-    mask = torch.zeros(batch_size, max_seq_len, dtype=torch.bool)
-
-    # Pad sequences with zeros
-    for i, sequence in enumerate(sequences):
-        seq_len = min(len(sequence), max_seq_len)
-        collated[i, :seq_len] = stack_input(sequence[:seq_len])
-        mask[i, :seq_len] = 1
-
-    return collated, mask
-
-
-def collate_fn(batch: List[Dict[str, List]]) -> Dict[str, Tensor]:
-    collated = {}
-
-    if "input_ids" in batch[0] and batch[0]["input_ids"] is not None:
-        collated["input_ids"] = torch.tensor([x["input_ids"] for x in batch], dtype=torch.int64)
-        collated["attention_mask"] = torch.tensor([x["attention_mask"] for x in batch], dtype=torch.bool)
-
-    if "pixel_values" in batch[0] and batch[0]["pixel_values"] is not None:
-        collated["pixel_values"] = torch.stack([torch.from_numpy(x["pixel_values"]) for x in batch])
-
-    continuous_keys = ["continuous_observations", "continuous_actions", "rewards"]
-    for key in continuous_keys:
-        if key in batch[0] and batch[0][key] is not None:
-            values = [x[key] for x in batch]
-            collated[key], collated["attention_mask"] = _collate(values, dtype=torch.float32)
-
-    discrete_keys = ["discrete_observations", "discrete_actions", "text_observations"]
-    for key in discrete_keys:
-        if key in batch[0] and batch[0][key] is not None:
-            values = [x[key] for x in batch]
-            collated[key], _ = _collate(values, dtype=torch.int64)
-
-    key = "image_observations"
-    if key in batch[0] and batch[0][key] is not None:
-        values = [x[key] for x in batch]
-        collated[key], _ = _collate(values, dtype=torch.float32)
-
-    if "loss_weight" in batch[0]:
-        collated["loss_weight"] = torch.tensor([x["loss_weight"] for x in batch], dtype=torch.float32)
-
-    return collated
-
-
-def preprocess_function(examples: Dict[str, Any], max_len: int) -> Dict[str, Any]:
-    """
-    Splits the sequences in the input dictionary into chunks of a specified maximum length.
-
-    Args:
-        examples (dict of lists of lists):
-            A dictionary where each key corresponds to a list of sequences. Each sequence is a list of elements.
-
-    Returns:
-        dict:
-            A dictionary with the same keys as the input. Each key corresponds to a list of chunks, where each chunk
-            is a subsequence of the input sequences with a length not exceeding the specified maximum length.
-
-    Examples:
-        >>> examples = {
-        ...     "key1": [[1, 2, 3], [4, 5, 6, 7]],
-        ...     "key2": [[8, 9, 10], [11, 12, 13, 14]}
-        >>> preprocess_function(examples, max_len=2)
-        {
-            "key1": [[1, 2], [3], [4, 5], [6, 7]],
-            "key2": [[8, 9], [10], [11, 12], [13, 14]],
-        }
-    """
-    out_dict = {key: [] for key in examples.keys()}
-    first_ep_batch = next(iter(examples.values()))
-    num_episodes = len(first_ep_batch)
-    for ep_idx in range(num_episodes):
-        ep_len = len(first_ep_batch[ep_idx])
-        for t in range(0, ep_len, max_len):
-            for key in examples.keys():
-                if hasattr(examples[key][ep_idx], "__len__"):
-                    chunk = examples[key][ep_idx][t : t + max_len]
-                else:
-                    chunk = examples[key][ep_idx]
-                out_dict[key].append(chunk)
-
-    return out_dict
 
 
 def generate_rl_eval_results(scores_dict: Dict[str, List[float]]) -> List[EvalResult]:
