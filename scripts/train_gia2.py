@@ -119,7 +119,7 @@ def main():
 
     dataset = {
         t: d.map(
-            lambda example_batch: processor(**example_batch, padding="max_length", truncation=True),
+            lambda example_batch: processor(**example_batch, padding="max_length", truncation="preserve"),
             batched=True,
             batch_size=10,
             remove_columns={"text", "images"}.intersection(d["test"].column_names),
