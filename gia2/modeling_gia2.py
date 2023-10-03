@@ -448,7 +448,7 @@ class Gia2Model(GPTNeoPreTrainedModel):
         self,
         transformer_outputs,
         input_ids: Optional[LongTensor] = None,
-        return_loss: Optional[bool] = None,
+        return_loss: bool = True,
         return_dict: Optional[bool] = None,
     ):
         hidden_states = transformer_outputs[0]
@@ -488,7 +488,7 @@ class Gia2Model(GPTNeoPreTrainedModel):
         discrete_actions: Optional[LongTensor] = None,
         rewards: Optional[FloatTensor] = None,
         attention_mask: Optional[BoolTensor] = None,
-        return_loss: Optional[bool] = None,
+        return_loss: bool = True,
         return_dict: Optional[bool] = None,
         loss_weight: Optional[FloatTensor] = None,
     ):
@@ -578,7 +578,7 @@ class Gia2Model(GPTNeoPreTrainedModel):
         attention_mask: Optional[BoolTensor] = None,
         token_type_ids: Optional[LongTensor] = None,
         position_ids: Optional[LongTensor] = None,
-        return_loss: Optional[bool] = None,
+        return_loss: bool = True,
         use_cache: Optional[bool] = None,
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
@@ -620,7 +620,7 @@ class Gia2Model(GPTNeoPreTrainedModel):
         )
 
         if input_ids is not None or pixel_values is not None:
-            return self.output_textual(transformer_outputs, input_ids, return_dict, return_loss)
+            return self.output_textual(transformer_outputs, input_ids, return_loss, return_dict)
         else:
             return self.output_rl(
                 transformer_outputs,
@@ -631,8 +631,8 @@ class Gia2Model(GPTNeoPreTrainedModel):
                 discrete_actions,
                 rewards,
                 attention_mask,
-                return_dict,
                 return_loss,
+                return_dict,
                 loss_weight,
             )
 
