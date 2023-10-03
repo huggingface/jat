@@ -8,7 +8,8 @@ import sys
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-from datasets import load_dataset
+from datasets import load_dataset, load_from_disk
+from datasets.config import HF_DATASETS_CACHE, HF_DATASETS_OFFLINE
 from transformers import AutoConfig, AutoProcessor, HfArgumentParser, Trainer, TrainingArguments
 
 from gia.eval.rl.envs.core import TASK_NAME_TO_ENV_ID
@@ -102,14 +103,29 @@ def main():
             tasks.extend([env_id for env_id in TASK_NAME_TO_ENV_ID.keys() if env_id.startswith(domain)])
 
     # Load the dataset
-    if "oscar" in tasks:
-        dataset = {"oscar": load_dataset("ClementRomac/cleaned_deduplicated_oscar", streaming=True)}
-        tasks.remove("oscar")
+    # Automatic cache is broken for parquet datasets
+    # The following is a fix from https://github.com/huggingface/datasets/issues/3547#issuecomment-1252503988
+    dataset_dict = {}
+    if HF_DATASETS_OFFLINE:
+        for task in tasks:
+            if not os.path.exists(f"{HF_DATASETS_CACHE}/gia-project/gia-dataset-parquet/{task}"):
+                raise ValueError(
+                    f"""Dataset {task} not found in {HF_DATASETS_CACHE}/gia-project/gia-dataset-parquet/
+Make sure to download and save it first with
+```
+from datasets import load_dataset
+dataset = load_dataset('gia-project/gia-dataset-parquet', '{task}')
+dataset.save_to_disk('{HF_DATASETS_CACHE}/gia-project/gia-dataset-parquet/{task}')
+```"""
+                )
+            dataset = load_from_disk(f"{HF_DATASETS_CACHE}/gia-project/gia-dataset-parquet/{task}")
+            dataset_dict[task] = {s: d.to_iterable_dataset() for s, d in dataset.items()}
     else:
-        dataset = {}
-
-    for _task in tasks:
-        dataset[_task] = load_dataset("gia-project/gia-dataset-parquet", _task, streaming=True)
+        for task in tasks:
+            if task == "oscar":
+                dataset_dict[task] = load_dataset("ClementRomac/cleaned_deduplicated_oscar", streaming=True)
+            else:
+                dataset_dict[task] = load_dataset("gia-project/gia-dataset-parquet", task, streaming=True)
 
     # Add loss weight #TODO
     # for task in dataset.keys():
@@ -117,18 +133,21 @@ def main():
     #         loss_weight = [LOSS_WEIGHTS.get(task, 1.0)] * len(dataset[task][split])
     #         dataset[task][split] = dataset[task][split].add_column("loss_weight", loss_weight)
 
-    dataset = {
-        t: d.map(
-            lambda example_batch: processor(**example_batch, padding="max_length", truncation="preserve"),
-            batched=True,
-            batch_size=10,
-            remove_columns={"text", "images"}.intersection(d["test"].column_names),
-        )
-        for t, d in dataset.items()
+    dataset_dict = {
+        t: {
+            s: d[s].map(
+                lambda example_batch: processor(**example_batch, padding="max_length", truncation="preserve"),
+                batched=True,
+                batch_size=10,
+                remove_columns={"text", "images"}.intersection(d[s].column_names),
+            )
+            for s in d.keys()
+        }
+        for t, d in dataset_dict.items()
     }
 
-    train_dataset = {t: d["train"] for t, d in dataset.items()}
-    eval_dataset = {t: d["test"] for t, d in dataset.items()}
+    train_dataset = {t: d["train"] for t, d in dataset_dict.items()}
+    eval_dataset = {t: d["test"] for t, d in dataset_dict.items()}
 
     if "oscar" in dataset:  # Reduce the number of eval samples for oscar
         eval_dataset["oscar"] = eval_dataset["oscar"].take(100)
