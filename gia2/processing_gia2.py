@@ -313,7 +313,8 @@ class Gia2Processor(ProcessorMixin):
         return self.tokenizer.decode(*args, **kwargs)
 
     def pad(self, *args, **kwargs):
-        return self.tokenizer.pad(*args, **kwargs)
+        inputs = {key: [arg[key] for arg in args[0]] for key in args[0][0].keys()}
+        return self(**inputs, **kwargs)
 
     @property
     def model_input_names(self):
