@@ -630,6 +630,7 @@ class Gia2Model(GPTNeoPreTrainedModel):
                 continuous_actions,
                 discrete_actions,
                 rewards,
+                attention_mask,
                 return_dict,
                 return_loss,
                 loss_weight,
