@@ -448,8 +448,8 @@ class Gia2Model(GPTNeoPreTrainedModel):
         self,
         transformer_outputs,
         input_ids: Optional[LongTensor] = None,
+        return_loss: Optional[bool] = None,
         return_dict: Optional[bool] = None,
-        return_loss: bool = True,
     ):
         hidden_states = transformer_outputs[0]
         loss = None
@@ -488,8 +488,8 @@ class Gia2Model(GPTNeoPreTrainedModel):
         discrete_actions: Optional[LongTensor] = None,
         rewards: Optional[FloatTensor] = None,
         attention_mask: Optional[BoolTensor] = None,
+        return_loss: Optional[bool] = None,
         return_dict: Optional[bool] = None,
-        return_loss: bool = True,
         loss_weight: Optional[FloatTensor] = None,
     ):
         hidden_states = transformer_outputs.last_hidden_state
@@ -578,12 +578,11 @@ class Gia2Model(GPTNeoPreTrainedModel):
         attention_mask: Optional[BoolTensor] = None,
         token_type_ids: Optional[LongTensor] = None,
         position_ids: Optional[LongTensor] = None,
-        inputs_embeds: Optional[FloatTensor] = None,
+        return_loss: Optional[bool] = None,
         use_cache: Optional[bool] = None,
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
-        return_loss: bool = True,
         loss_weight: Optional[FloatTensor] = None,
     ) -> Gia2Output:
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
@@ -702,7 +701,6 @@ class Gia2Model(GPTNeoPreTrainedModel):
             continuous_actions=continuous_actions,
             discrete_actions=discrete_actions,
             rewards=rewards,
-            return_loss=False,
         )
 
         if continuous_actions is not None:
