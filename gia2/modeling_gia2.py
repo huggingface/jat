@@ -448,6 +448,7 @@ class Gia2Model(GPTNeoPreTrainedModel):
         self,
         transformer_outputs,
         input_ids: Optional[LongTensor] = None,
+        attention_mask: Optional[BoolTensor] = None,
         return_loss: bool = True,
         return_dict: Optional[bool] = None,
     ):
@@ -463,8 +464,15 @@ class Gia2Model(GPTNeoPreTrainedModel):
             num_text_tokens = input_ids.shape[1]
             shift_logits = lm_logits[:, -num_text_tokens:-1, :].contiguous()
             shift_labels = input_ids[:, 1:].contiguous()
+            if attention_mask is not None:
+                shift_attention_mask = attention_mask[:, -num_text_tokens:]
+                shift_attention_mask = shift_attention_mask[:, 1:]
+            else:
+                shift_attention_mask = torch.ones(shift_labels.shape, dtype=bool, device=self.device)
+            shift_logits = shift_logits[shift_attention_mask.bool()]
+            shift_labels = shift_labels[shift_attention_mask.bool()]
             loss_fct = nn.CrossEntropyLoss()
-            loss = loss_fct(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
+            loss = loss_fct(shift_logits, shift_labels)
 
         if not return_dict:
             output = (lm_logits,) + transformer_outputs[1:]
@@ -620,7 +628,7 @@ class Gia2Model(GPTNeoPreTrainedModel):
         )
 
         if input_ids is not None or pixel_values is not None:
-            return self.output_textual(transformer_outputs, input_ids, return_loss, return_dict)
+            return self.output_textual(transformer_outputs, input_ids, attention_mask, return_loss, return_dict)
         else:
             return self.output_rl(
                 transformer_outputs,
