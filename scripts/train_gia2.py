@@ -136,7 +136,9 @@ def main():
     train_dataset = mix_iterable_datasets(train_dataset.values(), batch_size=8)
 
     # Instanciate the trainer and train
-    trainer = Trainer(model=model, args=training_args, train_dataset=train_dataset, eval_dataset=eval_dataset)
+    trainer = Trainer(
+        model=model, args=training_args, train_dataset=train_dataset, eval_dataset=eval_dataset, tokenizer=processor
+    )
     trainer.train()
 
 
