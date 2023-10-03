@@ -311,7 +311,7 @@ class Gia2Processor(ProcessorMixin):
         the docstring of this method for more information.
         """
         return self.tokenizer.decode(*args, **kwargs)
-    
+
     def pad(self, *args, **kwargs):
         return self.tokenizer.pad(*args, **kwargs)
 
