@@ -8,6 +8,7 @@ import sys
 from dataclasses import dataclass, field
 from typing import List, Optional
 
+import datasets.config
 from datasets import load_dataset, load_from_disk
 from datasets.config import HF_DATASETS_CACHE, HF_DATASETS_OFFLINE
 from transformers import AutoConfig, AutoProcessor, HfArgumentParser, Trainer, TrainingArguments
@@ -16,6 +17,10 @@ from gia.eval.rl.envs.core import TASK_NAME_TO_ENV_ID
 from gia2.modeling_gia2 import Gia2Model
 from gia2.utils import mix_iterable_datasets
 
+
+# Sometimes, the server is down; increasing the number of
+# retries allows to wait more instead of making the training crash
+datasets.config.STREAMING_READ_MAX_RETRIES = 2000
 
 logger = logging.getLogger(__name__)
 
@@ -149,7 +154,7 @@ dataset.save_to_disk('{HF_DATASETS_CACHE}/gia-project/gia-dataset-parquet/{task}
     train_dataset = {t: d["train"] for t, d in dataset_dict.items()}
     eval_dataset = {t: d["test"] for t, d in dataset_dict.items()}
 
-    if "oscar" in dataset:  # Reduce the number of eval samples for oscar
+    if "oscar" in tasks:  # Reduce the number of eval samples for oscar
         eval_dataset["oscar"] = eval_dataset["oscar"].take(100)
 
     train_dataset = mix_iterable_datasets(train_dataset.values(), batch_size=8)
