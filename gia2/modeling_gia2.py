@@ -699,8 +699,13 @@ class Gia2Model(GPTNeoPreTrainedModel):
             discrete_actions = discrete_actions[None, -max_seq_len:]
 
         if rewards is not None:
-            rewards = np.array(rewards, dtype=np.float32)
-            rewards = torch.from_numpy(rewards).to(self.device)
+            if len(rewards) == 0:
+                rewards = torch.zeros((1,), dtype=torch.float32, device=self.device)
+            else:
+                rewards = np.array(rewards, dtype=np.float32)
+                rewards = torch.from_numpy(rewards).to(self.device)
+                last_reward = torch.zeros((1,), dtype=torch.float32, device=self.device)
+                rewards = torch.cat((rewards, last_reward), dim=0)
             rewards = rewards[None, -max_seq_len:]
 
         outputs = self(
@@ -710,6 +715,7 @@ class Gia2Model(GPTNeoPreTrainedModel):
             continuous_actions=continuous_actions,
             discrete_actions=discrete_actions,
             rewards=rewards,
+            return_loss=False,
         )
 
         if continuous_actions is not None:
