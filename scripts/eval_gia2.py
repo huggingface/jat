@@ -17,6 +17,7 @@ from transformers import HfArgumentParser
 from gia.eval.rl import make
 from gia.eval.rl.envs.core import TASK_NAME_TO_ENV_ID
 from gia2.modeling_gia2 import Gia2Model
+from gia2.processing_gia2 import Gia2Processor
 from gia2.utils import push_to_hub, save_video_grid, suppress_stdout
 
 
@@ -76,10 +77,10 @@ def eval_rl(model, task, eval_args):
         observations = {key: [val] for key, val in observation.items()}
         action_key = "continuous_actions" if isinstance(env.action_space, spaces.Box) else "discrete_actions"
         actions = {action_key: []}
-        ep_return = 0
+        rewards = []
         done = False
         while not done:
-            action = model.get_next_action(**observations, **actions, action_size=action_size)
+            action = model.get_next_action(**observations, **actions, rewards=rewards, action_size=action_size)
             observation, reward, termined, truncated, info = env.step(action)
             done = termined or truncated
 
@@ -89,7 +90,7 @@ def eval_rl(model, task, eval_args):
                     observation, info = env.reset()
                     done = False
                 else:
-                    print("Episode done, score:", info["episode"]["r"], ep_return + reward)
+                    print("Episode done, score:", info["episode"]["r"], sum(rewards))
 
             # Store the observation and action
             for key, val in observation.items():
@@ -97,13 +98,13 @@ def eval_rl(model, task, eval_args):
             actions[action_key].append(action)
 
             # Update the return
-            ep_return += reward
+            rewards.append(reward)
 
             # Render the environment
             if eval_args.save_video:
                 frames.append(np.array(env.render(), dtype=np.uint8))
 
-        scores.append(ep_return)
+        scores.append(sum(rewards))
     env.close()
 
     # Get the mean and std of the expert and random scores
@@ -146,6 +147,7 @@ def main():
 
     device = torch.device("cpu") if eval_args.use_cpu else get_default_device()
     model = Gia2Model.from_pretrained(model_args.model_name_or_path, cache_dir=model_args.cache_dir).to(device)
+    processor = Gia2Processor.from_pretrained(model_args.model_name_or_path, cache_dir=model_args.cache_dir)
 
     scores_dict = {}
     video_list = []
@@ -153,7 +155,7 @@ def main():
 
     for task in tqdm(eval_args.tasks, desc="Evaluation", unit="task", leave=True):
         if task in TASK_NAME_TO_ENV_ID.keys():
-            scores, frames, fps = eval_rl(model, task, model_args, eval_args)
+            scores, frames, fps = eval_rl(model, task, eval_args)
             scores_dict[task] = scores
             # Save the video
             if eval_args.save_video:
@@ -172,7 +174,7 @@ def main():
     # Push the model to the hub
     if eval_args.push_to_hub:
         assert eval_args.repo_id is not None, "You need to specify a repo_id to push to."
-        push_to_hub(model, eval_args.repo_id, scores_dict=scores_dict, replay_path=replay_path)
+        push_to_hub(model, processor, eval_args.repo_id, scores_dict=scores_dict, replay_path=replay_path)
 
 
 if __name__ == "__main__":

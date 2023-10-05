@@ -8,17 +8,19 @@ import sys
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-from datasets import concatenate_datasets, load_dataset
-from torchvision.transforms.functional import to_tensor
-from transformers import HfArgumentParser, TrainingArguments
+import datasets.config
+from datasets import load_dataset, load_from_disk
+from datasets.config import HF_DATASETS_CACHE, HF_DATASETS_OFFLINE
+from transformers import AutoConfig, AutoProcessor, HfArgumentParser, Trainer, TrainingArguments
 
 from gia.eval.rl.envs.core import TASK_NAME_TO_ENV_ID
-from gia2.configuration_gia2 import Gia2Config
 from gia2.modeling_gia2 import Gia2Model
-from gia2.sampler import MyBatchSampler
-from gia2.trainer import MyTrainer
-from gia2.utils import collate_fn, preprocess_function
+from gia2.utils import mix_iterable_datasets
 
+
+# Sometimes, the server is down; increasing the number of
+# retries allows to wait more instead of making the training crash
+datasets.config.STREAMING_READ_MAX_RETRIES = 2000
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +40,16 @@ class ModelArguments:
     cache_dir: Optional[str] = field(
         default=None,
         metadata={"help": "Where do you want to store the pretrained models downloaded from huggingface.co"},
+    )
+    trust_remote_code: bool = field(
+        default=False,
+        metadata={
+            "help": (
+                "Whether or not to allow for custom models defined on the Hub in their own modeling files. This option"
+                "should only be set to `True` for repositories you trust and in which you have read the code, as it "
+                "will execute code present on the Hub on your local machine."
+            )
+        },
     )
 
 
@@ -59,17 +71,6 @@ LOSS_WEIGHTS = {
 }
 
 
-def transforms(examples):
-    # Remove keys with lists containing only None values
-    examples = {k: v for k, v in examples.items() if not all(item is None for item in v)}
-    if "image_observations" in examples:
-        for ep_idx, episode in enumerate(examples["image_observations"]):
-            examples["image_observations"][ep_idx] = [(to_tensor(img) - 0.5) / 0.5 for img in episode]
-    if "image" in examples:
-        examples["image"] = [(to_tensor(img) - 0.5) / 0.5 for img in examples["image"]]
-    return examples
-
-
 def main():
     parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments))
 
@@ -87,11 +88,17 @@ def main():
         level=logging.INFO if training_args.local_rank in [-1, 0] else logging.WARN,
     )
 
-    config = Gia2Config.from_pretrained(
+    config = AutoConfig.from_pretrained(
         model_args.config_name if model_args.config_name else model_args.model_name_or_path,
         cache_dir=model_args.cache_dir,
+        trust_remote_code=model_args.trust_remote_code,
     )
     model = Gia2Model(config)
+    processor = AutoProcessor.from_pretrained(
+        model_args.config_name if model_args.config_name else model_args.model_name_or_path,
+        cache_dir=model_args.cache_dir,
+        trust_remote_code=model_args.trust_remote_code,
+    )
 
     # Set the tasks
     tasks = data_args.tasks
@@ -101,39 +108,60 @@ def main():
             tasks.extend([env_id for env_id in TASK_NAME_TO_ENV_ID.keys() if env_id.startswith(domain)])
 
     # Load the dataset
-    dataset = {t: load_dataset("gia-project/gia-dataset-parquet", t) for t in tasks}
+    # Automatic cache is broken for parquet datasets
+    # The following is a fix from https://github.com/huggingface/datasets/issues/3547#issuecomment-1252503988
+    dataset_dict = {}
+    if HF_DATASETS_OFFLINE:
+        for task in tasks:
+            if not os.path.exists(f"{HF_DATASETS_CACHE}/gia-project/gia-dataset-parquet/{task}"):
+                raise ValueError(
+                    f"""Dataset {task} not found in {HF_DATASETS_CACHE}/gia-project/gia-dataset-parquet/
+Make sure to download and save it first with
+```
+from datasets import load_dataset
+dataset = load_dataset('gia-project/gia-dataset-parquet', '{task}')
+dataset.save_to_disk('{HF_DATASETS_CACHE}/gia-project/gia-dataset-parquet/{task}')
+```"""
+                )
+            dataset = load_from_disk(f"{HF_DATASETS_CACHE}/gia-project/gia-dataset-parquet/{task}")
+            dataset_dict[task] = {s: d.to_iterable_dataset() for s, d in dataset.items()}
+    else:
+        for task in tasks:
+            if task == "oscar":
+                dataset_dict[task] = load_dataset("ClementRomac/cleaned_deduplicated_oscar", streaming=True)
+            else:
+                dataset_dict[task] = load_dataset("gia-project/gia-dataset-parquet", task, streaming=True)
 
-    # Add loss weight
-    for task in dataset.keys():
-        for split in dataset[task].keys():
-            loss_weight = [LOSS_WEIGHTS.get(task, 1.0)] * len(dataset[task][split])
-            dataset[task][split] = dataset[task][split].add_column("loss_weight", loss_weight)
+    # Add loss weight #TODO
+    # for task in dataset.keys():
+    #     for split in dataset[task].keys():
+    #         loss_weight = [LOSS_WEIGHTS.get(task, 1.0)] * len(dataset[task][split])
+    #         dataset[task][split] = dataset[task][split].add_column("loss_weight", loss_weight)
 
-    # Preprocess the dataset
-    dataset = {
-        t: d.map(
-            preprocess_function,
-            batched=True,
-            batch_size=10,
-            fn_kwargs={"max_len": config.max_position_embeddings // 2},
-            num_proc=data_args.preprocess_num_proc,
-        )
-        for t, d in dataset.items()
+    dataset_dict = {
+        t: {
+            s: d[s].map(
+                lambda example_batch: processor(**example_batch, padding="max_length", truncation="preserve"),
+                batched=True,
+                batch_size=10,
+                remove_columns={"text", "images"}.intersection(d[s].column_names),
+            )
+            for s in d.keys()
+        }
+        for t, d in dataset_dict.items()
     }
-    dataset = {t: d.with_transform(transforms) for t, d in dataset.items()}
-    train_dataset = {t: d["train"] for t, d in dataset.items()}
-    eval_dataset = {t: d["test"] for t, d in dataset.items()}
-    sampler = MyBatchSampler(train_dataset)
-    train_dataset = concatenate_datasets(list(train_dataset.values())).with_transform(transforms)
+
+    train_dataset = {t: d["train"] for t, d in dataset_dict.items()}
+    eval_dataset = {t: d["test"] for t, d in dataset_dict.items()}
+
+    if "oscar" in tasks:  # Reduce the number of eval samples for oscar
+        eval_dataset["oscar"] = eval_dataset["oscar"].take(100)
+
+    train_dataset = mix_iterable_datasets(train_dataset.values(), batch_size=8)
 
     # Instanciate the trainer and train
-    trainer = MyTrainer(
-        model=model,
-        args=training_args,
-        data_collator=collate_fn,
-        train_dataset=train_dataset,
-        eval_dataset=eval_dataset,
-        train_sampler=sampler,
+    trainer = Trainer(
+        model=model, args=training_args, train_dataset=train_dataset, eval_dataset=eval_dataset, tokenizer=processor
     )
     trainer.train()
 

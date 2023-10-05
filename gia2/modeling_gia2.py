@@ -7,6 +7,7 @@ import torch.nn.functional as F
 from torch import BoolTensor, FloatTensor, LongTensor, Tensor, nn
 from transformers import GPTNeoModel, GPTNeoPreTrainedModel
 from transformers.modeling_outputs import ModelOutput
+from transformers.models.vit.modeling_vit import ViTPatchEmbeddings
 
 from .configuration_gia2 import Gia2Config
 
@@ -46,7 +47,7 @@ def compute_mse_loss(
         loss = loss * weights
 
     # Sum the loss and normalize by the number of valid elements
-    loss = loss.sum() / mask.sum()
+    loss = loss.sum() / mask.sum() if mask is not None else loss.mean()
 
     return loss
 
@@ -84,7 +85,7 @@ def compute_ce_loss(
         loss = loss * weights
 
     # Sum the loss and normalize by the number of valid elements
-    loss = loss.sum() / mask.sum()
+    loss = loss.sum() / mask.sum() if mask is not None else loss.mean()
 
     return loss
 
@@ -354,6 +355,8 @@ class Gia2Model(GPTNeoPreTrainedModel):
         super().__init__(config)
 
         # Encoders
+        self.wte = nn.Embedding(config.vocab_size, config.hidden_size)
+        self.vit_encoder = ViTPatchEmbeddings(config)
         self.continuous_encoder = nn.Linear(config.max_continuous_size, config.hidden_size)
         self.discrete_encoder = nn.Embedding(config.max_discrete_value, config.hidden_size)
         self.image_encoder = DualBatchReshapeWrapper(ImageEncoder(config.hidden_size))
@@ -362,12 +365,36 @@ class Gia2Model(GPTNeoPreTrainedModel):
         self.transformer = GPTNeoModel(config)
 
         # Decoders
+        self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
         self.continuous_decoder = nn.Linear(config.hidden_size, config.max_continuous_size)
         self.discrete_decoder = nn.Linear(config.hidden_size, config.max_discrete_value, bias=False)
         self.image_decoder = DualBatchReshapeWrapper(ImageDecoder(config.hidden_size))
 
         # Initialize weights and apply final processing
         self.post_init()
+
+    def embed_textual(
+        self,
+        input_ids: Optional[LongTensor],
+        pixel_values: Optional[FloatTensor] = None,
+        attention_mask: Optional[BoolTensor] = None,
+    ) -> Tensor:
+        text_inputs_embeds = self.wte(input_ids) if input_ids is not None else None
+        image_inputs_embeds = self.vit_encoder(pixel_values) if pixel_values is not None else None
+        # Concatenate text and image inputs
+        if image_inputs_embeds is not None and text_inputs_embeds is not None:
+            inputs_embeds = torch.cat((image_inputs_embeds, text_inputs_embeds), dim=1)
+            # Add attention mask for image inputs
+            image_mask = torch.ones(image_inputs_embeds.shape[:2], dtype=torch.bool, device=self.device)
+            attention_mask = torch.cat((image_mask, attention_mask), dim=1)
+        elif image_inputs_embeds is not None:
+            inputs_embeds = image_inputs_embeds
+        elif text_inputs_embeds is not None:
+            inputs_embeds = text_inputs_embeds
+            attention_mask = attention_mask
+        else:
+            raise ValueError("At least one of `input_ids` or `pixel_values` must be provided.")
+        return inputs_embeds, attention_mask
 
     def embed_rl(
         self,
@@ -412,10 +439,52 @@ class Gia2Model(GPTNeoPreTrainedModel):
 
         # Concatenate observations and actions
         inputs_embeds = torch.cat((inputs_embeds_observations, inputs_embeds_actions), dim=2)
-        input_embeds = input_embeds.view(batch_size, 2 * seq_len, self.config.hidden_size)
+        inputs_embeds = inputs_embeds.view(batch_size, 2 * seq_len, self.config.hidden_size)
         if attention_mask is not None:
             attention_mask = torch.repeat_interleave(attention_mask, repeats=2, dim=1)
         return inputs_embeds, attention_mask
+
+    def output_textual(
+        self,
+        transformer_outputs,
+        input_ids: Optional[LongTensor] = None,
+        attention_mask: Optional[BoolTensor] = None,
+        return_loss: bool = True,
+        return_dict: Optional[bool] = None,
+    ):
+        hidden_states = transformer_outputs[0]
+        loss = None
+        # Get only textual hidden states
+        lm_logits = self.lm_head(hidden_states)
+        if return_loss:
+            if input_ids is None:
+                raise ValueError("Input IDs must be provided when `return_loss=True`.")
+
+            # Shift so that tokens < n predict n
+            num_text_tokens = input_ids.shape[1]
+            shift_logits = lm_logits[:, -num_text_tokens:-1, :].contiguous()
+            shift_labels = input_ids[:, 1:].contiguous()
+            if attention_mask is not None:
+                shift_attention_mask = attention_mask[:, -num_text_tokens:]
+                shift_attention_mask = shift_attention_mask[:, 1:]
+            else:
+                shift_attention_mask = torch.ones(shift_labels.shape, dtype=bool, device=self.device)
+            shift_logits = shift_logits[shift_attention_mask.bool()]
+            shift_labels = shift_labels[shift_attention_mask.bool()]
+            loss_fct = nn.CrossEntropyLoss()
+            loss = loss_fct(shift_logits, shift_labels)
+
+        if not return_dict:
+            output = (lm_logits,) + transformer_outputs[1:]
+            return ((loss,) + output) if loss is not None else output
+
+        return Gia2Output(
+            loss=loss,
+            logits=lm_logits,
+            past_key_values=transformer_outputs.past_key_values,
+            hidden_states=transformer_outputs.hidden_states,
+            attentions=transformer_outputs.attentions,
+        )
 
     def output_rl(
         self,
@@ -428,9 +497,11 @@ class Gia2Model(GPTNeoPreTrainedModel):
         rewards: Optional[FloatTensor] = None,
         attention_mask: Optional[BoolTensor] = None,
         return_loss: bool = True,
+        return_dict: Optional[bool] = None,
         loss_weight: Optional[FloatTensor] = None,
     ):
         hidden_states = transformer_outputs.last_hidden_state
+        loss, observation_loss, action_loss = None, None, None
         # Observations
         assert rewards is not None
         observations_mask = attention_mask[:, 1::2] if attention_mask is not None else None
@@ -485,24 +556,21 @@ class Gia2Model(GPTNeoPreTrainedModel):
         # Return output
         if return_loss:
             loss = 0.0 * observation_loss + 1.0 * action_loss
-            return Gia2Output(
-                loss=loss,
-                observation_loss=observation_loss,
-                action_loss=action_loss,
-                pred_observations=pred_observations,
-                pred_actions=pred_actions,
-                past_key_values=transformer_outputs.past_key_values,
-                hidden_states=transformer_outputs.hidden_states,
-                attentions=transformer_outputs.attentions,
-            )
-        else:
-            return Gia2Output(
-                pred_observations=pred_observations,
-                pred_actions=pred_actions,
-                past_key_values=transformer_outputs.past_key_values,
-                hidden_states=transformer_outputs.hidden_states,
-                attentions=transformer_outputs.attentions,
-            )
+
+        if not return_dict:
+            output = (pred_observations, pred_actions) + transformer_outputs[1:]
+            return ((loss, observation_loss, action_loss) + output) if loss is not None else output
+
+        return Gia2Output(
+            loss=loss,
+            observation_loss=observation_loss,
+            action_loss=action_loss,
+            pred_observations=pred_observations,
+            pred_actions=pred_actions,
+            past_key_values=transformer_outputs.past_key_values,
+            hidden_states=transformer_outputs.hidden_states,
+            attentions=transformer_outputs.attentions,
+        )
 
     def forward(
         self,
@@ -518,17 +586,18 @@ class Gia2Model(GPTNeoPreTrainedModel):
         attention_mask: Optional[BoolTensor] = None,
         token_type_ids: Optional[LongTensor] = None,
         position_ids: Optional[LongTensor] = None,
-        inputs_embeds: Optional[FloatTensor] = None,
+        return_loss: bool = True,
         use_cache: Optional[bool] = None,
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
-        return_loss: bool = True,
         loss_weight: Optional[FloatTensor] = None,
     ) -> Gia2Output:
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
         # Textual tasks
         if input_ids is not None or pixel_values is not None:
-            raise NotImplementedError
+            inputs_embeds, attention_mask = self.embed_textual(input_ids, pixel_values, attention_mask)
         # RL tasks
         elif (
             continuous_observations is not None or discrete_observations is not None or image_observations is not None
@@ -559,7 +628,7 @@ class Gia2Model(GPTNeoPreTrainedModel):
         )
 
         if input_ids is not None or pixel_values is not None:
-            raise NotImplementedError
+            return self.output_textual(transformer_outputs, input_ids, attention_mask, return_loss, return_dict)
         else:
             return self.output_rl(
                 transformer_outputs,
@@ -569,7 +638,9 @@ class Gia2Model(GPTNeoPreTrainedModel):
                 continuous_actions,
                 discrete_actions,
                 rewards,
+                attention_mask,
                 return_loss,
+                return_dict,
                 loss_weight,
             )
 
@@ -628,8 +699,13 @@ class Gia2Model(GPTNeoPreTrainedModel):
             discrete_actions = discrete_actions[None, -max_seq_len:]
 
         if rewards is not None:
-            rewards = np.array(rewards, dtype=np.float32)
-            rewards = torch.from_numpy(rewards).to(self.device)
+            if len(rewards) == 0:
+                rewards = torch.zeros((1,), dtype=torch.float32, device=self.device)
+            else:
+                rewards = np.array(rewards, dtype=np.float32)
+                rewards = torch.from_numpy(rewards).to(self.device)
+                last_reward = torch.zeros((1,), dtype=torch.float32, device=self.device)
+                rewards = torch.cat((rewards, last_reward), dim=0)
             rewards = rewards[None, -max_seq_len:]
 
         outputs = self(
