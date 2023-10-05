@@ -100,9 +100,7 @@ class DatasetArguments:
     )
     use_separator: bool = field(
         default=True,
-        metadata={
-            "help": "Whether to include a separator token between observations and actions. Defaults to `True`."
-        },
+        metadata={"help": "Whether to include a separator token between observations and actions. Defaults to `True`."},
     )
     p_prompt: float = field(
         default=0.25,
@@ -340,7 +338,7 @@ class Arguments(DatasetArguments, ModelArguments, EvalArguments, WandBArguments,
     def __post_init__(self):
         # We could have the following in Dataset args and call another super post init ?
         dataset_name = (
-            "gia-project/gia-dataset-okenized-1024" if args.load_tokenized else "gia-project/gia-dataset-parquet"
+            "gia-project/gia-dataset-tokenized-1024" if self.load_tokenized else "gia-project/gia-dataset-parquet"
         )
         self.task_names = get_task_name_list(self.task_names, dataset_name=dataset_name)
         if "," in self.mask_loss_modalities:
