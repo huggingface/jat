@@ -9,13 +9,24 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 
 import datasets.config
+import torch
+import torch.profiler
 from datasets import load_dataset, load_from_disk
 from datasets.config import HF_DATASETS_CACHE, HF_DATASETS_OFFLINE
-from transformers import AutoConfig, AutoProcessor, HfArgumentParser, Trainer, TrainingArguments
+from transformers import AutoConfig, AutoProcessor, HfArgumentParser, Trainer, TrainingArguments, TrainerCallback
 
 from gia.eval.rl.envs.core import TASK_NAME_TO_ENV_ID
 from gia2.modeling_gia2 import Gia2Model
 from gia2.utils import mix_iterable_datasets
+
+
+class MyCallback(TrainerCallback):
+    def __init__(self, profiler) -> None:
+        super().__init__()
+        self.profiler = profiler
+
+    def on_step_end(self, args, state, control, logs=None, **kwargs):
+        self.profiler.step()
 
 
 # Sometimes, the server is down; increasing the number of
@@ -159,11 +170,22 @@ dataset.save_to_disk('{HF_DATASETS_CACHE}/gia-project/gia-dataset-parquet/{task}
 
     train_dataset = mix_iterable_datasets(train_dataset.values(), batch_size=8)
 
-    # Instanciate the trainer and train
-    trainer = Trainer(
-        model=model, args=training_args, train_dataset=train_dataset, eval_dataset=eval_dataset, tokenizer=processor
-    )
-    trainer.train()
+    with torch.profiler.profile(
+        schedule=torch.profiler.schedule(wait=2, warmup=2, active=6, repeat=1),
+        on_trace_ready=torch.profiler.tensorboard_trace_handler("./log/trace"),
+        record_shapes=True,
+        with_stack=True,
+    ) as profiler:
+        # Instanciate the trainer and train
+        trainer = Trainer(
+            model=model,
+            args=training_args,
+            train_dataset=train_dataset,
+            eval_dataset=eval_dataset,
+            tokenizer=processor,
+            callbacks=[MyCallback(profiler)],
+        )
+        trainer.train()
 
 
 if __name__ == "__main__":
