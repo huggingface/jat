@@ -358,7 +358,7 @@ class Gia2Model(GPTNeoPreTrainedModel):
         self.wte = nn.Embedding(config.vocab_size, config.hidden_size)
         self.vit_encoder = ViTPatchEmbeddings(config)
         self.continuous_encoder = nn.Linear(config.max_continuous_size, config.hidden_size)
-        self.discrete_encoder = nn.Embedding(config.max_discrete_value, config.hidden_size)
+        self.discrete_encoder = nn.Linear(config.max_discrete_value*config.vocab_size, config.hidden_size - 1)
         self.image_encoder = DualBatchReshapeWrapper(ImageEncoder(config.hidden_size))
 
         # Transformer
@@ -367,7 +367,7 @@ class Gia2Model(GPTNeoPreTrainedModel):
         # Decoders
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
         self.continuous_decoder = nn.Linear(config.hidden_size, config.max_continuous_size)
-        self.discrete_decoder = nn.Linear(config.hidden_size, config.max_discrete_value, bias=False)
+        self.discrete_decoder = nn.Linear(config.hidden_size, config.max_discrete_value*config.vocab_size, bias=False)
         self.image_decoder = DualBatchReshapeWrapper(ImageDecoder(config.hidden_size))
 
         # Initialize weights and apply final processing
@@ -413,27 +413,34 @@ class Gia2Model(GPTNeoPreTrainedModel):
             rewards = torch.cat((torch.zeros_like(rewards[:, :1]), rewards[:, :-1]), dim=1)
             continuous_observations = torch.cat((continuous_observations, rewards.unsqueeze(-1)), dim=-1)
             continuous_observations = cyclic_expand_dim(continuous_observations, self.config.max_continuous_size)
-        if discrete_observations is not None:
-            raise NotImplementedError
         if continuous_actions is not None:
             continuous_actions = cyclic_expand_dim(continuous_actions, self.config.max_continuous_size)
+        if discrete_actions is not None:
+            discrete_actions = cyclic_expand_dim(discrete_actions,
+                                                 self.config.max_discrete_value * self.config.vocab_size)
 
         # Encode
         if continuous_observations is not None:
             batch_size, seq_len = continuous_observations.shape[:2]
             inputs_embeds_observations = self.continuous_encoder(continuous_observations)
         elif discrete_observations is not None:
-            batch_size, seq_len = discrete_observations.shape
-            inputs_embeds_observations = self.discrete_encoder(discrete_observations)
+            batch_size, seq_len = discrete_observations.shape[:2]
+            encoded_discrete_observations = self.wte(discrete_observations)
+            inputs_embeds_observations = self.discrete_encoder(encoded_discrete_observations.flatten())
+            # Modify the rewards to move from [r_1, r_2, ..., r_T] to [0, r_1, r_2, ..., r_T-1]
+            rewards = torch.cat((torch.zeros_like(rewards[:, :1]), rewards[:, :-1]), dim=1)
+            inputs_embeds_observations = torch.cat((inputs_embeds_observations, rewards.unsqueeze(-1)), dim=-1)
         elif image_observations is not None:
             batch_size, seq_len = image_observations.shape[:2]
             inputs_embeds_observations = self.image_encoder(image_observations)
         else:
             raise ValueError("Missing observations.")
         if continuous_actions is not None:
-            inputs_embeds_actions = self.continuous_encoder(continuous_actions)
+            inputs_embeds_actions = self.continuous_encoder(continuous_actions)  # TODO
         elif discrete_actions is not None:
-            inputs_embeds_actions = self.discrete_encoder(discrete_actions)
+            encoded_discrete_actions = self.wte(discrete_actions)
+            flattened_encoded_discrete_actions = torch.flatten(encoded_discrete_actions, start_dim=-2)
+            inputs_embeds_actions = self.discrete_encoder(flattened_encoded_discrete_actions)
         else:
             raise ValueError("Missing actions.")
 
@@ -521,6 +528,11 @@ class Gia2Model(GPTNeoPreTrainedModel):
                 )
             pred_observations = pred_observations[..., :obs_size]
         elif discrete_observations is not None:
+            encoded_discrete_observations = self.wte(discrete_observations)
+            inputs_embeds_observations = self.discrete_encoder(encoded_discrete_observations.flatten())
+            # Modify the rewards to move from [r_1, r_2, ..., r_T] to [0, r_1, r_2, ..., r_T-1]
+            rewards = torch.cat((torch.zeros_like(rewards[:, :1]), rewards[:, :-1]), dim=1)
+            discrete_observations = torch.cat((inputs_embeds_observations, rewards.unsqueeze(-1)), dim=-1)
             pred_observations = self.discrete_decoder(hidden_states[:, 1::2])
             if return_loss:
                 observation_loss = compute_ce_loss(

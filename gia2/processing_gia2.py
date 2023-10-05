@@ -153,7 +153,7 @@ class Gia2Processor(ProcessorMixin):
     image_processor_class = "AutoImageProcessor"
     tokenizer_class = "AutoTokenizer"
 
-    DONT_TRUNCATE_OR_PAD = {"pixel_values"}  # Or, a better name for this would be
+    DONT_TRUNCATE_OR_PAD = {"pixel_values", "discrete_observations"}  # Or, a better name for this would be
 
     def __init__(self, image_processor, tokenizer):
         super().__init__(image_processor, tokenizer)
@@ -202,6 +202,7 @@ class Gia2Processor(ProcessorMixin):
         images=None,
         continuous_observations=None,
         discrete_observations=None,
+        text_observations=None,
         image_observations=None,
         continuous_actions=None,
         discrete_actions=None,
@@ -230,6 +231,8 @@ class Gia2Processor(ProcessorMixin):
                 The continuous observations or batch of continuous observations to be encoded.
             discrete_observations (`List[List[List[int]]]`):
                 The discrete observations or batch of discrete observations to be encoded.
+            text_observations (`List[List[str]]`):
+                The text observations or batch of text observations to be encoded.
             image_observations (`List[List[PIL.Image.Image]]`, `List[List[np.ndarray]]`, `List[List[torch.Tensor]]`):
                 The image observations or batch of image observations to be encoded.
             continuous_actions (`List[List[List[float]]]`):
@@ -273,6 +276,12 @@ class Gia2Processor(ProcessorMixin):
             encoding["continuous_observations"] = continuous_observations
         if discrete_observations is not None:
             encoding["discrete_observations"] = discrete_observations
+        if text_observations is not None:
+            if "discrete_observations" not in encoding:
+                encoding["discrete_observations"] = [[] for _ in range(len(text_observations))]
+            for _idx, _episode_obs in enumerate(text_observations):
+                encoded_text = self.tokenizer(_episode_obs, max_length=64, padding="max_length")["input_ids"]
+                encoding["discrete_observations"][_idx].extend(encoded_text)
         if image_observations is not None:
             im_obs = [torch.stack([(to_tensor(im) - 0.5) / 0.5 for im in ep]) for ep in image_observations]
             encoding["image_observations"] = im_obs
