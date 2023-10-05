@@ -2,7 +2,7 @@ from typing import Any, Dict, List, Optional, Union
 
 import torch
 from torchvision.transforms.functional import to_tensor
-from transformers import BatchEncoding, image_utils
+from transformers import BatchEncoding
 from transformers.processing_utils import ProcessorMixin
 
 
@@ -98,8 +98,8 @@ def pad(encoding: Dict[str, List[List[Any]]], target_length: int) -> Dict[str, L
     padded_encoding = {}
 
     for key, sequences in encoding.items():
-        if not all(isinstance(seq, list) for seq in sequences):
-            raise TypeError(f"All sequences under key {key} should be of type list.")
+        if not all(isinstance(seq, (list, torch.Tensor)) for seq in sequences):
+            raise TypeError(f"All sequences under key {key} should be of type list or tensor.")
         if key == "attention_mask":  # attention_mask is handled separately
             continue
 
@@ -108,7 +108,7 @@ def pad(encoding: Dict[str, List[List[Any]]], target_length: int) -> Dict[str, L
 
         for seq in sequences:
             pad_len = target_length - len(seq)
-            padded_seq = seq + [seq[0]] * max(0, pad_len)
+            padded_seq = list(seq) + [seq[0]] * max(0, pad_len)
             mask = [1] * len(seq) + [0] * max(0, pad_len)
 
             padded_sequences.append(padded_seq)
@@ -125,15 +125,6 @@ def pad(encoding: Dict[str, List[List[Any]]], target_length: int) -> Dict[str, L
         padded_encoding["attention_mask"] = pad_mask
 
     return padded_encoding
-
-
-def _is_batched(encoding):
-    if encoding.get("input_ids") is not None:
-        return isinstance(encoding["input_ids"][0], list) and isinstance(encoding["input_ids"][0][0], int)
-    if encoding.get("pixel_values") is not None:
-        return image_utils.is_batched(encoding["pixel_values"])
-    else:
-        raise NotImplementedError
 
 
 class Gia2Processor(ProcessorMixin):
@@ -193,6 +184,11 @@ class Gia2Processor(ProcessorMixin):
 
         # Add back the excluded keys.
         encoding.update(excluded)
+
+        # Particular case, we handle the conversion to tensor of image_observations, as the format used
+        # (list of tensors) is not properly handled by the BatchEncoding class:
+        if "image_observations" in encoding:
+            encoding["image_observations"] = torch.stack([torch.stack(ep) for ep in encoding["image_observations"]])
 
         return encoding
 
@@ -274,8 +270,8 @@ class Gia2Processor(ProcessorMixin):
         if discrete_observations is not None:
             encoding["discrete_observations"] = discrete_observations
         if image_observations is not None:
-            im_obs = [torch.stack([(to_tensor(im) - 0.5) / 0.5 for im in ep]) for ep in image_observations]
-            encoding["image_observations"] = im_obs
+            image_observations = [[(to_tensor(im) - 0.5) / 0.5 for im in ep] for ep in image_observations]
+            encoding["image_observations"] = image_observations
         if continuous_actions is not None:
             encoding["continuous_actions"] = continuous_actions
         if discrete_actions is not None:
@@ -290,11 +286,6 @@ class Gia2Processor(ProcessorMixin):
             max_length -= (224 // 16) ** 2  # substract the number of image tokens
 
         encoding = self._truncate_and_pad(encoding, padding, truncation, max_length)
-
-        # Particular case, we handle the conversion to tensor of image_observations, as the format used
-        # (list of tensors) is not properly handled by the BatchEncoding class:
-        if "image_observations" in encoding:
-            encoding["image_observations"] = torch.stack(encoding["image_observations"])
 
         return BatchEncoding(encoding, tensor_type=return_tensors)
 
@@ -314,7 +305,10 @@ class Gia2Processor(ProcessorMixin):
 
     def pad(self, *args, **kwargs):
         inputs = {key: [arg[key] for arg in args[0]] for key in args[0][0].keys()}
-        return self(**inputs, **kwargs)
+        encoding = self._truncate_and_pad(
+            inputs, padding=kwargs.get("padding", False), truncation=False, max_length=kwargs.get("max_length")
+        )
+        return BatchEncoding(encoding, tensor_type=kwargs.get("return_tensors"))
 
     @property
     def model_input_names(self):
