@@ -196,7 +196,7 @@ class AtariDictObservationWrapper(ObservationWrapper):
         return {"image_observations": observations}
 
 
-def make_atari(task_name: str, **kwargs) -> Env:
+def make_atari(task_name: str, episodic_life: bool = True, clip_reward: bool = True, **kwargs) -> Env:
     kwargs = {"frameskip": 1, "repeat_action_probability": 0.0, **kwargs}
     if task_name == "atari-montezumarevenge":
         kwargs["max_episode_steps"] = 18_000
@@ -204,10 +204,12 @@ def make_atari(task_name: str, **kwargs) -> Env:
     env = gym.wrappers.RecordEpisodeStatistics(env)
     env = NoopResetEnv(env, noop_max=30)
     env = MaxAndSkipEnv(env, skip=4)
-    env = EpisodicLifeEnv(env)
+    if episodic_life:
+        env = EpisodicLifeEnv(env)
     if "FIRE" in env.unwrapped.get_action_meanings():
         env = FireResetEnv(env)
-    env = ClipRewardEnv(env)
+    if clip_reward:
+        env = ClipRewardEnv(env)
     env = gym.wrappers.ResizeObservation(env, (84, 84))
     env = gym.wrappers.GrayScaleObservation(env)
     env = gym.wrappers.FrameStack(env, num_stack=4)

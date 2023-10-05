@@ -88,10 +88,10 @@ ENV_NAMES = [
     "babyai-key-corridor",
     "babyai-key-in-box",
     "babyai-mini-boss-level",
-    "babyai-move-two-across",
+    "babyai-move-two-across-s8n9",
     "babyai-one-room-s8",
     "babyai-open-door",
-    "babyai-open-doors-order",
+    "babyai-open-doors-order-n4",
     "babyai-open-red-door",
     "babyai-open-two-doors",
     "babyai-open",
@@ -176,12 +176,7 @@ FILENAME = "scores_dict.json"
 for env_name in tqdm(ENV_NAMES):
     tqdm.write(f"Downloading expert scores for {env_name}")
 
-    dataset = load_dataset(
-        "gia-project/gia-dataset",
-        env_name,
-        writer_batch_size=1,
-        verification_mode="no_checks",
-    )
+    dataset = load_dataset("gia-project/gia-dataset-parquet", env_name)
     # Initialize the variables
     rewards = dataset["train"]["rewards"] + dataset["test"]["rewards"]
     episode_sum_rewards = [np.sum(r) for r in rewards]

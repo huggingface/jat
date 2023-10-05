@@ -41,10 +41,14 @@ def main():
         }
 
     # Load the trainer
-    optimizer = AdamW(model.parameters(), lr=args.learning_rate, betas=(0.9, 0.95), eps=args.adam_epsilon)
-    scheduler = get_cosine_schedule_with_linear_warmup(
-        optimizer, num_warmup_steps=15_000, num_decay_steps=1_000_000, final_value=0.1
-    )
+    if args.lr_scheduler_type == "cosine_with_linear_warmup":
+        optimizer = AdamW(model.parameters(), lr=args.learning_rate, betas=(0.9, 0.95), eps=args.adam_epsilon)
+        scheduler = get_cosine_schedule_with_linear_warmup(
+            optimizer, num_warmup_steps=15_000, num_decay_steps=1_000_000, final_value=0.1
+        )
+        optimizers = (optimizer, scheduler)
+    else:
+        optimizers = (None, None)
     trainer = Trainer(
         model,
         args,
@@ -52,7 +56,7 @@ def main():
         train_dataset=train_dataset,
         eval_dataset=test_datasets,
         callbacks=[EvaluateCheckpointCallback] if args.auto_eval and is_slurm_available() else [],
-        optimizers=(optimizer, scheduler),
+        optimizers=optimizers,
     )
     trainer.train()
 
