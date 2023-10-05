@@ -47,7 +47,7 @@ def compute_mse_loss(
         loss = loss * weights
 
     # Sum the loss and normalize by the number of valid elements
-    loss = loss.sum() / mask.sum()
+    loss = loss.sum() / mask.sum() if mask is not None else loss.mean()
 
     return loss
 
@@ -85,7 +85,7 @@ def compute_ce_loss(
         loss = loss * weights
 
     # Sum the loss and normalize by the number of valid elements
-    loss = loss.sum() / mask.sum()
+    loss = loss.sum() / mask.sum() if mask is not None else loss.mean()
 
     return loss
 
