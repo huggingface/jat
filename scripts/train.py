@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
 """Train a GIA model on the GIA dataset"""
 
-from typing import Tuple
 
 from torch.optim import AdamW
 from transformers import AutoConfig, AutoModel, Trainer
 
 from gia.config import Arguments
 from gia.datasets import GiaDataCollator
+from gia.datasets.core import load_datasets
 from gia.eval.callback import EvaluateCheckpointCallback
 from gia.eval.utils import is_slurm_available
 from gia.train.scheduler import get_cosine_schedule_with_linear_warmup
-from gia.datasets.core import load_datasets
 
 
 def main():

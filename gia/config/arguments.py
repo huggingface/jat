@@ -100,7 +100,9 @@ class DatasetArguments:
     )
     use_separator: bool = field(
         default=True,
-        metadata={"help": "Whether to include a separator token between observations and actions. Defaults to `True`."},
+        metadata={
+            "help": "Whether to include a separator token between observations and actions. Defaults to `True`."
+        },
     )
     p_prompt: float = field(
         default=0.25,
