@@ -2,6 +2,7 @@
 """Load and generate batch for all datasets from the GIA dataset"""
 
 import argparse
+import os
 
 from datasets import get_dataset_config_names, load_dataset
 from datasets.config import HF_DATASETS_CACHE
@@ -15,5 +16,7 @@ if tasks == ["all"]:
 
 for task in tasks:
     print(f"Loading {task}...")
-    dataset = load_dataset("gia-project/gia-dataset-parquet", task)
-    dataset.save_to_disk(f"{HF_DATASETS_CACHE}/gia-project/gia-dataset-parquet/{task}")
+    cache_path = f"{HF_DATASETS_CACHE}/gia-project/gia-dataset-parquet/{task}"
+    if not os.path.exists(cache_path):
+        dataset = load_dataset("gia-project/gia-dataset-parquet", task)
+        dataset.save_to_disk(cache_path)
