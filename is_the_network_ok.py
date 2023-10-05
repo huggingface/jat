@@ -1,10 +1,11 @@
 import torch
 import torch.optim as optim
-from datasets import load_dataset
+from datasets import load_dataset, concatenate_datasets
 from torch import nn
 from torch.nn import CrossEntropyLoss
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+from transformers import AutoTokenizer
 
 
 class MyEncoder(nn.Module):
@@ -35,21 +36,35 @@ class MyDecoder(nn.Module):
         return x
 
 
-dataset = load_dataset("gia-project/gia-dataset-parquet", "babyai-go-to", split="train")
+tasks = ["babyai-go-to", "babyai-pickup", "babyai-synth", "babyai-boss-level", "babyai-boss-level-no-unlock"]
+
+dataset = concatenate_datasets(
+    [load_dataset("gia-project/gia-dataset-parquet", task, split="train").select(range(2000)) for task in tasks]
+)
+tokenizer = AutoTokenizer.from_pretrained("gpt2")
+tokenizer.pad_token = tokenizer.eos_token
 
 
+# First, convert dataset of episodes into dataset of transitions, then, tokenize the text observations
+# and concatenate them with the discrete observations
 def func(examples):
-    flat = [obs for ep in examples["discrete_observations"] for obs in ep]
-    return {"discrete_observations": flat}
+    discrete = [obs for ep in examples["discrete_observations"] for obs in ep]
+    text = [obs for ep in examples["text_observations"] for obs in ep]
+    tokens = tokenizer(text, padding="max_length", max_length=43)["input_ids"]
+    # Print the maximum length of the text observations
+    print(max(len(obs) for obs in text))
+    return {"discrete_observations": [a + b for a, b in zip(discrete, tokens)]}
 
 
-dataset = dataset.map(func, batched=True, remove_columns=["text_observations", "rewards", "discrete_actions"])
+dataset = dataset.map(
+    func, batched=True, remove_columns=["rewards", "discrete_actions", "text_observations"], num_proc=16
+)
 
-print(len(dataset))
-num_logits = 10
+
+num_logits = tokenizer.vocab_size  # number of possible tokens
 input_size = len(dataset[0]["discrete_observations"])  # num integers in the input
-embedding_dim = 5  # embedding dimension
-hidden_size = 768  # hidden size of the encoder's linear layer
+embedding_dim = 768  # embedding dimension of the discrete values
+hidden_size = 768  # bottleneck dimension
 
 encoder = MyEncoder(input_size, num_logits, embedding_dim, hidden_size).to("cuda")
 decoder = MyDecoder(hidden_size, embedding_dim, input_size, num_logits).to("cuda")
@@ -57,7 +72,7 @@ decoder = MyDecoder(hidden_size, embedding_dim, input_size, num_logits).to("cuda
 # Hyperparameters
 learning_rate = 0.001
 num_epochs = 10
-batch_size = 64
+batch_size = 32
 
 
 def collate(batch):
