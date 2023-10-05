@@ -24,7 +24,7 @@ def main():
         datasets = load_and_process_dataset(args, split, processor)
         for task, dataset in datasets.items():
             dataset.push_to_hub(
-                "gia/gia-dataset-tokenized-1024",
+                "gia-project/gia-dataset-tokenized-1024",
                 config_name=task,
                 split=split,
                 max_shard_size="1GB",

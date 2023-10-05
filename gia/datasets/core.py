@@ -39,7 +39,7 @@ def get_task_name_list(task_names: Union[str, List[str]]) -> List[str]:
         else:
             task_names = [task_names]
     # Get all task names from gia dataset
-    all_tasks = set(get_dataset_config_names("gia-project/gia-dataset-parquet"))
+    all_tasks = set(get_dataset_config_names("gia-project/gia-dataset-tokenized-1024"))
     output_tasks = []
     # If the task name is a domain, load all the tasks of that domain
     for task_name in task_names:
