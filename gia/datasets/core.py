@@ -1,7 +1,7 @@
 import random
 import warnings
 from functools import partial
-from typing import Dict, List, TypeVar, Union, Tuple
+from typing import Dict, List, TypeVar, Union, Tuple, Optional
 
 import numpy as np
 from datasets import Dataset, get_dataset_config_names, load_dataset
@@ -11,7 +11,9 @@ from gia.processing import GiaProcessor
 T = TypeVar("T", List, np.ndarray)
 
 
-def get_task_name_list(task_names: Union[str, List[str]]) -> List[str]:
+def get_task_name_list(
+    task_names: Union[str, List[str]], dataset_name: str = "gia-project/gia-dataset-parquet"
+) -> List[str]:
     r"""
     Get the list of task names from a list of task names or prefixes.
 
@@ -19,6 +21,9 @@ def get_task_name_list(task_names: Union[str, List[str]]) -> List[str]:
         task_names (`Union[str, List[str]]`):
             Name or list of names or prefixes of the tasks to load. See the available tasks in
             https://huggingface.co/datasets/gia-project/gia-dataset
+        dataset_name (`str`):
+            The name of the dataset on the gia-project.
+            See https://huggingface.co/datasets/gia-project for details.
 
     Raises:
         `ValueError`: If a task name is not found in the dataset.
@@ -39,7 +44,8 @@ def get_task_name_list(task_names: Union[str, List[str]]) -> List[str]:
         else:
             task_names = [task_names]
     # Get all task names from gia dataset
-    all_tasks = set(get_dataset_config_names("gia-project/gia-dataset-tokenized-1024"))
+
+    all_tasks = set(get_dataset_config_names(dataset_name))
     output_tasks = []
     # If the task name is a domain, load all the tasks of that domain
     for task_name in task_names:

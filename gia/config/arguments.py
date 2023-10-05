@@ -337,7 +337,10 @@ class Arguments(DatasetArguments, ModelArguments, EvalArguments, WandBArguments,
 
     def __post_init__(self):
         # We could have the following in Dataset args and call another super post init ?
-        self.task_names = get_task_name_list(self.task_names)
+        dataset_name = (
+            "gia-project/gia-dataset-okenized-1024" if args.load_tokenized else "gia-project/gia-dataset-parquet"
+        )
+        self.task_names = get_task_name_list(self.task_names, dataset_name=dataset_name)
         if "," in self.mask_loss_modalities:
             self.mask_loss_modalities = self.mask_loss_modalities.split(",")
         if "," in self.local_positions_groups:
