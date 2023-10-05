@@ -1,11 +1,12 @@
 import random
 import warnings
 from functools import partial
-from typing import Dict, List, TypeVar, Union, Tuple, Optional
+from typing import Dict, List, TypeVar, Union, Tuple
 
 import numpy as np
 from datasets import Dataset, get_dataset_config_names, load_dataset
 from datasets import concatenate_datasets, Dataset
+from gia.config.arguments import Arguments
 from gia.processing import GiaProcessor
 
 T = TypeVar("T", List, np.ndarray)
@@ -180,14 +181,14 @@ class Prompter:
         return examples
 
 
-def load_datasets(args: "Arguments") -> Tuple[Dataset, Dict[str, Dataset]]:
+def load_datasets(args: Arguments) -> Tuple[Dataset, Dict[str, Dataset]]:
     if args.load_tokenized:
         return load_tokenized_dataset(args)
     else:
         return load_raw_datasets(args)
 
 
-def load_tokenized_dataset(args: "Arguments") -> Tuple[Dataset, Dict[str, Dataset]]:
+def load_tokenized_dataset(args: Arguments) -> Tuple[Dataset, Dict[str, Dataset]]:
     train_dataset_dict = {
         task_name: load_dataset("gia-project/gia-dataset-tokenized-1024", task_name, split="train")
         for task_name in args.task_names
@@ -206,7 +207,7 @@ def load_tokenized_dataset(args: "Arguments") -> Tuple[Dataset, Dict[str, Datase
     return train_dataset, test_datasets
 
 
-def load_raw_datasets(args: "Arguments") -> Tuple[Dataset, Dict[str, Dataset]]:
+def load_raw_datasets(args: Arguments) -> Tuple[Dataset, Dict[str, Dataset]]:
     processor = GiaProcessor.from_pretrained(
         args.config_name or args.model_name_or_path,
         cache_dir=args.cache_dir,

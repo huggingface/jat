@@ -7,7 +7,7 @@ from torch.optim import AdamW
 from transformers import AutoConfig, AutoModel, Trainer
 
 from gia.config import Arguments
-from gia.datasets import GiaDataCollator, load_and_process_dataset
+from gia.datasets import GiaDataCollator
 from gia.eval.callback import EvaluateCheckpointCallback
 from gia.eval.utils import is_slurm_available
 from gia.train.scheduler import get_cosine_schedule_with_linear_warmup
@@ -24,8 +24,9 @@ def main():
         use_auth_token=True if args.use_auth_token else None,
     )
     model = AutoModel.from_config(config=config)
-    train_dataset, test_datasets = load_datasets(args)
+
     # Load, prompt and process the datasets
+    train_dataset, test_datasets = load_datasets(args)
 
     # Load the trainer
     if args.lr_scheduler_type == "cosine_with_linear_warmup":
