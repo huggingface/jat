@@ -51,8 +51,6 @@ def func(examples):
     discrete = [obs for ep in examples["discrete_observations"] for obs in ep]
     text = [obs for ep in examples["text_observations"] for obs in ep]
     tokens = tokenizer(text, padding="max_length", max_length=43)["input_ids"]
-    # Print the maximum length of the text observations
-    print(max(len(obs) for obs in text))
     return {"discrete_observations": [a + b for a, b in zip(discrete, tokens)]}
 
 
