@@ -176,13 +176,7 @@ FILENAME = "scores_dict.json"
 for env_name in tqdm(ENV_NAMES):
     tqdm.write(f"Downloading expert scores for {env_name}")
 
-    dataset = load_dataset(
-        "gia-project/gia-dataset-parquet",
-        env_name,
-        # writer_batch_size=1,
-        # download_mode="force_redownload",
-        # verification_mode="no_checks",
-    )
+    dataset = load_dataset("gia-project/gia-dataset-parquet", env_name)
     # Initialize the variables
     rewards = dataset["train"]["rewards"] + dataset["test"]["rewards"]
     episode_sum_rewards = [np.sum(r) for r in rewards]
