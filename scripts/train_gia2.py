@@ -69,6 +69,7 @@ LOSS_WEIGHTS = {
     "mujoco-pendulum": 20.0,
     "mujoco-doublependulum": 10.0,
 }
+SAMPLE_WEIGHTS = {}
 
 
 def main():
@@ -132,24 +133,21 @@ dataset.save_to_disk('{HF_DATASETS_CACHE}/gia-project/gia-dataset-parquet/{task}
             else:
                 dataset_dict[task] = load_dataset("gia-project/gia-dataset-parquet", task, streaming=True)
 
-    # Add loss weight #TODO
-    # for task in dataset.keys():
-    #     for split in dataset[task].keys():
-    #         loss_weight = [LOSS_WEIGHTS.get(task, 1.0)] * len(dataset[task][split])
-    #         dataset[task][split] = dataset[task][split].add_column("loss_weight", loss_weight)
-
-    dataset_dict = {
-        t: {
-            s: d[s].map(
+    # Add loss weight
+    for task in dataset_dict.keys():
+        for split in dataset_dict[task].keys():
+            dataset = dataset_dict[task][split]
+            column_names = set(dataset.column_names)  # need to be done here because this info is lost after the map
+            dataset = dataset.map(
                 lambda example_batch: processor(**example_batch, padding="max_length", truncation="preserve"),
                 batched=True,
                 batch_size=10,
-                remove_columns={"text", "images"}.intersection(d[s].column_names),
+                remove_columns={"text", "images"}.intersection(column_names),
             )
-            for s in d.keys()
-        }
-        for t, d in dataset_dict.items()
-    }
+            dataset = dataset.map(
+                lambda x: {"loss_weight": [LOSS_WEIGHTS.get(task, 1.0)] * len(next(iter(x.values())))}
+            )
+            dataset_dict[task][split] = dataset
 
     train_dataset = {t: d["train"] for t, d in dataset_dict.items()}
     eval_dataset = {t: d["test"] for t, d in dataset_dict.items()}
@@ -158,7 +156,7 @@ dataset.save_to_disk('{HF_DATASETS_CACHE}/gia-project/gia-dataset-parquet/{task}
         eval_dataset["oscar"] = eval_dataset["oscar"].take(100)
 
     train_dataset = mix_iterable_datasets(train_dataset.values(), batch_size=8)
-
+    # Why the training continue after exauhsting the dataset? https://github.com/huggingface/transformers/issues/26635
     trainer = Trainer(
         model=model, args=training_args, train_dataset=train_dataset, eval_dataset=eval_dataset, tokenizer=processor
     )
