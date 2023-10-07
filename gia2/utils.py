@@ -214,6 +214,8 @@ def compute_mse_loss(
             Ground truth observations.
         mask (`torch.BoolTensor` of shape `(batch_size, max_seq_len)`):
             Boolean mask indicating valid timesteps.
+        weights (`torch.FloatTensor` of shape `(batch_size, max_seq_len)`):
+            Weights to apply to each timestep.
 
     Returns:
         loss (`torch.FloatTensor` of shape `(,)`):
@@ -227,7 +229,7 @@ def compute_mse_loss(
         loss = loss.mean(dim=dim)
 
     # Use the mask to zero out invalid entries
-    loss = torch.sum(loss * mask, dim=1)
+    loss = loss * mask
 
     # Apply weights if provided
     if weights is not None:
@@ -252,6 +254,8 @@ def compute_ce_loss(
             Ground truth class labels.
         mask (`torch.BoolTensor` of shape `(batch_size, max_seq_len)`):
             Boolean mask indicating valid timesteps.
+        weights (`torch.FloatTensor` of shape `(batch_size, max_seq_len)`):
+            Weights to apply to each timestep.
 
     Returns:
         loss (`torch.FloatTensor` of shape `(,)`):
@@ -263,7 +267,7 @@ def compute_ce_loss(
     loss = loss.view(true.size())
 
     # Use the mask to zero out invalid entries
-    loss = torch.sum(loss * mask, dim=1)
+    loss = loss * mask
 
     # Apply weights if provided
     if weights is not None:
