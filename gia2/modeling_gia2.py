@@ -40,7 +40,8 @@ def compute_mse_loss(
         loss = loss.mean(dim=dim)
 
     # Use the mask to zero out invalid entries
-    loss = torch.sum(loss * mask, dim=1) if mask is not None else torch.sum(loss, dim=1)
+    if mask is not None:
+        loss = loss * mask
 
     # Apply weights if provided
     if weights is not None:
@@ -78,7 +79,8 @@ def compute_ce_loss(
     loss = loss.view(true.size())
 
     # Use the mask to zero out invalid entries
-    loss = torch.sum(loss * mask, dim=1) if mask is not None else torch.sum(loss, dim=1)
+    if mask is not None:
+        loss = loss * mask
 
     # Apply weights if provided
     if weights is not None:
