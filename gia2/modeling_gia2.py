@@ -517,7 +517,7 @@ class Gia2Model(GPTNeoPreTrainedModel):
                     pred_observations[:, :-1],
                     continuous_observations[:, 1:],
                     observations_mask[:, 1:] if observations_mask is not None else None,
-                    weights=loss_weight,
+                    weights=loss_weight[:, 1:] if loss_weight is not None else None,
                 )
             pred_observations = pred_observations[..., :obs_size]
         elif discrete_observations is not None:
@@ -527,7 +527,7 @@ class Gia2Model(GPTNeoPreTrainedModel):
                     pred_observations[:, :-1],
                     discrete_observations[:, 1:],
                     observations_mask[:, 1:] if observations_mask is not None else None,
-                    weights=loss_weight,
+                    weights=loss_weight[:, 1:] if loss_weight is not None else None,
                 )
         elif image_observations is not None:
             pred_observations = self.image_decoder(hidden_states[:, 1::2])
@@ -536,7 +536,7 @@ class Gia2Model(GPTNeoPreTrainedModel):
                     pred_observations[:, :-1],
                     image_observations[:, 1:],
                     observations_mask[:, 1:] if observations_mask is not None else None,
-                    weights=loss_weight,
+                    weights=loss_weight[:, 1:] if loss_weight is not None else None,
                 )
 
         # Actions
