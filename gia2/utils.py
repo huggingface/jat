@@ -1,5 +1,6 @@
 import json
 import os
+import random
 import sys
 import tempfile
 from contextlib import contextmanager
@@ -7,13 +8,10 @@ from typing import Dict, List, Optional
 
 import cv2
 import numpy as np
-import torch
-import torch.nn.functional as F
 from datasets import IterableDataset
 from huggingface_hub import EvalResult, HfApi, ModelCard, ModelCardData
-from torch import Tensor
 from transformers import PreTrainedModel, ProcessorMixin
-import random
+
 
 PRETTY_TASK_NAMES = {
     "atari-alien": "ALE/Alien-v5",
@@ -199,112 +197,6 @@ def no_print_decorator(func):
             return func(*args, **kwargs)
 
     return wrapper
-
-
-def compute_mse_loss(
-    predicted: torch.FloatTensor, true: torch.FloatTensor, mask: torch.BoolTensor, weights: torch.FloatTensor = None
-) -> torch.FloatTensor:
-    """
-    Compute the Mean Squared Error (MSE) loss between predicted and true observations, considering valid timesteps.
-
-    Args:
-        predicted (`torch.FloatTensor` of shape `(batch_size, max_seq_len, ...)`):
-            Predicted observations at the output of the model.
-        true (`torch.FloatTensor` of shape `(batch_size, max_seq_len, ...)`):
-            Ground truth observations.
-        mask (`torch.BoolTensor` of shape `(batch_size, max_seq_len)`):
-            Boolean mask indicating valid timesteps.
-        weights (`torch.FloatTensor` of shape `(batch_size, max_seq_len)`):
-            Weights to apply to each timestep.
-
-    Returns:
-        loss (`torch.FloatTensor` of shape `(,)`):
-            MSE loss between predicted and true observations.
-    """
-    # Compute element-wise MSE loss
-    loss = F.mse_loss(predicted, true, reduction="none")
-
-    # Average the loss over all dimensions after the second one
-    for dim in reversed(range(2, loss.dim())):
-        loss = loss.mean(dim=dim)
-
-    # Use the mask to zero out invalid entries
-    loss = loss * mask
-
-    # Apply weights if provided
-    if weights is not None:
-        loss = loss * weights
-
-    # Sum the loss and normalize by the number of valid elements
-    loss = loss.sum() / mask.sum()
-
-    return loss
-
-
-def compute_ce_loss(
-    predicted: torch.FloatTensor, true: torch.LongTensor, mask: torch.BoolTensor, weights: torch.FloatTensor = None
-) -> torch.FloatTensor:
-    """
-    Compute the Cross Entropy (CE) loss between predicted logits and true class labels, considering valid timesteps.
-
-    Args:
-        predicted (`torch.FloatTensor` of shape `(batch_size, max_seq_len, num_classes)`):
-            Predicted logits at the output of the model.
-        true (`torch.LongTensor` of shape `(batch_size, max_seq_len)`):
-            Ground truth class labels.
-        mask (`torch.BoolTensor` of shape `(batch_size, max_seq_len)`):
-            Boolean mask indicating valid timesteps.
-        weights (`torch.FloatTensor` of shape `(batch_size, max_seq_len)`):
-            Weights to apply to each timestep.
-
-    Returns:
-        loss (`torch.FloatTensor` of shape `(,)`):
-            CE loss between predicted logits and true class labels.
-    """
-
-    # Compute element-wise CE loss
-    loss = F.cross_entropy(predicted.view(-1, predicted.size(-1)), true.view(-1), reduction="none")
-    loss = loss.view(true.size())
-
-    # Use the mask to zero out invalid entries
-    loss = loss * mask
-
-    # Apply weights if provided
-    if weights is not None:
-        loss = loss * weights
-
-    # Sum the loss and normalize by the number of valid elements
-    loss = loss.sum() / mask.sum()
-
-    return loss
-
-
-def cyclic_expand_dim(tensor: Tensor, expanded_dim_size: int) -> Tensor:
-    """
-    Expands the last dimension of a tensor cyclically to a specified size.
-
-    Args:
-        tensor (`torch.Tensor` of shape `(batch_size, seq_len, ...)`):
-            Input tensor whose last dimension is to be expanded cyclically.
-        expanded_dim_size (`int`):
-            The desired size of the last dimension after expansion.
-
-    Returns:
-        `torch.Tensor` of shape `(batch_size, seq_len, expanded_dim_size)`:
-            A tensor with its last dimension expanded cyclically to the specified size.
-
-    Examples:
-        >>> tensor = torch.tensor([[[1, 2], [3, 4]], [[5, 6], [7, 8]]])
-        >>> cyclic_expand_dim(tensor, 5)
-        tensor([[[1, 2, 1, 2, 1], [3, 4, 3, 4, 3]], [[5, 6, 5, 6, 5], [7, 8, 7, 8, 7]]])
-    """
-    B, L, X = tensor.shape
-    if expanded_dim_size < X:
-        raise ValueError(
-            f"Expanded dimension size ({expanded_dim_size}) must be greater than the original dimension size ({X})."
-        )
-    indices = torch.arange(expanded_dim_size) % X
-    return tensor[..., indices]
 
 
 def generate_rl_eval_results(scores_dict: Dict[str, List[float]]) -> List[EvalResult]:
