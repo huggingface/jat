@@ -1,5 +1,5 @@
 import torch
-from gia2.utils import compute_mse_loss
+from gia2.modeling_gia2 import compute_mse_loss
 
 
 def test_basic():
