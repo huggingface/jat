@@ -409,7 +409,7 @@ def save_video_grid(
 def mix_iterable_datasets(
     datasets: List[IterableDataset],
     batch_size: int,
-    stopping_strategy: str = "first_exhausted",
+    stopping_strategy: str = "all_exhausted",
     weights: List[float] = None,
 ):
     """
