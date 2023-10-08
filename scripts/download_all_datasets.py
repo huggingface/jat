@@ -7,6 +7,7 @@ import os
 from datasets import get_dataset_config_names, load_dataset
 from datasets.config import HF_DATASETS_CACHE
 
+
 parser = argparse.ArgumentParser()
 parser.add_argument("--tasks", nargs="+", default=[])
 
