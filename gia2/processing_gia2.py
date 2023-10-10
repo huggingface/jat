@@ -201,6 +201,7 @@ class Gia2Processor(ProcessorMixin):
         image_observations=None,
         continuous_actions=None,
         discrete_actions=None,
+        text_observations=None,
         rewards=None,
         return_tensors=None,
         **kwargs,
@@ -226,6 +227,8 @@ class Gia2Processor(ProcessorMixin):
                 The continuous observations or batch of continuous observations to be encoded.
             discrete_observations (`List[List[List[int]]]`):
                 The discrete observations or batch of discrete observations to be encoded.
+            text_observations (`List[List[str]]`):
+                The text observations or batch of text observations to be encoded.
             image_observations (`List[List[PIL.Image.Image]]`, `List[List[np.ndarray]]`, `List[List[torch.Tensor]]`):
                 The image observations or batch of image observations to be encoded.
             continuous_actions (`List[List[List[float]]]`):
@@ -276,6 +279,14 @@ class Gia2Processor(ProcessorMixin):
             encoding["continuous_actions"] = continuous_actions
         if discrete_actions is not None:
             encoding["discrete_actions"] = discrete_actions
+        if text_observations is not None:
+            if "discrete_observations" not in encoding:
+                encoding["discrete_observations"] = [[] for _ in range(len(text_observations))]
+            for _idx, _episode_obs in enumerate(text_observations):
+                encoded_text = self.tokenizer(_episode_obs, max_length=64, padding="max_length")["input_ids"]
+                encoding["discrete_observations"][_idx] = \
+                    [disc_obs + text_obs
+                     for disc_obs, text_obs in zip(encoding["discrete_observations"][_idx], encoded_text)]
         if rewards is not None:
             encoding["rewards"] = rewards
 
