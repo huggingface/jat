@@ -358,16 +358,18 @@ class Gia2Model(GPTNeoPreTrainedModel):
         self.wte = nn.Embedding(config.vocab_size, config.hidden_size)
         self.vit_encoder = ViTPatchEmbeddings(config)
         self.continuous_encoder = nn.Linear(config.max_continuous_size, config.hidden_size)
-        self.discrete_encoder = nn.Linear(config.max_discrete_value*config.vocab_size, config.hidden_size - 1)
+        self.discrete_encoder = nn.Linear(config.max_discrete_value*config.hidden_size,
+                                          config.hidden_size - 1)  # leave space for reward
         self.image_encoder = DualBatchReshapeWrapper(ImageEncoder(config.hidden_size))
 
         # Transformer
         self.transformer = GPTNeoModel(config)
 
         # Decoders
-        self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
+        self.discrete_decoder = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
         self.continuous_decoder = nn.Linear(config.hidden_size, config.max_continuous_size)
-        self.discrete_decoder = nn.Linear(config.hidden_size, config.max_discrete_value*config.vocab_size, bias=False)
+        # self.discrete_observation_decoder = nn.Linear(config.hidden_size,
+        #                                               config.max_discrete_value*config.vocab_size, bias=False)
         self.image_decoder = DualBatchReshapeWrapper(ImageDecoder(config.hidden_size))
 
         # Initialize weights and apply final processing
@@ -415,9 +417,6 @@ class Gia2Model(GPTNeoPreTrainedModel):
             continuous_observations = cyclic_expand_dim(continuous_observations, self.config.max_continuous_size)
         if continuous_actions is not None:
             continuous_actions = cyclic_expand_dim(continuous_actions, self.config.max_continuous_size)
-        if discrete_actions is not None:
-            discrete_actions = cyclic_expand_dim(discrete_actions,
-                                                 self.config.max_discrete_value * self.config.vocab_size)
 
         # Encode
         if continuous_observations is not None:
@@ -426,7 +425,7 @@ class Gia2Model(GPTNeoPreTrainedModel):
         elif discrete_observations is not None:
             batch_size, seq_len = discrete_observations.shape[:2]
             encoded_discrete_observations = self.wte(discrete_observations)
-            inputs_embeds_observations = self.discrete_encoder(encoded_discrete_observations.flatten())
+            inputs_embeds_observations = self.discrete_encoder(encoded_discrete_observations.flatten(start_dim=2))
             # Modify the rewards to move from [r_1, r_2, ..., r_T] to [0, r_1, r_2, ..., r_T-1]
             rewards = torch.cat((torch.zeros_like(rewards[:, :1]), rewards[:, :-1]), dim=1)
             inputs_embeds_observations = torch.cat((inputs_embeds_observations, rewards.unsqueeze(-1)), dim=-1)
@@ -462,7 +461,7 @@ class Gia2Model(GPTNeoPreTrainedModel):
         hidden_states = transformer_outputs[0]
         loss = None
         # Get only textual hidden states
-        lm_logits = self.lm_head(hidden_states)
+        lm_logits = self.discrete_decoder(hidden_states)
         if return_loss:
             if input_ids is None:
                 raise ValueError("Input IDs must be provided when `return_loss=True`.")
@@ -528,19 +527,18 @@ class Gia2Model(GPTNeoPreTrainedModel):
                 )
             pred_observations = pred_observations[..., :obs_size]
         elif discrete_observations is not None:
-            encoded_discrete_observations = self.wte(discrete_observations)
-            inputs_embeds_observations = self.discrete_encoder(encoded_discrete_observations.flatten())
-            # Modify the rewards to move from [r_1, r_2, ..., r_T] to [0, r_1, r_2, ..., r_T-1]
-            rewards = torch.cat((torch.zeros_like(rewards[:, :1]), rewards[:, :-1]), dim=1)
-            discrete_observations = torch.cat((inputs_embeds_observations, rewards.unsqueeze(-1)), dim=-1)
-            pred_observations = self.discrete_decoder(hidden_states[:, 1::2])
-            if return_loss:
-                observation_loss = compute_ce_loss(
-                    pred_observations[:, :-1],
-                    discrete_observations[:, 1:],
-                    observations_mask[:, 1:] if observations_mask is not None else None,
-                    weights=loss_weight,
-                )
+            raise NotImplementedError()
+            # pred_observations = self.discrete_observation_decoder(
+            #     hidden_states[:, 1::2].unflatten(
+            #         dim=-1, unflattened_size=(config.max_discrete_value*config.vocab_size))
+            # )
+            # if return_loss:
+            #     observation_loss = compute_ce_loss(
+            #         pred_observations[:, :-1],
+            #         discrete_observations[:, 1:],
+            #         observations_mask[:, 1:] if observations_mask is not None else None,
+            #         weights=loss_weight,
+            #     )
         elif image_observations is not None:
             pred_observations = self.image_decoder(hidden_states[:, 1::2])
             if return_loss:

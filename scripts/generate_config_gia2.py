@@ -10,6 +10,7 @@ config = Gia2Config(
     hidden_size=768,
     num_heads=12,
     num_layers=12,
+    max_discrete_value=148 + 64  # 148 (discrete obs from BabyAI) + 64 (max size of BabyAI's text observation)
 )
 image_processor = CLIPImageProcessor(
     size={"shortest_edge": config.image_size}, crop_size={"height": config.image_size, "width": config.image_size}
@@ -25,6 +26,7 @@ config = Gia2Config(
     hidden_size=2048,
     num_heads=16,
     num_layers=24,
+    max_discrete_value=148 + 64  # 148 (discrete obs from BabyAI) + 64 (max size of BabyAI's text observation)
 )
 image_processor = CLIPImageProcessor(
     size={"shortest_edge": config.image_size}, crop_size={"height": config.image_size, "width": config.image_size}
@@ -40,6 +42,7 @@ config = Gia2Config(
     hidden_size=2560,
     num_heads=20,
     num_layers=32,
+    max_discrete_value=148 + 64  # 148 (discrete obs from BabyAI) + 64 (max size of BabyAI's text observation)
 )
 image_processor = CLIPImageProcessor(
     size={"shortest_edge": config.image_size}, crop_size={"height": config.image_size, "width": config.image_size}
