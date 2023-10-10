@@ -437,7 +437,6 @@ def mix_iterable_datasets(
         weights: List[float] = None,
     ):
         assert stopping_strategy in ["first_exhausted", "all_exhausted"]
-        print(datasets)
         iterators = [iter(dataset) for dataset in datasets]
         exhausted = [False] * len(datasets)  # A list to keep track of which iterators are exhausted
         weights = weights if weights is not None else [1.0] * len(datasets)
