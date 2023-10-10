@@ -1,3 +1,4 @@
+import warnings
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
@@ -360,8 +361,13 @@ class Gia2Model(GPTNeoPreTrainedModel):
         self.wte = nn.Embedding(config.vocab_size, config.hidden_size)
         self.vit_encoder = ViTPatchEmbeddings(config)
         self.continuous_encoder = nn.Linear(config.max_continuous_size, config.hidden_size)
-        self.discrete_encoder = nn.Linear(config.max_discrete_value * config.hidden_size,
-                                          config.hidden_size - 1)  # leave space for reward
+        self.single_discrete_encoder = nn.Embedding(config.max_discrete_value, config.hidden_size)
+        self.multi_discrete_encoder = nn.Sequential(
+            nn.Linear(config.hidden_size, config.hidden_size // 10),
+            nn.ReLU(),
+            nn.Flatten(start_dim=2),
+            nn.Linear(config.max_discrete_value * (config.hidden_size // 10), config.hidden_size - 1),
+        )  # leave space for reward
         self.image_encoder = DualBatchReshapeWrapper(ImageEncoder(config.hidden_size))
 
         # Transformer
@@ -427,7 +433,7 @@ class Gia2Model(GPTNeoPreTrainedModel):
         elif discrete_observations is not None:
             batch_size, seq_len = discrete_observations.shape[:2]
             encoded_discrete_observations = self.wte(discrete_observations)
-            inputs_embeds_observations = self.discrete_encoder(encoded_discrete_observations.flatten(start_dim=2))
+            inputs_embeds_observations = self.multi_discrete_encoder(encoded_discrete_observations)
             # Modify the rewards to move from [r_1, r_2, ..., r_T] to [0, r_1, r_2, ..., r_T-1]
             rewards = torch.cat((torch.zeros_like(rewards[:, :1]), rewards[:, :-1]), dim=1)
             inputs_embeds_observations = torch.cat((inputs_embeds_observations, rewards.unsqueeze(-1)), dim=-1)
@@ -439,7 +445,7 @@ class Gia2Model(GPTNeoPreTrainedModel):
         if continuous_actions is not None:
             inputs_embeds_actions = self.continuous_encoder(continuous_actions)
         elif discrete_actions is not None:
-            inputs_embeds_actions = self.discrete_encoder(discrete_actions)
+            inputs_embeds_actions = self.single_discrete_encoder(discrete_actions)
         else:
             raise ValueError("Missing actions.")
 
@@ -527,7 +533,10 @@ class Gia2Model(GPTNeoPreTrainedModel):
                 )
             pred_observations = pred_observations[..., :obs_size]
         elif discrete_observations is not None:
-            raise NotImplementedError()
+            warnings.warn("Predicting discrete observations are not supported yet.")
+            pred_observations = None
+            if return_loss:
+                observation_loss = 0.0
             # pred_observations = self.discrete_observation_decoder(
             #     hidden_states[:, 1::2].unflatten(
             #         dim=-1, unflattened_size=(config.max_discrete_value*config.vocab_size))
