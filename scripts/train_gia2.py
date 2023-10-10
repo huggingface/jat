@@ -158,7 +158,8 @@ dataset.save_to_disk('{HF_DATASETS_CACHE}/gia-project/gia-dataset-parquet/{task}
     if "oscar" in tasks:  # Reduce the number of eval samples for oscar
         eval_dataset["oscar"] = eval_dataset["oscar"].take(100)
 
-    train_dataset = mix_iterable_datasets(list(train_dataset.values()), batch_size=8)
+    weights = [SAMPLE_WEIGHTS.get(t, 1.0) for t in train_dataset.keys()]
+    train_dataset = mix_iterable_datasets(list(train_dataset.values()), batch_size=8, weights=weights)
     # Why the training continue after exauhsting the dataset? https://github.com/huggingface/transformers/issues/26635
     trainer = Trainer(
         model=model, args=training_args, train_dataset=train_dataset, eval_dataset=eval_dataset, tokenizer=processor
