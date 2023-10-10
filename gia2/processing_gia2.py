@@ -284,9 +284,10 @@ class Gia2Processor(ProcessorMixin):
                 encoding["discrete_observations"] = [[] for _ in range(len(text_observations))]
             for _idx, _episode_obs in enumerate(text_observations):
                 encoded_text = self.tokenizer(_episode_obs, max_length=64, padding="max_length")["input_ids"]
-                encoding["discrete_observations"][_idx] = \
-                    [disc_obs + text_obs
-                     for disc_obs, text_obs in zip(encoding["discrete_observations"][_idx], encoded_text)]
+                encoding["discrete_observations"][_idx] = [
+                    disc_obs + text_obs
+                    for disc_obs, text_obs in zip(encoding["discrete_observations"][_idx], encoded_text)
+                ]
         if rewards is not None:
             encoding["rewards"] = rewards
 
