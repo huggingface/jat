@@ -69,7 +69,10 @@ LOSS_WEIGHTS = {
     "mujoco-pendulum": 20.0,
     "mujoco-doublependulum": 10.0,
 }
-SAMPLE_WEIGHTS = {}
+SAMPLE_WEIGHTS = {
+    "oscar": 10.0,
+    "conceptual_caption": 10.0,
+}
 
 
 def main():
