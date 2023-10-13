@@ -1,16 +1,17 @@
-import warnings
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import torch
 import torch.nn.functional as F
+from gymnasium import spaces
 from torch import BoolTensor, FloatTensor, LongTensor, Tensor, nn
 from transformers import GPTNeoModel, GPTNeoPreTrainedModel
 from transformers.modeling_outputs import ModelOutput
 from transformers.models.vit.modeling_vit import ViTPatchEmbeddings
 
 from .configuration_gia2 import Gia2Config
+from .processing_gia2 import Gia2Processor
 
 
 def compute_mse_loss(
@@ -357,28 +358,39 @@ class Gia2Model(GPTNeoPreTrainedModel):
     def __init__(self, config: Gia2Config) -> None:
         super().__init__(config)
 
-        # Encoders
-        self.wte = nn.Embedding(config.vocab_size, config.hidden_size)
-        self.vit_encoder = ViTPatchEmbeddings(config)
-        self.continuous_encoder = nn.Linear(config.max_continuous_size, config.hidden_size)
-        self.single_discrete_encoder = nn.Embedding(config.max_discrete_value, config.hidden_size)
-        self.multi_discrete_encoder = nn.Sequential(
-            nn.Linear(config.hidden_size, config.hidden_size // 10),
-            nn.ReLU(),
-            nn.Flatten(start_dim=2),
-            nn.Linear(config.max_discrete_value * (config.hidden_size // 10), config.hidden_size - 1),
-        )  # leave space for reward
-        self.image_encoder = DualBatchReshapeWrapper(ImageEncoder(config.hidden_size))
+        vocab_size = config.vocab_size
+        hidden_size = config.hidden_size
+        max_discrete_value = config.max_discrete_value
+        max_continuous_size = config.max_continuous_size
 
         # Transformer
         self.transformer = GPTNeoModel(config)
 
+        # Encoders
+        self.vit_encoder = ViTPatchEmbeddings(config)
+        self.single_discrete_encoder = self.transformer.wte
+        self.continuous_encoder = nn.Linear(max_continuous_size, hidden_size)
+        self.multi_discrete_encoder = nn.Sequential(
+            self.single_discrete_encoder,  # (B, L, X, H)
+            nn.Linear(hidden_size, hidden_size // 50),  # (B, L, X, H // 50)
+            nn.ReLU(),
+            nn.Flatten(start_dim=2),  # (B, L, X * (H // 50))
+            nn.Linear(max_discrete_value * (hidden_size // 50), hidden_size - 1),  # (B, L, H)
+        )  # -1 to account for the reward
+        self.image_encoder = DualBatchReshapeWrapper(ImageEncoder(hidden_size))
+
         # Decoders
-        self.discrete_decoder = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
-        self.continuous_decoder = nn.Linear(config.hidden_size, config.max_continuous_size)
-        # self.discrete_observation_decoder = nn.Linear(config.hidden_size,
-        #                                               config.max_discrete_value*config.vocab_size, bias=False)
-        self.image_decoder = DualBatchReshapeWrapper(ImageDecoder(config.hidden_size))
+        self.single_discrete_decoder = nn.Linear(hidden_size, vocab_size, bias=False)
+        self.continuous_decoder = nn.Linear(hidden_size, max_continuous_size)
+        self.multi_discrete_decoder = nn.Sequential(
+            nn.Linear(hidden_size, max_discrete_value * (hidden_size // 50)),  # (B, L, X * (H // 50))
+            nn.Unflatten(dim=2, unflattened_size=(max_discrete_value, hidden_size // 50)),  # (B, L, X, H // 50)
+            nn.ReLU(),
+            nn.Linear(hidden_size // 50, hidden_size),  # (B, L, X, H)
+            nn.ReLU(),
+            self.single_discrete_decoder,  # (B, L, X, V)
+        )
+        self.image_decoder = DualBatchReshapeWrapper(ImageDecoder(hidden_size))
 
         # Initialize weights and apply final processing
         self.post_init()
@@ -432,8 +444,7 @@ class Gia2Model(GPTNeoPreTrainedModel):
             inputs_embeds_observations = self.continuous_encoder(continuous_observations)
         elif discrete_observations is not None:
             batch_size, seq_len = discrete_observations.shape[:2]
-            encoded_discrete_observations = self.wte(discrete_observations)
-            inputs_embeds_observations = self.multi_discrete_encoder(encoded_discrete_observations)
+            inputs_embeds_observations = self.multi_discrete_encoder(discrete_observations)
             # Modify the rewards to move from [r_1, r_2, ..., r_T] to [0, r_1, r_2, ..., r_T-1]
             rewards = torch.cat((torch.zeros_like(rewards[:, :1]), rewards[:, :-1]), dim=1)
             inputs_embeds_observations = torch.cat((inputs_embeds_observations, rewards.unsqueeze(-1)), dim=-1)
@@ -467,7 +478,7 @@ class Gia2Model(GPTNeoPreTrainedModel):
         hidden_states = transformer_outputs[0]
         loss = None
         # Get only textual hidden states
-        lm_logits = self.discrete_decoder(hidden_states)
+        lm_logits = self.single_discrete_decoder(hidden_states)
         if return_loss:
             if input_ids is None:
                 raise ValueError("Input IDs must be provided when `return_loss=True`.")
@@ -532,22 +543,15 @@ class Gia2Model(GPTNeoPreTrainedModel):
                     weights=loss_weight[:, 1:] if loss_weight is not None else None,
                 )
             pred_observations = pred_observations[..., :obs_size]
-        elif discrete_observations is not None:
-            warnings.warn("Predicting discrete observations are not supported yet.")
-            pred_observations = None
+        elif discrete_observations is not None:  # Note: reward is not predicted
+            pred_observations = self.multi_discrete_decoder(hidden_states[:, 1::2])
             if return_loss:
-                observation_loss = 0.0
-            # pred_observations = self.discrete_observation_decoder(
-            #     hidden_states[:, 1::2].unflatten(
-            #         dim=-1, unflattened_size=(config.max_discrete_value*config.vocab_size))
-            # )
-            # if return_loss:
-            #     observation_loss = compute_ce_loss(
-            #         pred_observations[:, :-1],
-            #         discrete_observations[:, 1:],
-            #         observations_mask[:, 1:] if observations_mask is not None else None,
-            #         weights=loss_weight,
-            #     )
+                observation_loss = compute_ce_loss(
+                    pred_observations[:, :-1],
+                    discrete_observations[:, 1:],
+                    observations_mask[:, 1:] if observations_mask is not None else None,
+                    weights=loss_weight[:, 1:] if loss_weight is not None else None,
+                )
         elif image_observations is not None:
             pred_observations = self.image_decoder(hidden_states[:, 1::2])
             if return_loss:
@@ -568,7 +572,7 @@ class Gia2Model(GPTNeoPreTrainedModel):
                 action_loss = compute_mse_loss(pred_actions, continuous_actions, actions_mask, weights=loss_weight)
             pred_actions = pred_actions[..., :act_size]
         elif discrete_actions is not None:
-            pred_actions = self.discrete_decoder(hidden_states[:, ::2])
+            pred_actions = self.single_discrete_decoder(hidden_states[:, ::2])
             if return_loss:
                 action_loss = compute_ce_loss(pred_actions, discrete_actions, actions_mask, weights=loss_weight)
 
@@ -663,88 +667,126 @@ class Gia2Model(GPTNeoPreTrainedModel):
                 loss_weight,
             )
 
+    def reset_rl(self):
+        self._last_key_values = None
+        self.last_discrete_observation = None
+        self.last_continuous_observation = None
+        self.last_text_observation = None
+        self.last_image_observation = None
+        self.last_discrete_action = None
+        self.last_continuous_action = None
+        self.last_reward = None
+
     @torch.no_grad()
     def get_next_action(
         self,
+        processor: Gia2Processor,
         continuous_observations: Optional[List[List[float]]] = None,
         discrete_observations: Optional[List[List[int]]] = None,
+        text_observations: Optional[List[str]] = None,
         image_observations: Optional[List[np.ndarray]] = None,
-        continuous_actions: Optional[List[List[float]]] = None,
-        discrete_actions: Optional[List[int]] = None,
+        action_space: Union[spaces.Box, spaces.Discrete] = None,
         rewards: Optional[List[float]] = None,
         deterministic: bool = False,
-        action_size: Optional[int] = None,
     ):
         # Get the maximum sequence length
-        max_seq_len = self.config.max_position_embeddings // 2
+        max_length = self.config.max_position_embeddings // 2
 
-        # Convert to tensors, move to device, and add batch dimension
-        if continuous_observations is not None:
-            continuous_observations = np.array(continuous_observations, dtype=np.float32)
-            continuous_observations = torch.from_numpy(continuous_observations).to(self.device)
-            continuous_observations = continuous_observations[None, -max_seq_len:]
+        # Convert everything to lists
+        def to_list(x):
+            return x.tolist() if isinstance(x, np.ndarray) else x
 
-        if discrete_observations is not None:
-            discrete_observations = np.array(discrete_observations, dtype=np.long)
-            discrete_observations = torch.from_numpy(discrete_observations).to(self.device)
-            discrete_observations = discrete_observations[None, -max_seq_len:]
+        continuous_observations = to_list(continuous_observations)
+        discrete_observations = to_list(discrete_observations)
 
-        if image_observations is not None:
-            image_observations = np.array(image_observations, dtype=np.float32)
-            image_observations = torch.from_numpy(image_observations).to(self.device)
-            image_observations = torch.permute(image_observations, (0, 3, 1, 2)) / 255.0
-            image_observations = (image_observations - 0.5) / 0.5
-            image_observations = image_observations[None, -max_seq_len:]
+        # Add a fake action and reward to the end of the sequence
+        if isinstance(action_space, spaces.Box):
+            fake_continuous_actions = [0.0 for _ in range(action_space.shape[0])]
+            fake_discrete_actions = None
+        elif isinstance(action_space, spaces.Discrete):
+            fake_continuous_actions = None
+            fake_discrete_actions = 0
+        fake_rewards = 0.0
 
-        # For the action, we need to add a fake action to the end of the sequence
-        if continuous_actions is not None:
-            if len(continuous_actions) == 0:
-                continuous_actions = torch.zeros((1, action_size), dtype=torch.float32, device=self.device)
-            else:
-                continuous_actions = np.array(continuous_actions, dtype=np.float32)
-                continuous_actions = torch.from_numpy(continuous_actions).to(self.device)
-                last_action = torch.zeros_like(continuous_actions[-1:])
-                continuous_actions = torch.cat((continuous_actions, last_action), dim=0)
-            continuous_actions = continuous_actions[None, -max_seq_len:]
+        continuous_observations = [continuous_observations] if continuous_observations is not None else None
+        discrete_observations = [discrete_observations] if discrete_observations is not None else None
+        text_observations = [text_observations] if text_observations is not None else None
+        image_observations = [image_observations] if image_observations is not None else None
+        continuous_actions = [fake_continuous_actions] if fake_continuous_actions is not None else None
+        discrete_actions = [fake_discrete_actions] if fake_discrete_actions is not None else None
+        rewards = [fake_rewards]
+        if self._last_key_values is not None:
+            # We concatenate the last observation with the current one
+            continuous_observations = (
+                [self.last_continuous_observation] + continuous_observations
+                if continuous_observations is not None
+                else None
+            )
+            discrete_observations = (
+                [self.last_discrete_observation] + discrete_observations if discrete_observations is not None else None
+            )
+            text_observations = (
+                [self.last_text_observation] + text_observations if text_observations is not None else None
+            )
+            image_observations = (
+                [self.last_image_observation] + image_observations if image_observations is not None else None
+            )
+            continuous_actions = (
+                [self.last_continuous_action] + continuous_actions if continuous_actions is not None else None
+            )
+            discrete_actions = [self.last_discrete_action] + discrete_actions if discrete_actions is not None else None
+            rewards = [self.last_reward] + rewards
 
-        if discrete_actions is not None:
-            if len(discrete_actions) == 0:
-                discrete_actions = torch.zeros((1,), dtype=torch.long, device=self.device)
-            else:
-                discrete_actions = np.array(discrete_actions, dtype=np.int64)
-                discrete_actions = torch.from_numpy(discrete_actions).to(self.device)
-                last_action = torch.zeros_like(discrete_actions[-1:])
-                discrete_actions = torch.cat((discrete_actions, last_action), dim=0)
-            discrete_actions = discrete_actions[None, -max_seq_len:]
+        # Store the last observation
+        self.last_continuous_observation = continuous_observations[-1] if continuous_observations is not None else None
+        self.last_discrete_observation = discrete_observations[-1] if discrete_observations is not None else None
+        self.last_text_observation = text_observations[-1] if text_observations is not None else None
+        self.last_image_observation = image_observations[-1] if image_observations is not None else None
+        self.last_reward = rewards[-1]
 
-        if rewards is not None:
-            if len(rewards) == 0:
-                rewards = torch.zeros((1,), dtype=torch.float32, device=self.device)
-            else:
-                rewards = np.array(rewards, dtype=np.float32)
-                rewards = torch.from_numpy(rewards).to(self.device)
-                last_reward = torch.zeros((1,), dtype=torch.float32, device=self.device)
-                rewards = torch.cat((rewards, last_reward), dim=0)
-            rewards = rewards[None, -max_seq_len:]
+        # Add the batch dimension
+        continuous_observations = [continuous_observations] if continuous_observations is not None else None
+        discrete_observations = [discrete_observations] if discrete_observations is not None else None
+        text_observations = [text_observations] if text_observations is not None else None
+        image_observations = [image_observations] if image_observations is not None else None
+        continuous_actions = [continuous_actions] if continuous_actions is not None else None
+        discrete_actions = [discrete_actions] if discrete_actions is not None else None
+        rewards = [rewards]
 
-        outputs = self(
+        # Process the inputs
+        processed = processor(
             continuous_observations=continuous_observations,
             discrete_observations=discrete_observations,
+            text_observations=text_observations,
             image_observations=image_observations,
             continuous_actions=continuous_actions,
             discrete_actions=discrete_actions,
             rewards=rewards,
-            return_loss=False,
+            truncation=True,
+            truncation_side="left",
+            max_length=max_length,
+            return_tensors="pt",
         )
+        processed.to(self.device)
 
+        # Forward pass
+        outputs = self(**processed, past_key_values=self._last_key_values, return_loss=False)
+
+        # Store the last key values
+        # We remove the last two values, as the inputs are [s_0, 0], [s_0, a_0, s_1, 0], [s_1, a_1, s_2, 0], ...
+        self._last_key_values = tuple(tuple(pkv[:, :, :-2] for pkv in pkvs) for pkvs in outputs.past_key_values)
+
+        # Return the predicted action
         if continuous_actions is not None:
-            return outputs.pred_actions[0, -1].cpu().numpy()
+            self.last_continuous_actions = outputs.pred_actions[0, -1].cpu().tolist()
+            return self.last_continuous_action
         elif discrete_actions is not None:
-            logits = outputs.pred_actions[0, -1, :action_size]
+            logits = outputs.pred_actions[0, -1, : action_space.n]
             if deterministic:
-                return logits.argmax().cpu().numpy()
+                self.last_discrete_action = logits.argmax().cpu().item()
             else:  # sample
-                return torch.multinomial(logits.softmax(dim=-1), num_samples=1)[0].item()
+                self.last_discrete_action = torch.multinomial(logits.softmax(dim=-1), num_samples=1)[0].item()
+            return self.last_discrete_action
 
     # copied from gpt-neo, allows to use .generate()
     def prepare_inputs_for_generation(self, input_ids, past_key_values=None, inputs_embeds=None, **kwargs):
