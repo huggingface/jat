@@ -110,5 +110,5 @@ if __name__ == "__main__":
             try:
                 dataset.push_to_hub("gia-project/gia-dataset-parquet", "conceptual-captions", split=split)
                 break
-            except:
+            except Exception:
                 print(f"Retry {i+1}/{retry}")
