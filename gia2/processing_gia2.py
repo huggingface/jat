@@ -1,3 +1,4 @@
+import copy
 from typing import Any, Dict, List, Optional, Union
 
 import torch
@@ -6,7 +7,9 @@ from transformers import BatchEncoding
 from transformers.processing_utils import ProcessorMixin
 
 
-def truncate(encoding: Dict[str, List[List[Any]]], max_len: int, preserve: bool = False) -> Dict[str, List[List[Any]]]:
+def truncate(
+    encoding: Dict[str, List[List[Any]]], max_length: int, truncation_side: str = "right", preserve: bool = False
+) -> Dict[str, List[List[Any]]]:
     """
     Truncate the sequences in the encoding to the specified maximum length.
 
@@ -18,8 +21,10 @@ def truncate(encoding: Dict[str, List[List[Any]]], max_len: int, preserve: bool 
         encoding (`Mapping`):
             A dictionary where each key-value pair consists of a feature name and its corresponding batch of sequences.
             The sequences are expected to be lists.
-        max_len (`int`):
+        max_length (`int`):
             The maximum allowable length for the sequences.
+        truncation_side (`str`, **optional**):
+            The strategy to use for truncation. Can be `"left"` or `"right"`. Defaults to `"right"`.
         preserve (`bool`, **optional**):
             Whether to preserve the residual data by adding them as new sequences in the batch. Defaults to `False`.
 
@@ -47,14 +52,26 @@ def truncate(encoding: Dict[str, List[List[Any]]], max_len: int, preserve: bool 
         truncated_sequences = []
 
         for seq in sequences:
-            if len(seq) <= max_len:
+            if len(seq) <= max_length:
                 truncated_sequences.append(seq)
                 continue
 
             if preserve:  # truncate and append the residual as new sequences
-                truncated_sequences.extend([seq[i : i + max_len] for i in range(0, len(seq), max_len)])
+                if truncation_side == "right":
+                    truncated_sequences.extend([seq[i : i + max_length] for i in range(0, len(seq), max_length)])
+                elif truncation_side == "left":
+                    n = len(seq) // max_length + int(len(seq) % max_length > 0)
+                    low, high = len(seq) - n * max_length, len(seq)
+                    truncated_sequences.extend(
+                        [seq[max(0, i - max_length) : i] for i in range(high, low, -max_length)]
+                    )
+                else:
+                    raise ValueError(f"Invalid truncation_side: {truncation_side}")
             else:  # simply truncate the sequence
-                truncated_sequences.append(seq[:max_len])
+                if truncation_side == "right":
+                    truncated_sequences.append(seq[:max_length])
+                elif truncation_side == "left":
+                    truncated_sequences.append(seq[-max_length:])
 
         truncated_encoding[key] = truncated_sequences
 
@@ -151,7 +168,12 @@ class Gia2Processor(ProcessorMixin):
         self.current_processor = self.image_processor
 
     def _truncate_and_pad(
-        self, encoding: dict, padding: Union[bool, str], truncation: Union[bool, str], max_length: Optional[int] = None
+        self,
+        encoding: dict,
+        padding: Union[bool, str],
+        truncation: Union[bool, str],
+        truncation_side: str = "right",
+        max_length: Optional[int] = None,
     ) -> dict:
         # If max_length is not provided, use the maximum length accepted by the model.
         if max_length is None:
@@ -163,9 +185,9 @@ class Gia2Processor(ProcessorMixin):
 
         # Apply Truncation
         if truncation in [True, "lossy"]:
-            encoding = truncate(encoding, max_length, preserve=False)
+            encoding = truncate(encoding, max_length, truncation_side, preserve=False)
         elif truncation == "preserve":
-            encoding = truncate(encoding, max_length, preserve=True)
+            encoding = truncate(encoding, max_length, truncation_side, preserve=True)
         elif truncation in [False, "do_not_truncate"]:
             pass
         else:
@@ -198,10 +220,10 @@ class Gia2Processor(ProcessorMixin):
         images=None,
         continuous_observations=None,
         discrete_observations=None,
+        text_observations=None,
         image_observations=None,
         continuous_actions=None,
         discrete_actions=None,
-        text_observations=None,
         rewards=None,
         return_tensors=None,
         **kwargs,
@@ -257,6 +279,7 @@ class Gia2Processor(ProcessorMixin):
         # we truncate and pad ourselves so we need to pass padding=False and truncation=False to the tokenizer
         padding = kwargs.pop("padding", False)
         truncation = kwargs.pop("truncation", False)
+        truncation_side = kwargs.pop("truncation_side", "right")
         max_length = kwargs.pop("max_length", None)
 
         # Ensure that the input is batched
@@ -269,27 +292,26 @@ class Gia2Processor(ProcessorMixin):
         if images is not None:
             encoding["pixel_values"] = self.image_processor(images, **kwargs).pixel_values
         if continuous_observations is not None:
-            encoding["continuous_observations"] = continuous_observations
+            encoding["continuous_observations"] = copy.deepcopy(continuous_observations)
         if discrete_observations is not None:
-            encoding["discrete_observations"] = discrete_observations
+            encoding["discrete_observations"] = copy.deepcopy(discrete_observations)
+        if text_observations is not None:
+            if "discrete_observations" not in encoding:
+                raise ValueError("discrete_observations must be provided if text_observations is provided")
+            for batch_idx, sequence in enumerate(text_observations):
+                encoded_text = self.tokenizer(sequence, max_length=64, padding="max_length")["input_ids"]
+                for timestep, text_tokens in enumerate(encoded_text):
+                    encoding["discrete_observations"][batch_idx][timestep].extend(text_tokens)
         if image_observations is not None:
             image_observations = [[(to_tensor(im) - 0.5) / 0.5 for im in ep] for ep in image_observations]
             encoding["image_observations"] = image_observations
         if continuous_actions is not None:
-            encoding["continuous_actions"] = continuous_actions
+            encoding["continuous_actions"] = copy.deepcopy(continuous_actions)
         if discrete_actions is not None:
-            encoding["discrete_actions"] = discrete_actions
-        if text_observations is not None:
-            if "discrete_observations" not in encoding:
-                encoding["discrete_observations"] = [[] for _ in range(len(text_observations))]
-            for _idx, _episode_obs in enumerate(text_observations):
-                encoded_text = self.tokenizer(_episode_obs, max_length=64, padding="max_length")["input_ids"]
-                encoding["discrete_observations"][_idx] = [
-                    disc_obs + text_obs
-                    for disc_obs, text_obs in zip(encoding["discrete_observations"][_idx], encoded_text)
-                ]
+            encoding["discrete_actions"] = copy.deepcopy(discrete_actions)
+
         if rewards is not None:
-            encoding["rewards"] = rewards
+            encoding["rewards"] = copy.deepcopy(rewards)
 
         # Handle image+text case, need to reduce the max_len as the image and text will be concatenated
         if text is not None and images is not None:
@@ -297,7 +319,7 @@ class Gia2Processor(ProcessorMixin):
                 max_length = self.tokenizer.model_max_length
             max_length -= (224 // 16) ** 2  # substract the number of image tokens
 
-        encoding = self._truncate_and_pad(encoding, padding, truncation, max_length)
+        encoding = self._truncate_and_pad(encoding, padding, truncation, truncation_side, max_length)
 
         return BatchEncoding(encoding, tensor_type=return_tensors)
 
