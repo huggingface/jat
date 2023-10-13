@@ -10,7 +10,6 @@ from typing import List, Optional
 
 import numpy as np
 import torch
-from gymnasium import spaces
 from tqdm import tqdm
 from transformers import HfArgumentParser
 
@@ -59,7 +58,7 @@ def get_default_device() -> torch.device:
         return torch.device("cpu")
 
 
-def eval_rl(model, task, eval_args):
+def eval_rl(model, processor, task, eval_args):
     # Create the environment
     env_kwargs = {}
     if task.startswith("atari"):
@@ -69,18 +68,16 @@ def eval_rl(model, task, eval_args):
     with suppress_stdout():  # avoid printing the env info
         env = make(task, **env_kwargs)
 
-    action_size = env.action_space.shape[0] if isinstance(env.action_space, spaces.Box) else env.action_space.n
     scores = []
     frames = []
     for episode in tqdm(range(eval_args.num_episodes), desc=task, unit="episode", leave=False):
         observation, _ = env.reset()
-        observations = {key: [val] for key, val in observation.items()}
-        action_key = "continuous_actions" if isinstance(env.action_space, spaces.Box) else "discrete_actions"
-        actions = {action_key: []}
+        reward = None
         rewards = []
         done = False
+        model.reset_rl()  # remove KV Cache
         while not done:
-            action = model.get_next_action(**observations, **actions, rewards=rewards, action_size=action_size)
+            action = model.get_next_action(processor, **observation, rewards=reward, action_space=env.action_space)
             observation, reward, termined, truncated, info = env.step(action)
             done = termined or truncated
 
@@ -91,11 +88,6 @@ def eval_rl(model, task, eval_args):
                     done = False
                 else:
                     print("Episode done, score:", info["episode"]["r"], sum(rewards))
-
-            # Store the observation and action
-            for key, val in observation.items():
-                observations[key].append(val)
-            actions[action_key].append(action)
 
             # Update the return
             rewards.append(reward)
@@ -155,7 +147,7 @@ def main():
 
     for task in tqdm(eval_args.tasks, desc="Evaluation", unit="task", leave=True):
         if task in TASK_NAME_TO_ENV_ID.keys():
-            scores, frames, fps = eval_rl(model, task, eval_args)
+            scores, frames, fps = eval_rl(model, processor, task, eval_args)
             scores_dict[task] = scores
             # Save the video
             if eval_args.save_video:
