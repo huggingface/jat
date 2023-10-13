@@ -68,7 +68,7 @@ REQUIRED_PKGS = [
     "numpy",
     "opencv-python",
     "torch==2.0.1",
-    "torchvision"
+    "torchvision",
     "transformers==4.32.1",
     "wandb",
 ]
