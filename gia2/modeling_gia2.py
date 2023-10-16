@@ -1,3 +1,4 @@
+import warnings
 from dataclasses import dataclass
 from typing import List, Optional, Tuple, Union
 
@@ -544,14 +545,17 @@ class Gia2Model(GPTNeoPreTrainedModel):
                 )
             pred_observations = pred_observations[..., :obs_size]
         elif discrete_observations is not None:  # Note: reward is not predicted
-            pred_observations = self.multi_discrete_decoder(hidden_states[:, 1::2])
-            if return_loss:
-                observation_loss = compute_ce_loss(
-                    pred_observations[:, :-1],
-                    discrete_observations[:, 1:],
-                    observations_mask[:, 1:] if observations_mask is not None else None,
-                    weights=loss_weight[:, 1:] if loss_weight is not None else None,
-                )
+            warnings.warn("Observations aren't predicted as it is highly memory demanding.")
+            pred_observations = None
+            observation_loss = 0.0
+            # pred_observations = self.multi_discrete_decoder(hidden_states[:, 1::2])
+            # if return_loss:
+            #     observation_loss = compute_ce_loss(
+            #         pred_observations[:, :-1],
+            #         discrete_observations[:, 1:],
+            #         observations_mask[:, 1:] if observations_mask is not None else None,
+            #         weights=loss_weight[:, 1:] if loss_weight is not None else None,
+            #     )
         elif image_observations is not None:
             pred_observations = self.image_decoder(hidden_states[:, 1::2])
             if return_loss:
@@ -772,9 +776,14 @@ class Gia2Model(GPTNeoPreTrainedModel):
         # Forward pass
         outputs = self(**processed, past_key_values=self._last_key_values, return_loss=False)
 
+        # Truncate the past key-values
+        self._last_key_values = tuple(
+            tuple(pkv[:, :, -self.config.max_position_embeddings + 2 :] for pkv in pkvs)
+            for pkvs in outputs.past_key_values
+        )
         # Store the last key values
         # We remove the last two values, as the inputs are [s_0, 0], [s_0, a_0, s_1, 0], [s_1, a_1, s_2, 0], ...
-        self._last_key_values = tuple(tuple(pkv[:, :, :-2] for pkv in pkvs) for pkvs in outputs.past_key_values)
+        self._last_key_values = tuple(tuple(pkv[:, :, :-2] for pkv in pkvs) for pkvs in self._last_key_values)
 
         # Return the predicted action
         if continuous_actions is not None:
