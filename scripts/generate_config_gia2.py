@@ -6,10 +6,11 @@ from gia2.processing_gia2 import Gia2Processor
 
 # Small model
 config = Gia2Config(
-    attention_types=[[["global", "local"], 6]],
+    max_position_embeddings=512,
     hidden_size=768,
-    num_heads=12,
     num_layers=12,
+    attention_types=[[["global", "local"], 6]],
+    num_heads=12,
     max_discrete_value=148 + 64,  # 148 (discrete obs from BabyAI) + 64 (max size of BabyAI's text observation)
 )
 image_processor = CLIPImageProcessor(
@@ -23,10 +24,11 @@ processor.push_to_hub("gia-project/gia2-small")
 
 # Medium model
 config = Gia2Config(
-    attention_types=[[["global", "local"], 12]],
+    max_position_embeddings=1024,
     hidden_size=2048,
-    num_heads=16,
     num_layers=24,
+    attention_types=[[["global", "local"], 12]],
+    num_heads=16,
     max_discrete_value=148 + 64,  # 148 (discrete obs from BabyAI) + 64 (max size of BabyAI's text observation)
 )
 image_processor = CLIPImageProcessor(
@@ -40,10 +42,11 @@ processor.push_to_hub("gia-project/gia2-medium")
 
 # Large model
 config = Gia2Config(
-    attention_types=[[["global", "local"], 16]],
+    max_position_embeddings=2048,
     hidden_size=2560,
-    num_heads=20,
     num_layers=32,
+    attention_types=[[["global", "local"], 16]],
+    num_heads=20,
     max_discrete_value=148 + 64,  # 148 (discrete obs from BabyAI) + 64 (max size of BabyAI's text observation)
 )
 image_processor = CLIPImageProcessor(
