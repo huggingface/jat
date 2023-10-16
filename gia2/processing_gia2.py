@@ -318,6 +318,15 @@ class Gia2Processor(ProcessorMixin):
             if max_length is None:
                 max_length = self.tokenizer.model_max_length
             max_length -= (224 // 16) ** 2  # substract the number of image tokens
+        elif (
+            continuous_observations is not None
+            or discrete_observations is not None
+            or text_observations is not None
+            or image_observations is not None
+        ):
+            if max_length is None:
+                max_length = self.tokenizer.model_max_length
+            max_length //= 2  # observations and actions are interleaved
 
         encoding = self._truncate_and_pad(encoding, padding, truncation, truncation_side, max_length)
 
