@@ -402,7 +402,7 @@ class Gia2Model(GPTNeoPreTrainedModel):
         pixel_values: Optional[FloatTensor] = None,
         attention_mask: Optional[BoolTensor] = None,
     ) -> Tensor:
-        text_inputs_embeds = self.wte(input_ids) if input_ids is not None else None
+        text_inputs_embeds = self.single_discrete_encoder(input_ids) if input_ids is not None else None
         image_inputs_embeds = self.vit_encoder(pixel_values) if pixel_values is not None else None
         # Concatenate text and image inputs
         if image_inputs_embeds is not None and text_inputs_embeds is not None:
