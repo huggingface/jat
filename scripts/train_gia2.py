@@ -165,7 +165,7 @@ dataset.save_to_disk('{HF_DATASETS_CACHE}/gia-project/gia-dataset-parquet/{task}
         eval_dataset[key] = eval_dataset[key].take(data_args.eval_num_samples)
 
     weights = [SAMPLE_WEIGHTS.get(t, 1.0) for t in train_dataset.keys()]
-    train_dataset = mix_iterable_datasets(list(train_dataset.values()), batch_size=8, weights=weights)
+    train_dataset = mix_iterable_datasets(list(train_dataset.values()), batch_size=256, weights=weights)
     # Why the training continue after exauhsting the dataset? https://github.com/huggingface/transformers/issues/26635
     trainer = Trainer(
         model=model, args=training_args, train_dataset=train_dataset, eval_dataset=eval_dataset, tokenizer=processor
