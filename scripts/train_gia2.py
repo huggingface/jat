@@ -64,6 +64,7 @@ class DataTrainingArguments:
     preprocess_num_proc: int = field(
         default=1, metadata={"help": "Number of processes to use for preprocessing the data."}
     )
+    eval_num_samples: int = field(default=1000, metadata={"help": "Number of samples to use for evaluation."})
 
 
 LOSS_WEIGHTS = {
@@ -160,8 +161,8 @@ dataset.save_to_disk('{HF_DATASETS_CACHE}/gia-project/gia-dataset-parquet/{task}
     train_dataset = {t: d["train"] for t, d in dataset_dict.items()}
     eval_dataset = {t: d["test"] for t, d in dataset_dict.items()}
 
-    if "oscar" in tasks:  # Reduce the number of eval samples for oscar
-        eval_dataset["oscar"] = eval_dataset["oscar"].take(100)
+    for key in tasks:  # Reduce the number of eval samples
+        eval_dataset[key] = eval_dataset[key].take(data_args.eval_num_samples)
 
     weights = [SAMPLE_WEIGHTS.get(t, 1.0) for t in train_dataset.keys()]
     train_dataset = mix_iterable_datasets(list(train_dataset.values()), batch_size=8, weights=weights)
