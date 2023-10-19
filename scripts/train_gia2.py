@@ -149,7 +149,7 @@ dataset.save_to_disk('{HF_DATASETS_CACHE}/gia-project/gia-dataset-parquet/{task}
             dataset = dataset.map(
                 lambda example_batch: processor(**example_batch, padding="max_length", truncation="preserve"),
                 batched=True,
-                batch_size=10,
+                batch_size=1,  # small to avoid OOM
                 remove_columns={"text", "images", "text_observations"}.intersection(column_names),
             )
             dataset = dataset.map(
