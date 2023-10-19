@@ -334,7 +334,7 @@ def push_to_hub(
             repo_type="model",
         )
 
-    print(f"Pushed model to https://huggingface.co/{repo_id}")
+    print(f"Pushed model to  \033[34mhttps://huggingface.co/{repo_id}\033[0m")
 
 
 def save_video_grid(
