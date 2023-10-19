@@ -20,7 +20,8 @@ from gia2.utils import mix_iterable_datasets
 
 # Sometimes, the server is down; increasing the number of
 # retries allows to wait more instead of making the training crash
-datasets.config.STREAMING_READ_MAX_RETRIES = 2000
+datasets.config.STREAMING_READ_MAX_RETRIES = 10000
+
 
 logger = logging.getLogger(__name__)
 
@@ -70,9 +71,12 @@ LOSS_WEIGHTS = {
     "mujoco-doublependulum": 10.0,
 }
 SAMPLE_WEIGHTS = {
-    "oscar": 10.0,
-    "conceptual_caption": 10.0,
+    # "oscar": 10.0,
+    # "conceptual_caption": 10.0,
 }
+
+os.environ["WANDB_ENTITY"] = "gia-project"
+os.environ["WANDB_PROJECT"] = "gia2"
 
 
 def main():
@@ -141,6 +145,7 @@ dataset.save_to_disk('{HF_DATASETS_CACHE}/gia-project/gia-dataset-parquet/{task}
         for split in dataset_dict[task].keys():
             dataset = dataset_dict[task][split]
             column_names = set(dataset.column_names)  # need to be done here because this info is lost after the map
+            dataset = dataset.filter(lambda example: example.get("rewards") != [])
             dataset = dataset.map(
                 lambda example_batch: processor(**example_batch, padding="max_length", truncation="preserve"),
                 batched=True,
