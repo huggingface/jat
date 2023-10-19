@@ -787,7 +787,7 @@ class Gia2Model(GPTNeoPreTrainedModel):
 
         # Return the predicted action
         if continuous_actions is not None:
-            self.last_continuous_actions = outputs.pred_actions[0, -1].cpu().tolist()
+            self.last_continuous_action = outputs.pred_actions[0, -1].cpu().tolist()
             return self.last_continuous_action
         elif discrete_actions is not None:
             logits = outputs.pred_actions[0, -1, : action_space.n]
