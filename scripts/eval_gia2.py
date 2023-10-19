@@ -137,6 +137,13 @@ def main():
         level=logging.INFO,
     )
 
+    # Set the tasks
+    tasks = eval_args.tasks
+    for domain in ["atari", "babyai", "metaworld", "mujoco"]:
+        if domain in tasks:
+            tasks.remove(domain)
+            tasks.extend([env_id for env_id in TASK_NAME_TO_ENV_ID.keys() if env_id.startswith(domain)])
+
     device = torch.device("cpu") if eval_args.use_cpu else get_default_device()
     model = Gia2Model.from_pretrained(model_args.model_name_or_path, cache_dir=model_args.cache_dir).to(device)
     processor = Gia2Processor.from_pretrained(model_args.model_name_or_path, cache_dir=model_args.cache_dir)
@@ -145,7 +152,7 @@ def main():
     video_list = []
     input_fps = []
 
-    for task in tqdm(eval_args.tasks, desc="Evaluation", unit="task", leave=True):
+    for task in tqdm(tasks, desc="Evaluation", unit="task", leave=True):
         if task in TASK_NAME_TO_ENV_ID.keys():
             scores, frames, fps = eval_rl(model, processor, task, eval_args)
             scores_dict[task] = scores
