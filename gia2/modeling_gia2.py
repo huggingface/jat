@@ -156,7 +156,7 @@ class ResidualBlock(nn.Module):
         out = F.leaky_relu(self.norm1(self.conv1(x)))
         out = self.norm2(self.conv2(out))
         out += self.shortcut(x)
-        return F.leaky_relu(out)
+        return F.leaky_relu(out, inplace=True)
 
 
 class AttentionLayer(nn.Module):
@@ -216,11 +216,11 @@ class ImageEncoder(nn.Module):
         self.fc = nn.Linear(128 * 11 * 11, hidden_size)  # Adjusted to the new spatial dimension
 
     def forward(self, x: FloatTensor) -> FloatTensor:
-        x = F.leaky_relu(self.norm1(self.conv1(x)))
+        x = F.leaky_relu(self.norm1(self.conv1(x)), inplace=True)
         x = self.att1(x)
-        x = F.leaky_relu(self.norm2(self.conv2(x)))
+        x = F.leaky_relu(self.norm2(self.conv2(x)), inplace=True)
         x = self.att2(x)
-        x = F.leaky_relu(self.norm3(self.conv3(x)))
+        x = F.leaky_relu(self.norm3(self.conv3(x)), inplace=True)
         x = self.att3(x)
         x = x.view(x.size(0), -1)  # Flatten the tensor
         x = self.fc(x)
@@ -254,12 +254,12 @@ class ImageDecoder(nn.Module):
     def forward(self, x: FloatTensor) -> FloatTensor:
         x = self.fc(x)
         x = x.view(x.size(0), 128, 11, 11)  # Reshape to the spatial dimension of encoder's last conv layer
-        x = F.leaky_relu(self.norm1(self.deconv1(x)))  # 22x22
+        x = F.leaky_relu(self.norm1(self.deconv1(x)), inplace=True)  # 22x22
         x = F.interpolate(x, size=(21, 21))  # 21x21
         x = self.att1(x)
-        x = F.leaky_relu(self.norm2(self.deconv2(x)))
+        x = F.leaky_relu(self.norm2(self.deconv2(x)), inplace=True)
         x = self.att2(x)
-        x = F.tanh(self.deconv3(x))
+        x = F.tanh(self.deconv3(x), inplace=True)
         return x
 
 
@@ -557,14 +557,17 @@ class Gia2Model(GPTNeoPreTrainedModel):
             #         weights=loss_weight[:, 1:] if loss_weight is not None else None,
             #     )
         elif image_observations is not None:
-            pred_observations = self.image_decoder(hidden_states[:, 1::2])
-            if return_loss:
-                observation_loss = compute_mse_loss(
-                    pred_observations[:, :-1],
-                    image_observations[:, 1:],
-                    observations_mask[:, 1:] if observations_mask is not None else None,
-                    weights=loss_weight[:, 1:] if loss_weight is not None else None,
-                )
+            warnings.warn("Observations aren't predicted as it is highly memory demanding.")
+            pred_observations = None
+            observation_loss = 0.0
+            # pred_observations = self.image_decoder(hidden_states[:, 1::2])
+            # if return_loss:
+            #     observation_loss = compute_mse_loss(
+            #         pred_observations[:, :-1],
+            #         image_observations[:, 1:],
+            #         observations_mask[:, 1:] if observations_mask is not None else None,
+            #         weights=loss_weight[:, 1:] if loss_weight is not None else None,
+            #     )
 
         # Actions
         actions_mask = attention_mask[:, ::2] if attention_mask is not None else None
