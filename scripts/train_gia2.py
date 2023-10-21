@@ -171,7 +171,8 @@ dataset.save_to_disk('{HF_DATASETS_CACHE}/gia-project/gia-dataset-parquet/{task}
     # Due to the train dataset's structure, where every 'n' consecutive samples share the same modalities, we can't
     # load all samples at once. Different sets of 'n' samples have different modalities. Therefore, we must load and
     # process each set of 'n' samples separately.
-    training_args.dispatch_batches = False
+    if training_args.dispatch_batches:
+        raise ValueError("Make sure to pass `--dispatch_batches False`.")
 
     # Why the training continue after exauhsting the dataset? https://github.com/huggingface/transformers/issues/26635
     trainer = Trainer(
