@@ -165,7 +165,14 @@ dataset.save_to_disk('{HF_DATASETS_CACHE}/gia-project/gia-dataset-parquet/{task}
         eval_dataset[key] = eval_dataset[key].take(data_args.eval_num_samples)
 
     weights = [SAMPLE_WEIGHTS.get(t, 1.0) for t in train_dataset.keys()]
-    train_dataset = mix_iterable_datasets(list(train_dataset.values()), batch_size=256, weights=weights)
+    train_dataset = mix_iterable_datasets(
+        list(train_dataset.values()), batch_size=training_args.per_device_train_batch_size, weights=weights
+    )
+    # Due to the train dataset's structure, where every 'n' consecutive samples share the same modalities, we can't
+    # load all samples at once. Different sets of 'n' samples have different modalities. Therefore, we must load and
+    # process each set of 'n' samples separately.
+    training_args.dispatch_batches = False
+
     # Why the training continue after exauhsting the dataset? https://github.com/huggingface/transformers/issues/26635
     trainer = Trainer(
         model=model, args=training_args, train_dataset=train_dataset, eval_dataset=eval_dataset, tokenizer=processor
