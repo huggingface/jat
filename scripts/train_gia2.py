@@ -141,17 +141,25 @@ dataset.save_to_disk('{HF_DATASETS_CACHE}/gia-project/gia-dataset-parquet/{task}
             else:
                 dataset_dict[task] = load_dataset("gia-project/gia-dataset-parquet", task, streaming=True)
 
-    # Add loss weight
+    # Preprocess the dataset
     for task in dataset_dict.keys():
         for split in dataset_dict[task].keys():
             dataset = dataset_dict[task][split]
             column_names = set(dataset.column_names)  # need to be done here because this info is lost after the map
             dataset = dataset.filter(lambda example: example.get("rewards") != [])
+            # We've shown that reducing the sequence length for atari doesn't impact performance but allows for a
+            # larger global batch size
+            max_length = 64 if task.startswith("atari") else None
+
+            def preprocess(example_batch, max_length):
+                return processor(**example_batch, padding="max_length", truncation="preserve", max_length=max_length)
+
             dataset = dataset.map(
-                lambda example_batch: processor(**example_batch, padding="max_length", truncation="preserve"),
+                preprocess,
                 batched=True,
                 batch_size=1,  # small to avoid OOM
                 remove_columns={"text", "images", "text_observations"}.intersection(column_names),
+                fn_kwargs={"max_length": max_length},
             )
             dataset = dataset.map(
                 lambda x: {"loss_weight": [LOSS_WEIGHTS.get(task, 1.0)] * len(next(iter(x.values())))}
