@@ -64,8 +64,6 @@ class Gia2Config(GPTNeoConfig):
             The size (resolution) of each image.
         patch_size (`int`, *optional*, defaults to 16):
             The size (resolution) of each patch.
-        tokenizer_class (`str`, *optional*, defaults to `"GPT2Tokenizer"`):
-            The name of the tokenizer class to use.
     """
 
     model_type = "gia2"
@@ -95,7 +93,6 @@ class Gia2Config(GPTNeoConfig):
         image_size=224,
         num_channels=3,
         patch_size=16,
-        tokenizer_class="GPT2Tokenizer",
         **kwargs,
     ):
         super().__init__(
@@ -117,7 +114,6 @@ class Gia2Config(GPTNeoConfig):
             use_cache,
             bos_token_id,
             eos_token_id,
-            tokenizer_class=tokenizer_class,
             **kwargs,
         )
         self.max_continuous_size = max_continuous_size
