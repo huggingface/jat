@@ -163,6 +163,11 @@ def main():
         else:
             warnings.warn(f"Task {task} is not supported.")
 
+    # Extract mean and std, and save scores dict
+    to_save = {task: {"mean": np.mean(scores), "std": np.std(scores)} for task, scores in scores_dict.items()}
+    with open(f"{model_args.model_name_or_path}/scores_dict.json", "w") as file:
+        json.dump(to_save, file)
+
     # Save the video
     if eval_args.save_video:
         replay_path = f"{model_args.model_name_or_path}/replay.mp4"
