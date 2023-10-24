@@ -409,6 +409,8 @@ class Gia2Model(GPTNeoPreTrainedModel):
             inputs_embeds = torch.cat((image_inputs_embeds, text_inputs_embeds), dim=1)
             # Add attention mask for image inputs
             image_mask = torch.ones(image_inputs_embeds.shape[:2], dtype=torch.bool, device=self.device)
+            if attention_mask is None:
+                attention_mask = torch.ones(text_inputs_embeds.shape[:2], dtype=torch.bool, device=self.device)
             attention_mask = torch.cat((image_mask, attention_mask), dim=1)
         elif image_inputs_embeds is not None:
             inputs_embeds = image_inputs_embeds
@@ -800,40 +802,19 @@ class Gia2Model(GPTNeoPreTrainedModel):
                 self.last_discrete_action = torch.multinomial(logits.softmax(dim=-1), num_samples=1)[0].item()
             return self.last_discrete_action
 
-    # copied from gpt-neo, allows to use .generate()
-    def prepare_inputs_for_generation(self, input_ids, past_key_values=None, inputs_embeds=None, **kwargs):
-        token_type_ids = kwargs.get("token_type_ids", None)
+    # Allows to use .generate()
+    def prepare_inputs_for_generation(self, input_ids, pixel_values=None, past_key_values=None, **kwargs):
         # only last token for inputs_ids if past is defined in kwargs
-        if past_key_values:
+        if past_key_values is not None:
+            pixel_values = None
             input_ids = input_ids[:, -1].unsqueeze(-1)
-            if token_type_ids is not None:
-                token_type_ids = token_type_ids[:, -1].unsqueeze(-1)
 
-        attention_mask = kwargs.get("attention_mask", None)
-        position_ids = kwargs.get("position_ids", None)
-
-        if attention_mask is not None and position_ids is None:
-            # create position_ids on the fly for batch generation
-            position_ids = attention_mask.long().cumsum(-1) - 1
-            position_ids.masked_fill_(attention_mask == 0, 1)
-            if past_key_values:
-                position_ids = position_ids[:, -1].unsqueeze(-1)
-
-        # if `inputs_embeds` are passed, we only want to use them in the 1st generation step
-        if inputs_embeds is not None and past_key_values is None:
-            model_inputs = {"inputs_embeds": inputs_embeds}
-        else:
-            model_inputs = {"input_ids": input_ids}
-
-        model_inputs.update(
-            {
-                "past_key_values": past_key_values,
-                "use_cache": kwargs.get("use_cache"),
-                "position_ids": position_ids,
-                "attention_mask": attention_mask,
-                "token_type_ids": token_type_ids,
-            }
-        )
+        model_inputs = {
+            "input_ids": input_ids,
+            "pixel_values": pixel_values,
+            "past_key_values": past_key_values,
+            "use_cache": kwargs.get("use_cache"),
+        }
 
         return model_inputs
 
