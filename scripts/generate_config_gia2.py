@@ -5,7 +5,7 @@ from gia2.processing_gia2 import Gia2Processor
 
 
 # Small model
-tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased", model_input_names=["input_ids", "attention_mask"])
+tokenizer = AutoTokenizer.from_pretrained("gpt2", model_input_names=["input_ids", "attention_mask"])
 config = Gia2Config(
     vocab_size=tokenizer.vocab_size,
     max_position_embeddings=512,
@@ -14,6 +14,7 @@ config = Gia2Config(
     attention_types=[[["global", "local"], 6]],
     num_heads=12,
     max_discrete_value=148 + 64,  # 148 (discrete obs from BabyAI) + 64 (max size of BabyAI's text observation)
+    tokenizer_class=tokenizer.__class__.__name__,
 )
 image_processor = CLIPImageProcessor(
     size={"shortest_edge": config.image_size}, crop_size={"height": config.image_size, "width": config.image_size}
@@ -24,7 +25,7 @@ config.push_to_hub("gia-project/gia2-small")
 processor.push_to_hub("gia-project/gia2-small")
 
 # Medium model
-tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased", model_input_names=["input_ids", "attention_mask"])
+tokenizer = AutoTokenizer.from_pretrained("gpt2", model_input_names=["input_ids", "attention_mask"])
 config = Gia2Config(
     vocab_size=tokenizer.vocab_size,
     max_position_embeddings=1024,
@@ -33,6 +34,7 @@ config = Gia2Config(
     attention_types=[[["global", "local"], 12]],
     num_heads=16,
     max_discrete_value=148 + 64,  # 148 (discrete obs from BabyAI) + 64 (max size of BabyAI's text observation)
+    tokenizer_class=tokenizer.__class__.__name__,
 )
 image_processor = CLIPImageProcessor(
     size={"shortest_edge": config.image_size}, crop_size={"height": config.image_size, "width": config.image_size}
@@ -43,7 +45,7 @@ config.push_to_hub("gia-project/gia2-medium")
 processor.push_to_hub("gia-project/gia2-medium")
 
 # Large model
-tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased", model_input_names=["input_ids", "attention_mask"])
+tokenizer = AutoTokenizer.from_pretrained("gpt2", model_input_names=["input_ids", "attention_mask"])
 config = Gia2Config(
     vocab_size=tokenizer.vocab_size,
     max_position_embeddings=2048,
@@ -52,6 +54,7 @@ config = Gia2Config(
     attention_types=[[["global", "local"], 16]],
     num_heads=20,
     max_discrete_value=148 + 64,  # 148 (discrete obs from BabyAI) + 64 (max size of BabyAI's text observation)
+    tokenizer_class=tokenizer.__class__.__name__,
 )
 image_processor = CLIPImageProcessor(
     size={"shortest_edge": config.image_size}, crop_size={"height": config.image_size, "width": config.image_size}

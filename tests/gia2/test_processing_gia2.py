@@ -12,7 +12,7 @@ def processor():
     image_processor = CLIPImageProcessor(
         size={"shortest_edge": image_size}, crop_size={"height": image_size, "width": image_size}
     )
-    tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased", model_input_names=["input_ids", "attention_mask"])
+    tokenizer = AutoTokenizer.from_pretrained("gpt2", model_input_names=["input_ids", "attention_mask"])
     processor = Gia2Processor(tokenizer=tokenizer, image_processor=image_processor)
     return processor
 
