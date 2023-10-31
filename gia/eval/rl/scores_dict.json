@@ -7,6 +7,9 @@
         "random": {
             "mean": 205.5,
             "std": 111.9676284790039
+        },
+        "human": {
+            "mean": 7127.7
         }
     },
     "atari-amidar": {
@@ -17,6 +20,9 @@
         "random": {
             "mean": 2.380000114440918,
             "std": 2.50111985206604
+        },
+        "human": {
+            "mean": 1719.5
         }
     },
     "atari-assault": {
@@ -27,6 +33,9 @@
         "random": {
             "mean": 262.5,
             "std": 89.6136703491211
+        },
+        "human": {
+            "mean": 742.0
         }
     },
     "atari-asterix": {
@@ -37,6 +46,9 @@
         "random": {
             "mean": 213.5,
             "std": 110.87267303466797
+        },
+        "human": {
+            "mean": 8503.3
         }
     },
     "atari-asteroids": {
@@ -47,6 +59,9 @@
         "random": {
             "mean": 856.4000244140625,
             "std": 434.3236083984375
+        },
+        "human": {
+            "mean": 47388.7
         }
     },
     "atari-atlantis": {
@@ -57,6 +72,9 @@
         "random": {
             "mean": 17764.0,
             "std": 6662.42529296875
+        },
+        "human": {
+            "mean": 29028.1
         }
     },
     "atari-bankheist": {
@@ -67,6 +85,9 @@
         "random": {
             "mean": 13.399999618530273,
             "std": 11.06525993347168
+        },
+        "human": {
+            "mean": 753.1
         }
     },
     "atari-battlezone": {
@@ -77,6 +98,9 @@
         "random": {
             "mean": 2170.0,
             "std": 2121.579345703125
+        },
+        "human": {
+            "mean": 37187.5
         }
     },
     "atari-beamrider": {
@@ -87,6 +111,9 @@
         "random": {
             "mean": 357.2799987792969,
             "std": 143.96542358398438
+        },
+        "human": {
+            "mean": 16926.5
         }
     },
     "atari-berzerk": {
@@ -97,6 +124,9 @@
         "random": {
             "mean": 160.10000610351562,
             "std": 118.86543273925781
+        },
+        "human": {
+            "mean": 2630.4
         }
     },
     "atari-bowling": {
@@ -107,6 +137,9 @@
         "random": {
             "mean": 23.809999465942383,
             "std": 6.074034690856934
+        },
+        "human": {
+            "mean": 160.7
         }
     },
     "atari-boxing": {
@@ -117,6 +150,9 @@
         "random": {
             "mean": 0.5199999809265137,
             "std": 4.36916446685791
+        },
+        "human": {
+            "mean": 12.1
         }
     },
     "atari-breakout": {
@@ -127,6 +163,9 @@
         "random": {
             "mean": 1.2400000095367432,
             "std": 1.2970736026763916
+        },
+        "human": {
+            "mean": 30.5
         }
     },
     "atari-centipede": {
@@ -137,6 +176,9 @@
         "random": {
             "mean": 2150.06005859375,
             "std": 1113.2806396484375
+        },
+        "human": {
+            "mean": 12017.0
         }
     },
     "atari-choppercommand": {
@@ -147,6 +189,9 @@
         "random": {
             "mean": 875.0,
             "std": 416.98321533203125
+        },
+        "human": {
+            "mean": 7387.8
         }
     },
     "atari-crazyclimber": {
@@ -157,6 +202,9 @@
         "random": {
             "mean": 7376.0,
             "std": 2253.092041015625
+        },
+        "human": {
+            "mean": 35829.4
         }
     },
     "atari-defender": {
@@ -167,6 +215,9 @@
         "random": {
             "mean": 3417.5,
             "std": 1443.4051513671875
+        },
+        "human": {
+            "mean": 18688.9
         }
     },
     "atari-demonattack": {
@@ -177,6 +228,9 @@
         "random": {
             "mean": 165.5500030517578,
             "std": 92.92710876464844
+        },
+        "human": {
+            "mean": 1971.0
         }
     },
     "atari-doubledunk": {
@@ -187,6 +241,9 @@
         "random": {
             "mean": -18.540000915527344,
             "std": 3.0705699920654297
+        },
+        "human": {
+            "mean": 16.4
         }
     },
     "atari-enduro": {
@@ -197,6 +254,9 @@
         "random": {
             "mean": 0.0,
             "std": 0.0
+        },
+        "human": {
+            "mean": 860.5
         }
     },
     "atari-fishingderby": {
@@ -207,6 +267,9 @@
         "random": {
             "mean": -93.9000015258789,
             "std": 3.514256477355957
+        },
+        "human": {
+            "mean": 38.7
         }
     },
     "atari-freeway": {
@@ -217,6 +280,9 @@
         "random": {
             "mean": 0.009999999776482582,
             "std": 0.09949874877929688
+        },
+        "human": {
+            "mean": 29.6
         }
     },
     "atari-frostbite": {
@@ -227,6 +293,9 @@
         "random": {
             "mean": 67.5999984741211,
             "std": 37.606380462646484
+        },
+        "human": {
+            "mean": 4334.7
         }
     },
     "atari-gopher": {
@@ -237,6 +306,9 @@
         "random": {
             "mean": 319.3999938964844,
             "std": 228.23594665527344
+        },
+        "human": {
+            "mean": 2412.5
         }
     },
     "atari-gravitar": {
@@ -247,6 +319,9 @@
         "random": {
             "mean": 188.5,
             "std": 203.32916259765625
+        },
+        "human": {
+            "mean": 3351.4
         }
     },
     "atari-hero": {
@@ -257,6 +332,9 @@
         "random": {
             "mean": 475.25,
             "std": 894.95263671875
+        },
+        "human": {
+            "mean": 30826.4
         }
     },
     "atari-icehockey": {
@@ -267,6 +345,9 @@
         "random": {
             "mean": -9.829999923706055,
             "std": 3.240540027618408
+        },
+        "human": {
+            "mean": 0.9
         }
     },
     "atari-jamesbond": {
@@ -277,6 +358,9 @@
         "random": {
             "mean": 28.5,
             "std": 45.41750717163086
+        },
+        "human": {
+            "mean": 302.8
         }
     },
     "atari-kangaroo": {
@@ -287,6 +371,9 @@
         "random": {
             "mean": 52.0,
             "std": 108.1480484008789
+        },
+        "human": {
+            "mean": 3035.0
         }
     },
     "atari-krull": {
@@ -297,6 +384,9 @@
         "random": {
             "mean": 1754.0,
             "std": 583.5597534179688
+        },
+        "human": {
+            "mean": 2665.5
         }
     },
     "atari-kungfumaster": {
@@ -307,6 +397,9 @@
         "random": {
             "mean": 390.0,
             "std": 359.0264587402344
+        },
+        "human": {
+            "mean": 22736.3
         }
     },
     "atari-montezumarevenge": {
@@ -317,6 +410,9 @@
         "random": {
             "mean": 0.0,
             "std": 0.0
+        },
+        "human": {
+            "mean": 4753.3
         }
     },
     "atari-mspacman": {
@@ -327,6 +423,9 @@
         "random": {
             "mean": 246.39999389648438,
             "std": 121.22309112548828
+        },
+        "human": {
+            "mean": 6951.6
         }
     },
     "atari-namethisgame": {
@@ -337,6 +436,9 @@
         "random": {
             "mean": 2447.39990234375,
             "std": 888.9675903320312
+        },
+        "human": {
+            "mean": 8049.0
         }
     },
     "atari-phoenix": {
@@ -347,6 +449,9 @@
         "random": {
             "mean": 776.7999877929688,
             "std": 635.8551025390625
+        },
+        "human": {
+            "mean": 7242.6
         }
     },
     "atari-pitfall": {
@@ -357,6 +462,9 @@
         "random": {
             "mean": -259.75,
             "std": 384.2554016113281
+        },
+        "human": {
+            "mean": 6463.7
         }
     },
     "atari-pong": {
@@ -367,6 +475,9 @@
         "random": {
             "mean": -20.219999313354492,
             "std": 0.9547774791717529
+        },
+        "human": {
+            "mean": 14.6
         }
     },
     "atari-privateeye": {
@@ -377,6 +488,9 @@
         "random": {
             "mean": 41.650001525878906,
             "std": 191.82740783691406
+        },
+        "human": {
+            "mean": 69571.3
         }
     },
     "atari-qbert": {
@@ -387,6 +501,9 @@
         "random": {
             "mean": 164.25,
             "std": 151.7915802001953
+        },
+        "human": {
+            "mean": 13455.0
         }
     },
     "atari-riverraid": {
@@ -397,6 +514,9 @@
         "random": {
             "mean": 1474.4000244140625,
             "std": 314.5864562988281
+        },
+        "human": {
+            "mean": 17118.0
         }
     },
     "atari-roadrunner": {
@@ -407,6 +527,9 @@
         "random": {
             "mean": 11.0,
             "std": 42.178192138671875
+        },
+        "human": {
+            "mean": 7845.0
         }
     },
     "atari-robotank": {
@@ -417,6 +540,9 @@
         "random": {
             "mean": 1.8700000047683716,
             "std": 1.5852760076522827
+        },
+        "human": {
+            "mean": 11.9
         }
     },
     "atari-seaquest": {
@@ -427,6 +553,9 @@
         "random": {
             "mean": 73.19999694824219,
             "std": 57.91166305541992
+        },
+        "human": {
+            "mean": 42054.7
         }
     },
     "atari-skiing": {
@@ -437,6 +566,9 @@
         "random": {
             "mean": -16299.51953125,
             "std": 1850.6959228515625
+        },
+        "human": {
+            "mean": 4336.9
         }
     },
     "atari-solaris": {
@@ -447,6 +579,9 @@
         "random": {
             "mean": 2360.39990234375,
             "std": 1852.0279541015625
+        },
+        "human": {
+            "mean": 12326.7
         }
     },
     "atari-spaceinvaders": {
@@ -457,6 +592,9 @@
         "random": {
             "mean": 137.1999969482422,
             "std": 95.818359375
+        },
+        "human": {
+            "mean": 1668.7
         }
     },
     "atari-stargunner": {
@@ -467,6 +605,9 @@
         "random": {
             "mean": 652.0,
             "std": 312.2434997558594
+        },
+        "human": {
+            "mean": 10250.0
         }
     },
     "atari-surround": {
@@ -477,6 +618,9 @@
         "random": {
             "mean": -9.989999771118164,
             "std": 0.09949874877929688
+        },
+        "human": {
+            "mean": 6.5
         }
     },
     "atari-tennis": {
@@ -487,6 +631,9 @@
         "random": {
             "mean": -23.950000762939453,
             "std": 0.21794496476650238
+        },
+        "human": {
+            "mean": 8.3
         }
     },
     "atari-timepilot": {
@@ -497,6 +644,9 @@
         "random": {
             "mean": 3396.0,
             "std": 2128.845458984375
+        },
+        "human": {
+            "mean": 5229.2
         }
     },
     "atari-tutankham": {
@@ -507,6 +657,9 @@
         "random": {
             "mean": 12.729999542236328,
             "std": 17.39991569519043
+        },
+        "human": {
+            "mean": 167.6
         }
     },
     "atari-upndown": {
@@ -517,6 +670,9 @@
         "random": {
             "mean": 358.8999938964844,
             "std": 380.1102294921875
+        },
+        "human": {
+            "mean": 11693.2
         }
     },
     "atari-venture": {
@@ -527,6 +683,9 @@
         "random": {
             "mean": 0.0,
             "std": 0.0
+        },
+        "human": {
+            "mean": 1187.5
         }
     },
     "atari-videopinball": {
@@ -537,6 +696,9 @@
         "random": {
             "mean": 23917.169921875,
             "std": 19449.591796875
+        },
+        "human": {
+            "mean": 17667.9
         }
     },
     "atari-wizardofwor": {
@@ -547,6 +709,9 @@
         "random": {
             "mean": 620.0,
             "std": 837.8544311523438
+        },
+        "human": {
+            "mean": 4756.5
         }
     },
     "atari-yarsrevenge": {
@@ -557,6 +722,9 @@
         "random": {
             "mean": 3503.909912109375,
             "std": 906.144775390625
+        },
+        "human": {
+            "mean": 54576.9
         }
     },
     "atari-zaxxon": {
@@ -567,6 +735,9 @@
         "random": {
             "mean": 21.0,
             "std": 102.26924896240234
+        },
+        "human": {
+            "mean": 9173.3
         }
     },
     "babyai-action-obj-door": {
