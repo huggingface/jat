@@ -1,96 +1,150 @@
 import argparse
-import os
-import random
+import signal
 
 import gymnasium as gym
 import numpy as np
-from bot_agent import Bot
+from bot_agent import BabyAIBot as Bot
+from datasets import Dataset
+from datasets.features import Features, Sequence, Value
 
 
-def create_babyai_dataset(name_env, saving_path, max_num_episodes=100000, test_set_percentage=5):
-    env = gym.make(name_env)
+TASK_NAME_TO_ENV_ID = {
+    "babyai-action-obj-door": "BabyAI-ActionObjDoor-v0",
+    "babyai-blocked-unlock-pickup": "BabyAI-BlockedUnlockPickup-v0",
+    "babyai-boss-level-no-unlock": "BabyAI-BossLevelNoUnlock-v0",
+    "babyai-boss-level": "BabyAI-BossLevel-v0",
+    "babyai-find-obj-s5": "BabyAI-FindObjS5-v0",
+    "babyai-go-to-door": "BabyAI-GoToDoor-v0",
+    "babyai-go-to-imp-unlock": "BabyAI-GoToImpUnlock-v0",
+    "babyai-go-to-local": "BabyAI-GoToLocal-v0",
+    "babyai-go-to-obj-door": "BabyAI-GoToObjDoor-v0",
+    "babyai-go-to-obj": "BabyAI-GoToObj-v0",
+    "babyai-go-to-red-ball-grey": "BabyAI-GoToRedBallGrey-v0",
+    "babyai-go-to-red-ball-no-dists": "BabyAI-GoToRedBallNoDists-v0",
+    "babyai-go-to-red-ball": "BabyAI-GoToRedBall-v0",
+    "babyai-go-to-red-blue-ball": "BabyAI-GoToRedBlueBall-v0",
+    "babyai-go-to-seq": "BabyAI-GoToSeq-v0",
+    "babyai-go-to": "BabyAI-GoTo-v0",
+    "babyai-key-corridor": "BabyAI-KeyCorridor-v0",
+    "babyai-mini-boss-level": "BabyAI-MiniBossLevel-v0",
+    "babyai-move-two-across-s8n9": "BabyAI-MoveTwoAcrossS8N9-v0",
+    "babyai-one-room-s8": "BabyAI-OneRoomS8-v0",
+    "babyai-open-door": "BabyAI-OpenDoor-v0",
+    "babyai-open-doors-order-n4": "BabyAI-OpenDoorsOrderN4-v0",
+    "babyai-open-red-door": "BabyAI-OpenRedDoor-v0",
+    "babyai-open-two-doors": "BabyAI-OpenTwoDoors-v0",
+    "babyai-open": "BabyAI-Open-v0",
+    "babyai-pickup-above": "BabyAI-PickupAbove-v0",
+    "babyai-pickup-dist": "BabyAI-PickupDist-v0",
+    "babyai-pickup-loc": "BabyAI-PickupLoc-v0",
+    "babyai-pickup": "BabyAI-Pickup-v0",
+    "babyai-put-next-local": "BabyAI-PutNextLocal-v0",
+    "babyai-put-next": "BabyAI-PutNextS7N4-v0",
+    "babyai-synth-loc": "BabyAI-SynthLoc-v0",
+    "babyai-synth-seq": "BabyAI-SynthSeq-v0",
+    "babyai-synth": "BabyAI-Synth-v0",
+    "babyai-unblock-pickup": "BabyAI-UnblockPickup-v0",
+    "babyai-unlock-local": "BabyAI-UnlockLocal-v0",
+    "babyai-unlock-pickup": "BabyAI-UnlockPickup-v0",
+    "babyai-unlock-to-unlock": "BabyAI-UnlockToUnlock-v0",
+    "babyai-unlock": "BabyAI-Unlock-v0",
+}
 
-    class BabyAIEnvDataset:
-        def __init__(self):
-            self._data = {"text_observations": [], "discrete_observations": [], "discrete_actions": [], "rewards": []}
 
-        def reset_episode(self, append_new=True):
-            for _, sequence in self._data.items():
-                if len(sequence) > 0:
-                    sequence[-1] = np.array(sequence[-1])
+class TimeoutError(Exception):
+    pass
 
-                if append_new:
-                    sequence.append([])
 
-        def add_step(self, obs, act, rew):
-            self._data["text_observations"][-1].append(obs["mission"])
-            flattened_symbolic_obs = obs["image"].flatten()
-            concatenated_discrete_obs = np.append(obs["direction"], flattened_symbolic_obs)
-            self._data["discrete_observations"][-1].append(concatenated_discrete_obs)
-            self._data["discrete_actions"][-1].append(act)
-            self._data["rewards"][-1].append(rew)
+def timeout_handler(signum, frame):
+    raise TimeoutError("Function call timed out")
 
-        def to_dict(self):
-            return {k: np.array(v) for k, v in self._data.items()}
 
-        def __len__(self):
-            return len(self._data["rewards"])
+def call_with_timeout(func, args=[], kwargs={}, timeout_duration=1):
+    # Set the signal handler and the alarm
+    signal.signal(signal.SIGALRM, timeout_handler)
+    signal.alarm(timeout_duration)
 
-    dataset = BabyAIEnvDataset()
+    try:
+        result = func(*args, **kwargs)
+    except TimeoutError as e:
+        raise e
+    finally:
+        # Disable the alarm
+        signal.alarm(0)
+    return result
 
-    def reset_env_and_policy(env):
-        obs, _ = env.reset()
-        policy = Bot(env.env)
-        return obs, policy
+
+def reset_env_and_policy(env):
+    obs, _ = env.reset()
+    return obs, Bot(env.env)
+
+
+def generate_episode(env):
+    episode = {"text_observations": [], "discrete_observations": [], "discrete_actions": [], "rewards": []}
+    observation, policy = reset_env_and_policy(env)
+    t = 0
+    while True:
+        episode["text_observations"].append(observation["mission"])
+        flattened_symbolic_obs = observation["image"].flatten()
+        concatenated_discrete_obs = np.append(observation["direction"], flattened_symbolic_obs)
+        episode["discrete_observations"].append(concatenated_discrete_obs)
+        action = call_with_timeout(policy.replan, timeout_duration=1)
+        observation, reward, terminated, truncated, _ = env.step(action)
+        episode["discrete_actions"].append(int(action))
+        episode["rewards"].append(reward)
+
+        if terminated or truncated:
+            break
+
+        t += 1
+        if t > 1000:
+            raise Exception("Episode too long")
+    return episode
+
+
+def create_babyai_dataset(task_name, max_num_episodes):
+    env_id = TASK_NAME_TO_ENV_ID[task_name]
+    env = gym.make(env_id)
+    data = {"text_observations": [], "discrete_observations": [], "discrete_actions": [], "rewards": []}
 
     print("Starting trajectories generation")
-    obs, policy = reset_env_and_policy(env)
-    dataset.reset_episode()
-    n_steps = 0
-    for i in range(max_num_episodes):
-        done = False
-        while not done:
-            try:
-                action = policy.replan()
-                _obs, r, term, trunc, infos = env.step(action)
-                dataset.add_step(obs, int(action), r)
-                obs = _obs
-                done = term or trunc
-            except Exception:
-                done = True
+    while len(data["rewards"]) < max_num_episodes:
+        print(f"Episode {len(data['rewards']) + 1}/{max_num_episodes}")
 
-            if done:
-                obs, policy = reset_env_and_policy(env)
-                dataset.reset_episode(append_new=i < max_num_episodes - 1)
+        try:
+            episode = generate_episode(env)
+        except Exception as e:
+            print(e)
+            continue
 
-            n_steps += 1
+        for k, v in episode.items():
+            data[k].append(v)
 
-    env.close()
-    print(f"Finished generation. Generated {n_steps} transitions.")
+    print(f"Finished generation. Generated {len(data['rewards'])} transitions.")
 
-    print("Saving...")
-    dataset_size = len(dataset)
-    test_set_indices = random.sample(range(dataset_size), round(dataset_size * test_set_percentage / 100))
-    train_set_indices = [idx for idx in range(dataset_size) if idx not in test_set_indices]
-    dict_dataset = dataset.to_dict()
-    train_dataset = {k: v[train_set_indices] for k, v in dict_dataset.items()}
-    test_dataset = {k: v[test_set_indices] for k, v in dict_dataset.items()}
+    features = Features(
+        {
+            "text_observations": Sequence(Value("string")),
+            "discrete_observations": Sequence(Sequence(Value("int64"))),
+            "discrete_actions": Sequence(Value("int64")),
+            "rewards": Sequence(Value("float32")),
+        }
+    )
+    dataset = Dataset.from_dict(data, features)
+    print("Saving dataset...")
+    dataset.save_to_disk(task_name)
+    print("Saved dataset!")
 
-    os.makedirs(saving_path, exist_ok=True)
-    np.savez_compressed(f"{saving_path}/train.npz", **train_dataset)
-    np.savez_compressed(f"{saving_path}/test.npz", **test_dataset)
-    print("Finished!")
+    print("Pushing dataset to hub...")
+    dataset = dataset.train_test_split(test_size=0.02)
+    dataset.push_to_hub("gia-project/gia-dataset-parquet", task_name, branch="additional_babyai_tasks")
+    print("Pushed dataset to hub!")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--name_env", type=str)
-    parser.add_argument("--saving_path", type=str)
-    parser.add_argument("--max_num_episodes", default=100000, type=int)
-    parser.add_argument("--test_set_percentage", default=5, type=int)
+    parser.add_argument("--task_name", type=str)
+    parser.add_argument("--max_num_episodes", default=100_000, type=int)
     args = parser.parse_args()
 
-    if os.path.exists(f"{args.saving_path}/train.npz") and os.path.exists(f"{args.saving_path}/test.npz"):
-        print(f"Generated trajectories seem to already exist in {args.saving_path}, skipping generation")
-    else:
-        create_babyai_dataset(**vars(args))
+    create_babyai_dataset(task_name=args.task_name, max_num_episodes=args.max_num_episodes)
