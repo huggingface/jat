@@ -11,6 +11,7 @@ from .wrappers import (
     MaxAndSkipEnv,
     NoopResetEnv,
     NumpyObsWrapper,
+    RenderMission,
 )
 
 
@@ -254,6 +255,7 @@ def make_babyai(task_name: str, **kwargs) -> Env:
     env = gym.make(TASK_NAME_TO_ENV_ID[task_name], **kwargs)
     env = BabyAIDictObservationWrapper(env)
     env = FloatRewardWrapper(env)
+    env = RenderMission(env)
     return env
 
 
