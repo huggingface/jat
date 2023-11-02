@@ -10,47 +10,48 @@ import gymnasium as gym
 import numpy as np
 
 
-FILENAME = "scores_dict.json"
+FILENAME = "gia/eval/rl/scores_dict.json"
 
 TASK_NAME_TO_ENV_NAME = {
-    "babyai-go-to": "BabyAI-GoTo-v0",
+    "babyai-action-obj-door": "BabyAI-ActionObjDoor-v0",
+    "babyai-blocked-unlock-pickup": "BabyAI-BlockedUnlockPickup-v0",
+    "babyai-boss-level-no-unlock": "BabyAI-BossLevelNoUnlock-v0",
+    "babyai-boss-level": "BabyAI-BossLevel-v0",
+    "babyai-find-obj-s5": "BabyAI-FindObjS5-v0",
     "babyai-go-to-door": "BabyAI-GoToDoor-v0",
     "babyai-go-to-imp-unlock": "BabyAI-GoToImpUnlock-v0",
     "babyai-go-to-local": "BabyAI-GoToLocal-v0",
-    "babyai-go-to-obj": "BabyAI-GoToObj-v0",
     "babyai-go-to-obj-door": "BabyAI-GoToObjDoor-v0",
-    "babyai-go-to-red-ball": "BabyAI-GoToRedBall-v0",
+    "babyai-go-to-obj": "BabyAI-GoToObj-v0",
     "babyai-go-to-red-ball-grey": "BabyAI-GoToRedBallGrey-v0",
     "babyai-go-to-red-ball-no-dists": "BabyAI-GoToRedBallNoDists-v0",
+    "babyai-go-to-red-ball": "BabyAI-GoToRedBall-v0",
     "babyai-go-to-red-blue-ball": "BabyAI-GoToRedBlueBall-v0",
     "babyai-go-to-seq": "BabyAI-GoToSeq-v0",
-    "babyai-open": "BabyAI-Open-v0",
+    "babyai-go-to": "BabyAI-GoTo-v0",
+    "babyai-key-corridor": "BabyAI-KeyCorridor-v0",
+    "babyai-mini-boss-level": "BabyAI-MiniBossLevel-v0",
+    "babyai-move-two-across-s8n9": "BabyAI-MoveTwoAcrossS8N9-v0",
+    "babyai-one-room-s8": "BabyAI-OneRoomS8-v0",
     "babyai-open-door": "BabyAI-OpenDoor-v0",
-    "babyai-open-doors-order": "BabyAI-OpenDoorsOrderN4-v0",
+    "babyai-open-doors-order-n4": "BabyAI-OpenDoorsOrderN4-v0",
     "babyai-open-red-door": "BabyAI-OpenRedDoor-v0",
     "babyai-open-two-doors": "BabyAI-OpenTwoDoors-v0",
-    "babyai-action-obj-door": "BabyAI-ActionObjDoor-v0",
-    "babyai-find-obj-s5": "BabyAI-FindObjS5-v0",
-    "babyai-key-corridor": "BabyAI-KeyCorridor-v0",
-    "babyai-move-two-across": "BabyAI-MoveTwoAcrossS8N9-v0",
-    "babyai-one-room-s8": "BabyAI-OneRoomS8-v0",
-    "babyai-pickup": "BabyAI-Pickup-v0",
+    "babyai-open": "BabyAI-Open-v0",
     "babyai-pickup-above": "BabyAI-PickupAbove-v0",
     "babyai-pickup-dist": "BabyAI-PickupDist-v0",
     "babyai-pickup-loc": "BabyAI-PickupLoc-v0",
-    "babyai-unblock-pickup": "BabyAI-UnblockPickup-v0",
-    "babyai-boss-level": "BabyAI-BossLevel-v0",
-    "babyai-boss-level-no-unlock": "BabyAI-BossLevelNoUnlock-v0",
-    "babyai-mini-boss-level": "BabyAI-MiniBossLevel-v0",
-    "babyai-synth": "BabyAI-Synth-v0",
+    "babyai-pickup": "BabyAI-Pickup-v0",
+    "babyai-put-next-local": "BabyAI-PutNextLocal-v0",
+    "babyai-put-next": "BabyAI-PutNextS7N4-v0",
     "babyai-synth-loc": "BabyAI-SynthLoc-v0",
     "babyai-synth-seq": "BabyAI-SynthSeq-v0",
-    "babyai-blocked-unlock-pickup": "BabyAI-BlockedUnlockPickup-v0",
-    "babyai-key-in-box": "BabyAI-KeyInBox-v0",
-    "babyai-unlock": "BabyAI-Unlock-v0",
+    "babyai-synth": "BabyAI-Synth-v0",
+    "babyai-unblock-pickup": "BabyAI-UnblockPickup-v0",
     "babyai-unlock-local": "BabyAI-UnlockLocal-v0",
     "babyai-unlock-pickup": "BabyAI-UnlockPickup-v0",
     "babyai-unlock-to-unlock": "BabyAI-UnlockToUnlock-v0",
+    "babyai-unlock": "BabyAI-Unlock-v0",
 }
 
 
@@ -82,7 +83,7 @@ def generate_random_score(task_name):
     if not os.path.exists(FILENAME):
         scores_dict = {}
     else:
-        with open("scores_dict.json", "r") as file:
+        with open(FILENAME, "r") as file:
             scores_dict = json.load(file)
 
     # Add the random scores to the dictionary
@@ -91,7 +92,7 @@ def generate_random_score(task_name):
     scores_dict[task_name]["random"] = {"mean": np.mean(all_episode_rewards), "std": np.std(all_episode_rewards)}
 
     # Save the dictionary to a file
-    with open("scores_dict.json", "w") as file:
+    with open(FILENAME, "w") as file:
         scores_dict = {
             task: {agent: scores_dict[task][agent] for agent in sorted(scores_dict[task])}
             for task in sorted(scores_dict)
