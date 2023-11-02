@@ -59,18 +59,20 @@ def timeout_handler(signum, frame):
     raise TimeoutError("Function call timed out")
 
 
-def call_with_timeout(func, args=[], kwargs={}, timeout_duration=1):
-    # Set the signal handler and the alarm
+def call_with_timeout(func, args=[], kwargs={}, timeout_duration=1.0):
+    # Set the signal handler
     signal.signal(signal.SIGALRM, timeout_handler)
-    signal.alarm(timeout_duration)
+
+    # Set the interval timer
+    signal.setitimer(signal.ITIMER_REAL, timeout_duration, 0)
 
     try:
         result = func(*args, **kwargs)
     except TimeoutError as e:
         raise e
     finally:
-        # Disable the alarm
-        signal.alarm(0)
+        # Disable the interval timer
+        signal.setitimer(signal.ITIMER_REAL, 0)
     return result
 
 
@@ -88,7 +90,7 @@ def generate_episode(env):
         flattened_symbolic_obs = observation["image"].flatten()
         concatenated_discrete_obs = np.append(observation["direction"], flattened_symbolic_obs)
         episode["discrete_observations"].append(concatenated_discrete_obs)
-        action = call_with_timeout(policy.replan, timeout_duration=1)
+        action = call_with_timeout(policy.replan, timeout_duration=0.02)
         observation, reward, terminated, truncated, _ = env.step(action)
         episode["discrete_actions"].append(int(action))
         episode["rewards"].append(reward)
