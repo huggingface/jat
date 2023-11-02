@@ -2,6 +2,7 @@ from typing import Any, Dict, Tuple
 
 import gymnasium as gym
 import numpy as np
+from PIL import Image, ImageDraw, ImageFont
 
 
 class NoopResetEnv(gym.Wrapper):
@@ -169,3 +170,47 @@ class NumpyObsWrapper(gym.ObservationWrapper):
 
     def observation(self, observation: Any) -> np.ndarray:
         return np.array(observation)
+
+
+class RenderMission(gym.Wrapper):
+    """
+    Wrapper to add mission in the RGB rendering for BabyAI.
+    """
+
+    @staticmethod
+    def add_text_to_image(image, text, position=(10, 5), font_size=20, text_color=(255, 255, 255)):
+        """
+        Add text to an RGB image represented as a NumPy array and return the modified image as a NumPy array.
+
+        Args:
+            image (numpy.ndarray): The input RGB image as a NumPy array.
+            text (str): The text to be added to the image.
+            position (tuple): The (x, y) coordinates of the top-left corner of the text.
+            font_size (int): The font size for the text.
+            text_color (tuple): The RGB color code for the text color.
+
+        Returns:
+            numpy.ndarray: The modified RGB image as a NumPy array.
+        """
+        # Convert the input NumPy array to a PIL Image
+        image = Image.fromarray(np.uint8(image))
+
+        # Create a drawing context on the image
+        draw = ImageDraw.Draw(image)
+
+        # Use the default font
+        font = ImageFont.load_default().font_variant(size=font_size)
+
+        # Add the text to the image
+        draw.text(position, text, fill=text_color, font=font)
+
+        # Convert the modified image back to a NumPy array
+        modified_image_np = np.array(image)
+
+        return modified_image_np
+
+    def render(self):
+        img = super().render()
+        if img is not None:
+            img = self.add_text_to_image(img, self.mission)
+        return img
