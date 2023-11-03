@@ -20,6 +20,7 @@ image_processor = CLIPImageProcessor(
     size={"shortest_edge": config.image_size}, crop_size={"height": config.image_size, "width": config.image_size}
 )
 tokenizer.model_max_length = config.max_position_embeddings
+tokenizer.pad_token = tokenizer.eos_token
 processor = Gia2Processor(tokenizer=tokenizer, image_processor=image_processor)
 config.push_to_hub("gia-project/gia2-small")
 processor.push_to_hub("gia-project/gia2-small")
@@ -40,6 +41,7 @@ image_processor = CLIPImageProcessor(
     size={"shortest_edge": config.image_size}, crop_size={"height": config.image_size, "width": config.image_size}
 )
 tokenizer.model_max_length = config.max_position_embeddings
+tokenizer.pad_token = tokenizer.eos_token
 processor = Gia2Processor(tokenizer=tokenizer, image_processor=image_processor)
 config.push_to_hub("gia-project/gia2-medium")
 processor.push_to_hub("gia-project/gia2-medium")
@@ -60,6 +62,7 @@ image_processor = CLIPImageProcessor(
     size={"shortest_edge": config.image_size}, crop_size={"height": config.image_size, "width": config.image_size}
 )
 tokenizer.model_max_length = config.max_position_embeddings
+tokenizer.pad_token = tokenizer.eos_token
 processor = Gia2Processor(tokenizer=tokenizer, image_processor=image_processor)
 config.push_to_hub("gia-project/gia2-large")
 processor.push_to_hub("gia-project/gia2-large")
