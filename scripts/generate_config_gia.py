@@ -1,12 +1,12 @@
 from transformers import AutoTokenizer, CLIPImageProcessor
 
-from gia2.configuration_gia2 import Gia2Config
-from gia2.processing_gia2 import Gia2Processor
+from gia.configuration_gia import GiaConfig
+from gia.processing_gia import GiaProcessor
 
 
 # Small model
 tokenizer = AutoTokenizer.from_pretrained("gpt2", model_input_names=["input_ids", "attention_mask"])
-config = Gia2Config(
+config = GiaConfig(
     vocab_size=tokenizer.vocab_size,
     max_position_embeddings=512,
     hidden_size=768,
@@ -21,13 +21,13 @@ image_processor = CLIPImageProcessor(
 )
 tokenizer.model_max_length = config.max_position_embeddings
 tokenizer.pad_token = tokenizer.eos_token
-processor = Gia2Processor(tokenizer=tokenizer, image_processor=image_processor)
-config.push_to_hub("gia-project/gia2-small")
-processor.push_to_hub("gia-project/gia2-small")
+processor = GiaProcessor(tokenizer=tokenizer, image_processor=image_processor)
+config.push_to_hub("gia-project/gia-small")
+processor.push_to_hub("gia-project/gia-small")
 
 # Medium model
 tokenizer = AutoTokenizer.from_pretrained("gpt2", model_input_names=["input_ids", "attention_mask"])
-config = Gia2Config(
+config = GiaConfig(
     vocab_size=tokenizer.vocab_size,
     max_position_embeddings=1024,
     hidden_size=2048,
@@ -42,13 +42,13 @@ image_processor = CLIPImageProcessor(
 )
 tokenizer.model_max_length = config.max_position_embeddings
 tokenizer.pad_token = tokenizer.eos_token
-processor = Gia2Processor(tokenizer=tokenizer, image_processor=image_processor)
-config.push_to_hub("gia-project/gia2-medium")
-processor.push_to_hub("gia-project/gia2-medium")
+processor = GiaProcessor(tokenizer=tokenizer, image_processor=image_processor)
+config.push_to_hub("gia-project/gia-medium")
+processor.push_to_hub("gia-project/gia-medium")
 
 # Large model
 tokenizer = AutoTokenizer.from_pretrained("gpt2", model_input_names=["input_ids", "attention_mask"])
-config = Gia2Config(
+config = GiaConfig(
     vocab_size=tokenizer.vocab_size,
     max_position_embeddings=2048,
     hidden_size=2560,
@@ -63,6 +63,6 @@ image_processor = CLIPImageProcessor(
 )
 tokenizer.model_max_length = config.max_position_embeddings
 tokenizer.pad_token = tokenizer.eos_token
-processor = Gia2Processor(tokenizer=tokenizer, image_processor=image_processor)
-config.push_to_hub("gia-project/gia2-large")
-processor.push_to_hub("gia-project/gia2-large")
+processor = GiaProcessor(tokenizer=tokenizer, image_processor=image_processor)
+config.push_to_hub("gia-project/gia-large")
+processor.push_to_hub("gia-project/gia-large")

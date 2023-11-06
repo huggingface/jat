@@ -9,7 +9,7 @@ from sample_factory.utils.attr_dict import AttrDict
 from sf_examples.atari.train_atari import parse_atari_args, register_atari_components
 
 
-FILENAME = "gia2/eval/rl/scores_dict.json"
+FILENAME = "gia/eval/rl/scores_dict.json"
 
 
 TASK_NAMES = [

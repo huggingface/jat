@@ -1,9 +1,9 @@
 from transformers import GPTNeoConfig
 
 
-class Gia2Config(GPTNeoConfig):
+class GiaConfig(GPTNeoConfig):
     r"""
-    This is the configuration class to store the configuration of a [`Gia2Model`]. It is used to instantiate a Gia2
+    This is the configuration class to store the configuration of a [`GiaModel`]. It is used to instantiate a Gia
     model according to the specified arguments, defining the model architecture. Instantiating a configuration with
     the defaults will yield a similar configuration to that of the ... (TODO)
 
@@ -66,7 +66,7 @@ class Gia2Config(GPTNeoConfig):
             The size (resolution) of each patch.
     """
 
-    model_type = "gia2"
+    model_type = "gia"
 
     def __init__(
         self,
@@ -123,4 +123,4 @@ class Gia2Config(GPTNeoConfig):
         self.patch_size = patch_size
 
 
-Gia2Config.register_for_auto_class()
+GiaConfig.register_for_auto_class()

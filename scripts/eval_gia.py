@@ -13,10 +13,10 @@ import torch
 from tqdm import tqdm
 from transformers import HfArgumentParser
 
-from gia2.eval.rl import TASK_NAME_TO_ENV_ID, make
-from gia2.modeling_gia2 import Gia2Model
-from gia2.processing_gia2 import Gia2Processor
-from gia2.utils import push_to_hub, save_video_grid, suppress_stdout
+from gia.eval.rl import TASK_NAME_TO_ENV_ID, make
+from gia.modeling_gia import GiaModel
+from gia.processing_gia import GiaProcessor
+from gia.utils import push_to_hub, save_video_grid, suppress_stdout
 
 
 @dataclass
@@ -99,7 +99,7 @@ def eval_rl(model, processor, task, eval_args):
     env.close()
 
     # Get the mean and std of the expert and random scores
-    with open("gia2/eval/rl/scores_dict.json", "r") as file:
+    with open("gia/eval/rl/scores_dict.json", "r") as file:
         scores_dict = json.load(file)
 
     expert_mean = scores_dict[task]["expert"]["mean"]
@@ -144,8 +144,8 @@ def main():
             tasks.extend([env_id for env_id in TASK_NAME_TO_ENV_ID.keys() if env_id.startswith(domain)])
 
     device = torch.device("cpu") if eval_args.use_cpu else get_default_device()
-    model = Gia2Model.from_pretrained(model_args.model_name_or_path, cache_dir=model_args.cache_dir).to(device)
-    processor = Gia2Processor.from_pretrained(model_args.model_name_or_path, cache_dir=model_args.cache_dir)
+    model = GiaModel.from_pretrained(model_args.model_name_or_path, cache_dir=model_args.cache_dir).to(device)
+    processor = GiaProcessor.from_pretrained(model_args.model_name_or_path, cache_dir=model_args.cache_dir)
 
     scores_dict = {}
     video_list = []

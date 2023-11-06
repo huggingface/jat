@@ -3,7 +3,7 @@ import torch
 from PIL import Image
 from transformers import AutoTokenizer, CLIPImageProcessor
 
-from gia2.processing_gia2 import Gia2Processor
+from gia.processing_gia import GiaProcessor
 
 
 @pytest.fixture
@@ -13,7 +13,7 @@ def processor():
         size={"shortest_edge": image_size}, crop_size={"height": image_size, "width": image_size}
     )
     tokenizer = AutoTokenizer.from_pretrained("gpt2", model_input_names=["input_ids", "attention_mask"])
-    processor = Gia2Processor(tokenizer=tokenizer, image_processor=image_processor)
+    processor = GiaProcessor(tokenizer=tokenizer, image_processor=image_processor)
     return processor
 
 

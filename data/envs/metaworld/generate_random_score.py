@@ -11,7 +11,7 @@ import metaworld  # noqa: F401
 import numpy as np
 
 
-FILENAME = "gia2/eval/rl/scores_dict.json"
+FILENAME = "gia/eval/rl/scores_dict.json"
 
 TASK_NAME_TO_ENV_NAME = {
     "metaworld-assembly": "assembly-v2",
