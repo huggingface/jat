@@ -12,7 +12,7 @@ class LanguageModelingEvaluator(Evaluator):
     def _evaluate(self, model: GatoModel) -> float:
         losses = []
         processor = GatoProcessor()
-        dataset = load_dataset("gia-project/gia-dataset-parquet", self.task_name, split=self.args.test_split)
+        dataset = load_dataset("gia-project/gia-dataset", self.task_name, split=self.args.test_split)
         dataset = dataset.map(lambda batch: processor(**batch), remove_columns=dataset.column_names, batched=True)
         dataloader = DataLoader(dataset, batch_size=self.args.batch_size, collate_fn=GatoDataCollator(), shuffle=True)
         for step, batch in enumerate(dataloader):

@@ -20,7 +20,7 @@ def run():
     action_dim = env.action_space.shape[1]
 
     # Buffer intialized with a prompt
-    dataset = load_dataset("gia-project/gia-dataset-parquet", "mujoco-ant", split="train[:3]")
+    dataset = load_dataset("gia-project/gia-dataset", "mujoco-ant", split="train[:3]")
     prompter = Prompter(dataset)
     prompts = prompter.generate_prompts(num_prompts=num_envs)
     observations = np.array(prompts["continuous_observations"])

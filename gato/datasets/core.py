@@ -38,7 +38,7 @@ def get_task_name_list(task_names: Union[str, List[str]]) -> List[str]:
         else:
             task_names = [task_names]
     # Get all task names from gia dataset
-    all_tasks = set(get_dataset_config_names("gia-project/gia-dataset-parquet"))
+    all_tasks = set(get_dataset_config_names("gia-project/gia-dataset"))
     output_tasks = []
     # If the task name is a domain, load all the tasks of that domain
     for task_name in task_names:
@@ -189,7 +189,7 @@ def load_and_process_dataset(data_args, split: str, processor) -> Dict[str, Data
     """
 
     dataset_dict = {
-        task_name: load_dataset("gia-project/gia-dataset-parquet", task_name, split=split)
+        task_name: load_dataset("gia-project/gia-dataset", task_name, split=split)
         for task_name in data_args.task_names
     }
     prompters = {
