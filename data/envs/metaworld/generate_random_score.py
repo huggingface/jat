@@ -11,8 +11,7 @@ import metaworld  # noqa: F401
 import numpy as np
 
 
-PATH = "gia/eval/rl"
-FILENAME = "scores_dict.json"
+FILENAME = "gia2/eval/rl/scores_dict.json"
 
 TASK_NAME_TO_ENV_NAME = {
     "metaworld-assembly": "assembly-v2",
@@ -93,10 +92,10 @@ def generate_random_score(task_name):
             tot_episode_rewards = 0
 
     # Load the scores dictionary
-    if not os.path.exists(f"{PATH}/{FILENAME}"):
+    if not os.path.exists(FILENAME):
         scores_dict = {}
     else:
-        with open(f"{PATH}/{FILENAME}", "r") as file:
+        with open(FILENAME, "r") as file:
             scores_dict = json.load(file)
 
     # Add the random scores to the dictionary
@@ -105,7 +104,7 @@ def generate_random_score(task_name):
     scores_dict[task_name]["random"] = {"mean": np.mean(all_episode_rewards), "std": np.std(all_episode_rewards)}
 
     # Save the dictionary to a file
-    with open(f"{PATH}/{FILENAME}", "w") as file:
+    with open(FILENAME, "w") as file:
         scores_dict = {
             task: {agent: scores_dict[task][agent] for agent in sorted(scores_dict[task])}
             for task in sorted(scores_dict)

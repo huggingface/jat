@@ -10,7 +10,7 @@ import gymnasium as gym
 import numpy as np
 
 
-FILENAME = "scores_dict.json"
+FILENAME = "gia2/eval/rl/scores_dict.json"
 
 TASK_NAME_TO_ENV_NAME = {
     "mujoco-ant": "Ant-v4",
@@ -54,7 +54,7 @@ def generate_random_score(task_name):
     if not os.path.exists(FILENAME):
         scores_dict = {}
     else:
-        with open("scores_dict.json", "r") as file:
+        with open(FILENAME, "r") as file:
             scores_dict = json.load(file)
 
     # Add the random scores to the dictionary
@@ -63,7 +63,7 @@ def generate_random_score(task_name):
     scores_dict[task_name]["random"] = {"mean": np.mean(all_episode_rewards), "std": np.std(all_episode_rewards)}
 
     # Save the dictionary to a file
-    with open("scores_dict.json", "w") as file:
+    with open(FILENAME, "w") as file:
         scores_dict = {
             task: {agent: scores_dict[task][agent] for agent in sorted(scores_dict[task])}
             for task in sorted(scores_dict)
