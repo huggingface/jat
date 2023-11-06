@@ -11,8 +11,8 @@ from transformers import GPTNeoModel, GPTNeoPreTrainedModel
 from transformers.modeling_outputs import ModelOutput
 from transformers.models.vit.modeling_vit import ViTPatchEmbeddings
 
-from .configuration_gia2 import Gia2Config
-from .processing_gia2 import Gia2Processor
+from .configuration_gia import GiaConfig
+from .processing_gia import GiaProcessor
 
 
 def compute_mse_loss(
@@ -285,9 +285,9 @@ class DualBatchReshapeWrapper(nn.Module):
 
 
 @dataclass
-class Gia2Output(ModelOutput):
+class GiaOutput(ModelOutput):
     """
-    Output of the Gia2 model.
+    Output of the Gia model.
 
     The model can be used for both RL and NLP tasks. For RL tasks, the model takes in observations and actions
     (`continuous_observations`, `discrete_actions`, etc.). For textual tasks, the model takes in a sequence of tokens
@@ -349,14 +349,14 @@ class Gia2Output(ModelOutput):
     attentions: Optional[Tuple[FloatTensor]] = None
 
 
-class Gia2Model(GPTNeoPreTrainedModel):
+class GiaModel(GPTNeoPreTrainedModel):
     """
-    Gia2 model.
+    Gia model.
     """
 
-    config_class = Gia2Config
+    config_class = GiaConfig
 
-    def __init__(self, config: Gia2Config) -> None:
+    def __init__(self, config: GiaConfig) -> None:
         super().__init__(config)
 
         vocab_size = config.vocab_size
@@ -504,7 +504,7 @@ class Gia2Model(GPTNeoPreTrainedModel):
             output = (lm_logits,) + transformer_outputs[1:]
             return ((loss,) + output) if loss is not None else output
 
-        return Gia2Output(
+        return GiaOutput(
             loss=loss,
             logits=lm_logits,
             past_key_values=transformer_outputs.past_key_values,
@@ -593,7 +593,7 @@ class Gia2Model(GPTNeoPreTrainedModel):
             output = (pred_observations, pred_actions) + transformer_outputs[1:]
             return ((loss, observation_loss, action_loss) + output) if loss is not None else output
 
-        return Gia2Output(
+        return GiaOutput(
             loss=loss,
             observation_loss=observation_loss,
             action_loss=action_loss,
@@ -624,7 +624,7 @@ class Gia2Model(GPTNeoPreTrainedModel):
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         loss_weight: Optional[FloatTensor] = None,
-    ) -> Gia2Output:
+    ) -> GiaOutput:
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         # Textual tasks
@@ -689,7 +689,7 @@ class Gia2Model(GPTNeoPreTrainedModel):
     @torch.no_grad()
     def get_next_action(
         self,
-        processor: Gia2Processor,
+        processor: GiaProcessor,
         continuous_observations: Optional[List[List[float]]] = None,
         discrete_observations: Optional[List[List[int]]] = None,
         text_observations: Optional[List[str]] = None,
@@ -819,4 +819,4 @@ class Gia2Model(GPTNeoPreTrainedModel):
         return model_inputs
 
 
-Gia2Model.register_for_auto_class("AutoModelForCausalLM")
+GiaModel.register_for_auto_class("AutoModelForCausalLM")
