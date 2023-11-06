@@ -13,7 +13,7 @@ from datasets import load_dataset, load_from_disk
 from datasets.config import HF_DATASETS_CACHE, HF_DATASETS_OFFLINE
 from transformers import AutoConfig, AutoProcessor, HfArgumentParser, Trainer, TrainingArguments
 
-from gia.eval.rl.envs.core import TASK_NAME_TO_ENV_ID
+from gia2.eval.rl.core import TASK_NAME_TO_ENV_ID
 from gia2.modeling_gia2 import Gia2Model
 from gia2.utils import mix_iterable_datasets
 
