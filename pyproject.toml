@@ -9,4 +9,4 @@ line-length = 119
 
 [tool.ruff.isort]
 lines-after-imports = 2
-known-first-party = ["gia"]
+known-first-party = ["gia2", "gato"]

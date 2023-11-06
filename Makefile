@@ -1,7 +1,7 @@
 .PHONY: quality style test
 
 # Define directories variable
-DIRS = data examples gia2 scripts tests
+DIRS = data examples gato gia2 scripts tests
 
 # Check that source code meets quality standards
 quality:

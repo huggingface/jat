@@ -1,0 +1,65 @@
+#!/usr/bin/env python3
+"""Train a GIA model on the GIA dataset"""
+
+
+from datasets import concatenate_datasets
+from torch.optim import AdamW
+from transformers import AutoConfig, AutoModel, Trainer
+
+from gato.config import Arguments
+from gato.datasets import GatoDataCollator, load_and_process_dataset
+from gato.eval.callback import EvaluateCheckpointCallback
+from gato.eval.utils import is_slurm_available
+from gato.processing import GatoProcessor
+from gato.train.scheduler import get_cosine_schedule_with_linear_warmup
+
+
+def main():
+    args = Arguments.parse_args()
+
+    config = AutoConfig.from_pretrained(
+        args.config_name or args.model_name_or_path,
+        cache_dir=args.cache_dir,
+        revision=args.model_revision,
+        use_auth_token=True if args.use_auth_token else None,
+    )
+    model = AutoModel.from_config(config=config)
+    processor = GatoProcessor.from_pretrained(
+        args.config_name or args.model_name_or_path,
+        cache_dir=args.cache_dir,
+        revision=args.model_revision,
+        use_auth_token=True if args.use_auth_token else None,
+    )
+
+    # Load, prompt and process the datasets
+    train_datasets = load_and_process_dataset(args, args.train_split, processor)
+    train_dataset = concatenate_datasets(list(train_datasets.values()))
+    test_datasets = load_and_process_dataset(args, args.test_split, processor)
+    if args.max_eval_samples is not None:
+        test_datasets = {
+            task_name: dataset.select(range(args.max_eval_samples)) for task_name, dataset in test_datasets.items()
+        }
+
+    # Load the trainer
+    if args.lr_scheduler_type == "cosine_with_linear_warmup":
+        optimizer = AdamW(model.parameters(), lr=args.learning_rate, betas=(0.9, 0.95), eps=args.adam_epsilon)
+        scheduler = get_cosine_schedule_with_linear_warmup(
+            optimizer, num_warmup_steps=15_000, num_decay_steps=1_000_000, final_value=0.1
+        )
+        optimizers = (optimizer, scheduler)
+    else:
+        optimizers = (None, None)
+    trainer = Trainer(
+        model,
+        args,
+        data_collator=GatoDataCollator(),
+        train_dataset=train_dataset,
+        eval_dataset=test_datasets,
+        callbacks=[EvaluateCheckpointCallback] if args.auto_eval and is_slurm_available() else [],
+        optimizers=optimizers,
+    )
+    trainer.train()
+
+
+if __name__ == "__main__":
+    main()
