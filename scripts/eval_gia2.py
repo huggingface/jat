@@ -13,8 +13,7 @@ import torch
 from tqdm import tqdm
 from transformers import HfArgumentParser
 
-from gia.eval.rl import make
-from gia.eval.rl.envs.core import TASK_NAME_TO_ENV_ID
+from gia2.eval.rl import TASK_NAME_TO_ENV_ID, make
 from gia2.modeling_gia2 import Gia2Model
 from gia2.processing_gia2 import Gia2Processor
 from gia2.utils import push_to_hub, save_video_grid, suppress_stdout
@@ -100,7 +99,7 @@ def eval_rl(model, processor, task, eval_args):
     env.close()
 
     # Get the mean and std of the expert and random scores
-    with open("gia/eval/rl/scores_dict.json", "r") as file:
+    with open("gia2/eval/rl/scores_dict.json", "r") as file:
         scores_dict = json.load(file)
 
     expert_mean = scores_dict[task]["expert"]["mean"]

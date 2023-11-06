@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from gia.eval.rl import make
+from gia2.eval.rl import make
 
 
 OBS_KEYS = {"discrete_observations", "continuous_observations", "image_observations", "text_observations"}

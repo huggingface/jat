@@ -21,7 +21,7 @@ from sample_factory.utils.typing import Config
 from sample_factory.utils.utils import log
 from sf_examples.mujoco.train_mujoco import parse_mujoco_cfg, register_mujoco_components
 
-from gia.datasets.to_hub import add_dataset_to_hub
+from data.to_hub import add_dataset_to_hub
 
 
 def generate_dataset_card(
