@@ -203,6 +203,7 @@ def make_atari(task_name: str, episodic_life: bool = True, clip_reward: bool = T
     if task_name == "atari-montezumarevenge":
         kwargs["max_episode_steps"] = 18_000
     env = gym.make(TASK_NAME_TO_ENV_ID[task_name], **kwargs)
+    env.metadata["render_fps"] = 30
     env = gym.wrappers.RecordEpisodeStatistics(env)
     env = NoopResetEnv(env, noop_max=30)
     env = MaxAndSkipEnv(env, skip=4)

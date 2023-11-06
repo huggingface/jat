@@ -1,9 +1,9 @@
-import time
-from collections import deque
-
+import datasets
 import numpy as np
 import torch
+from datasets import Dataset, concatenate_datasets
 from huggingface_hub import HfApi, upload_folder
+from PIL import Image
 from sample_factory.algo.learning.learner import Learner
 from sample_factory.algo.sampling.batched_sampling import preprocess_actions
 from sample_factory.algo.utils.action_distributions import argmax_actions
@@ -12,15 +12,13 @@ from sample_factory.algo.utils.make_env import make_env_func_batched
 from sample_factory.algo.utils.rl_utils import make_dones, prepare_and_normalize_obs
 from sample_factory.algo.utils.tensor_utils import unsqueeze_tensor
 from sample_factory.cfg.arguments import load_from_checkpoint
-from sample_factory.enjoy import render_frame, visualize_policy_inputs
+from sample_factory.enjoy import visualize_policy_inputs
 from sample_factory.model.actor_critic import create_actor_critic
 from sample_factory.model.model_utils import get_rnn_size
 from sample_factory.utils.attr_dict import AttrDict
 from sample_factory.utils.typing import Config
 from sample_factory.utils.utils import log
 from sf_examples.envpool.atari.train_envpool_atari import parse_atari_args, register_atari_components
-
-from gia.datasets.to_hub import add_dataset_to_hub
 
 
 def push_to_hf(dir_path: str, repo_name: str):
@@ -33,7 +31,6 @@ def push_to_hf(dir_path: str, repo_name: str):
 
 # most of this function is redundant as it is copied from sample.enjoy.enjoy
 def create_atari_dataset(cfg: Config):
-    verbose = False
 
     cfg = load_from_checkpoint(cfg)
 
@@ -75,37 +72,21 @@ def create_atari_dataset(cfg: Config):
     checkpoint_dict = Learner.load_checkpoint(checkpoints, device)
     actor_critic.load_state_dict(checkpoint_dict["model"])
 
-    episode_rewards = [deque([], maxlen=100) for _ in range(env.num_agents)]
-    true_objectives = [deque([], maxlen=100) for _ in range(env.num_agents)]
     num_frames = 0
-
-    last_render_start = time.time()
-
-    def max_frames_reached(frames):
-        return cfg.max_num_frames is not None and frames > cfg.max_num_frames
-
-    reward_list = []
 
     obs, infos = env.reset()
     rnn_states = torch.zeros([env.num_agents, get_rnn_size(cfg)], dtype=torch.float32, device=device)
-    episode_reward = None
-    finished_episode = [False for _ in range(env.num_agents)]
 
-    video_frames = []
-    num_episodes = 0
-
-    env.action_space.n
-
-    dataset_image_observations = []
-    dataset_rewards = []
-    dataset_discrete_actions = []
+    image_observations = []
+    rewards = []
+    discrete_actions = []
     ep_image_observations = []
     ep_rewards = []
     ep_discrete_actions = []
 
     with torch.no_grad():
-        while not max_frames_reached(num_frames):
-            obs = {k: v[0] for k, v in obs.items()}
+        while num_frames < cfg.max_num_frames:
+            obs["obs"] = obs["obs"][0]
             normalized_obs = prepare_and_normalize_obs(actor_critic, obs)
 
             if not cfg.no_render:
@@ -126,103 +107,31 @@ def create_atari_dataset(cfg: Config):
 
             rnn_states = policy_outputs["new_rnn_states"]
 
-            for _ in range(render_action_repeat):  # this is 1 for all atari envs
-                last_render_start = render_frame(cfg, env, video_frames, num_episodes, last_render_start)
+            # store s in buffer
+            ep_image_observations.append(Image.fromarray(np.transpose(obs["obs"][0].cpu().numpy(), (1, 2, 0))))
 
-                # store s in buffer
-                if num_frames < cfg.max_num_frames:
-                    ep_image_observations.append(obs["obs"].cpu().numpy())
+            obs, rew, terminated, truncated, infos = env.step([actions])
 
-                obs, rew, terminated, truncated, infos = env.step([actions])
+            done = make_dones(terminated, truncated).item()
 
-                dones = make_dones(terminated, truncated)
+            # store a,r, d in buffer
+            ep_rewards.append(rew.item())
+            ep_discrete_actions.append(actions.item())
 
-                # store a,r, d in buffer
-                if num_frames < cfg.max_num_frames:
-                    ep_rewards.append(rew.item())
-                    ep_discrete_actions.append(actions)
+            num_frames += 1
 
-                infos = [{} for _ in range(env_info.num_agents)] if infos is None else infos
+            if done:  # fictious done
+                rnn_states[0] = torch.zeros([get_rnn_size(cfg)], dtype=torch.float32, device=device)
 
-                if episode_reward is None:
-                    episode_reward = rew.float().clone()
-                else:
-                    episode_reward += rew.float()
-
-                num_frames += 1
-
-                dones = dones.cpu().numpy()
-                for agent_i, done_flag in enumerate(dones):
-                    if done_flag:
-                        finished_episode[agent_i] = True
-                        rew = episode_reward[agent_i].item()
-                        episode_rewards[agent_i].append(rew)
-
-                        true_objective = rew
-                        if isinstance(infos, (list, tuple)):
-                            true_objective = infos[agent_i].get("true_objective", rew)
-                        true_objectives[agent_i].append(true_objective)
-
-                        if verbose:
-                            log.info(
-                                "Episode finished for agent %d at %d frames. Reward: %.3f, true_objective: %.3f",
-                                agent_i,
-                                num_frames,
-                                episode_reward[agent_i],
-                                true_objectives[agent_i][-1],
-                            )
-                        rnn_states[agent_i] = torch.zeros([get_rnn_size(cfg)], dtype=torch.float32, device=device)
-                        episode_reward[agent_i] = 0
-
-                        if cfg.use_record_episode_statistics:
-                            # we want the scores from the full episode not a single agent death
-                            # (due to EpisodicLifeEnv wrapper)
-                            if "episode" in infos[agent_i].keys():
-                                num_episodes += 1
-                                reward_list.append(infos[agent_i]["episode"]["r"])
-                        else:
-                            num_episodes += 1
-                            reward_list.append(true_objective)
-
-                # if episode terminated synchronously for all agents, pause a bit before starting a new one
-                if all(dones):
-                    render_frame(cfg, env, video_frames, num_episodes, last_render_start)
-                    time.sleep(0.05)
-
-                if all(finished_episode):
-                    dataset_image_observations.append(np.squeeze(np.array(ep_image_observations), axis=1))
-                    dataset_discrete_actions.append(np.squeeze(np.array(ep_discrete_actions).astype(np.int64), axis=1))
-                    dataset_rewards.append(np.array(ep_rewards).astype(np.float32))
+                if infos[0]["terminated"].item():
+                    image_observations.append(ep_image_observations)
+                    discrete_actions.append(np.array(ep_discrete_actions).astype(np.int64))
+                    rewards.append(np.array(ep_rewards).astype(np.float32))
                     ep_image_observations = []
                     ep_discrete_actions = []
                     ep_rewards = []
 
-                    finished_episode = [False] * env.num_agents
-                    avg_episode_rewards_str, avg_true_objective_str = "", ""
-                    for agent_i in range(env.num_agents):
-                        avg_rew = np.mean(episode_rewards[agent_i])
-                        avg_true_obj = np.mean(true_objectives[agent_i])
-
-                        if not np.isnan(avg_rew):
-                            if avg_episode_rewards_str:
-                                avg_episode_rewards_str += ", "
-                            avg_episode_rewards_str += f"#{agent_i}: {avg_rew:.3f}"
-                        if not np.isnan(avg_true_obj):
-                            if avg_true_objective_str:
-                                avg_true_objective_str += ", "
-                            avg_true_objective_str += f"#{agent_i}: {avg_true_obj:.3f}"
-
-                    log.info(
-                        "Avg episode rewards: %s, true rewards: %s", avg_episode_rewards_str, avg_true_objective_str
-                    )
-                    log.info(
-                        "Avg episode reward: %.3f, avg true_objective: %.3f",
-                        np.mean([np.mean(episode_rewards[i]) for i in range(env.num_agents)]),
-                        np.mean([np.mean(true_objectives[i]) for i in range(env.num_agents)]),
-                    )
-
-            if num_episodes >= cfg.max_num_episodes:
-                break
+                    log.info(f"Episode rewards: {np.sum(rewards[-1]):.3f}")
 
     env.close()
 
@@ -232,13 +141,30 @@ def create_atari_dataset(cfg: Config):
     task = "kungfumaster" if task == "kongfumaster" else task
     task = "montezumarevenge" if task == "montezuma" else task
     task = "privateeye" if task == "privateye" else task
-    add_dataset_to_hub(
-        "atari",
-        task,
-        image_observations=dataset_image_observations,
-        discrete_actions=dataset_discrete_actions,
-        rewards=dataset_rewards,
-        push_to_hub=cfg.push_to_hub,
+    d = {
+        "image_observations": image_observations,
+        "discrete_actions": discrete_actions,
+        "rewards": rewards,
+    }
+    features = datasets.Features(
+        {
+            "image_observations": datasets.Sequence(datasets.Image()),
+            "discrete_actions": datasets.Sequence(datasets.Value("int64")),
+            "rewards": datasets.Sequence(datasets.Value("float32")),
+        }
+    )
+
+    ds = [
+        Dataset.from_dict({k: [v[idx]] for k, v in d.items()}, features=features)
+        for idx in range(len(d["image_observations"]))
+    ]
+    dataset = concatenate_datasets(ds)
+    dataset = dataset.train_test_split(test_size=0.1, writer_batch_size=1)
+    HfApi().create_branch("gia-project/gia-dataset-parquet", branch="new_breakout", exist_ok=True, repo_type="dataset")
+    dataset.push_to_hub(
+        "gia-project/gia-dataset-parquet",
+        config_name=f"atari-{task}",
+        branch="new_breakout",
     )
 
 
