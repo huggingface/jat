@@ -1,8 +1,8 @@
 import random
 
 import pytest
-from datasets import Dataset
 
+from datasets import Dataset
 from gato.datasets.core import Prompter
 
 
