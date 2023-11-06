@@ -122,7 +122,7 @@ _BASE_URL = "https://huggingface.co/datasets/gia-project/gia-dataset/resolve/my_
 ```python
 from datasets import load_dataset
 
-load_dataset("gia-project/gia-dataset-parquet", "my_task", revision="my_branch")
+load_dataset("gia-project/gia-dataset", "my_task", revision="my_branch")
 ```
 
 

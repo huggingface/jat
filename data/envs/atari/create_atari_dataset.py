@@ -160,9 +160,9 @@ def create_atari_dataset(cfg: Config):
     ]
     dataset = concatenate_datasets(ds)
     dataset = dataset.train_test_split(test_size=0.1, writer_batch_size=1)
-    HfApi().create_branch("gia-project/gia-dataset-parquet", branch="new_breakout", exist_ok=True, repo_type="dataset")
+    HfApi().create_branch("gia-project/gia-dataset", branch="new_breakout", exist_ok=True, repo_type="dataset")
     dataset.push_to_hub(
-        "gia-project/gia-dataset-parquet",
+        "gia-project/gia-dataset",
         config_name=f"atari-{task}",
         branch="new_breakout",
     )

@@ -3,7 +3,7 @@ from datasets import load_dataset
 
 
 # Load the dataset
-dataset = load_dataset("gia-project/gia-dataset-parquet", "mujoco-ant", split="train")
+dataset = load_dataset("gia-project/gia-dataset", "mujoco-ant", split="train")
 
 print(
     f"""
