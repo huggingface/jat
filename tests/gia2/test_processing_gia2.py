@@ -21,7 +21,7 @@ def test_unbatched_text_encoding(processor):
     text = "The quick brown fox jumps over the lazy dog"
     encoding = processor(text=text, return_tensors="pt")
     assert "input_ids" in encoding
-    assert encoding["input_ids"].shape == torch.Size([1, 11])
+    assert encoding["input_ids"].shape == torch.Size([1, 9])
 
 
 def test_unbatched_text_encoding_pad(processor):
@@ -31,8 +31,8 @@ def test_unbatched_text_encoding_pad(processor):
     assert "attention_mask" in encoding
     assert encoding["input_ids"].shape == torch.Size([1, 16])
     assert encoding["attention_mask"].shape == torch.Size([1, 16])
-    assert torch.all(encoding["attention_mask"][:, :11] == 1)
-    assert torch.all(encoding["attention_mask"][:, 11:] == 0)
+    assert torch.all(encoding["attention_mask"][:, :9] == 1)
+    assert torch.all(encoding["attention_mask"][:, 9:] == 0)
 
 
 def test_unbatched_text_encoding_truncate(processor):
@@ -44,12 +44,12 @@ def test_unbatched_text_encoding_truncate(processor):
 
 def test_unbatched_text_encoding_truncate_preserve(processor):
     text = "The quick brown fox jumps over the lazy dog"
-    encoding = processor(text=text, return_tensors="pt", truncation="preserve", max_length=8, padding=True)
+    encoding = processor(text=text, return_tensors="pt", truncation="preserve", max_length=6, padding=True)
     assert "input_ids" in encoding
     assert "attention_mask" in encoding
-    assert encoding["input_ids"].shape == torch.Size([2, 8])
-    assert encoding["attention_mask"].shape == torch.Size([2, 8])
-    assert torch.all(encoding["attention_mask"] == torch.tensor([[1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 0, 0, 0, 0, 0]]))
+    assert encoding["input_ids"].shape == torch.Size([2, 6])
+    assert encoding["attention_mask"].shape == torch.Size([2, 6])
+    assert torch.all(encoding["attention_mask"] == torch.tensor([[1, 1, 1, 1, 1, 1], [1, 1, 1, 0, 0, 0]]))
 
 
 def test_image_encoding(processor):
@@ -72,25 +72,25 @@ def test_text_and_image_encoding(processor):
     encoding = processor(text=text, images=image, return_tensors="pt")
     assert "input_ids" in encoding
     assert "pixel_values" in encoding
-    assert encoding["input_ids"].shape == torch.Size([1, 11])
+    assert encoding["input_ids"].shape == torch.Size([1, 9])
     assert encoding["pixel_values"].shape == torch.Size([1, 3, 224, 224])
 
 
 def test_batch_decode(processor):
     texts = ["The quick brown fox", "jumps over the lazy dog"]
-    encoding = processor(text=texts, padding=True, return_tensors="pt")
-    decoded_texts = processor.batch_decode(encoding["input_ids"], skip_special_tokens=True)
+    encoding = processor(text=texts)
+    decoded_texts = processor.batch_decode(encoding["input_ids"])
     assert isinstance(decoded_texts, list)
     assert len(decoded_texts) == 2
-    assert decoded_texts[0] == "the quick brown fox"
+    assert decoded_texts[0] == "The quick brown fox"
     assert decoded_texts[1] == "jumps over the lazy dog"
 
 
 def test_decode(processor):
     text = "The quick brown fox jumps over the lazy dog"
-    encoding = processor.tokenizer(text, return_tensors="pt")
-    decoded_text = processor.decode(encoding["input_ids"][0], skip_special_tokens=True)
-    assert decoded_text == text.lower()
+    encoding = processor.tokenizer(text)
+    decoded_text = processor.decode(encoding["input_ids"])
+    assert decoded_text == text
 
 
 def test_continuous_observations_encoding(processor):
