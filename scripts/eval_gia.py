@@ -99,7 +99,7 @@ def eval_rl(model, processor, task, eval_args):
     env.close()
 
     # Get the mean and std of the expert and random scores
-    with open("gia2/eval/rl/scores_dict.json", "r") as file:
+    with open("gia/eval/rl/scores_dict.json", "r") as file:
         scores_dict = json.load(file)
 
     expert_mean = scores_dict[task]["expert"]["mean"]

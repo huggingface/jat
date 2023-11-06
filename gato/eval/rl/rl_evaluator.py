@@ -7,7 +7,7 @@ from gato import GatoModel
 from gato.eval.evaluator import Evaluator
 from gato.eval.rl.gato_agent import GatoAgent
 from gato.processing import GatoProcessor
-from gia2.eval.rl import make
+from gia.eval.rl import make
 
 
 class RLEvaluator(Evaluator):

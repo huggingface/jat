@@ -5,7 +5,7 @@ import torch
 from gato import GatoConfig, GatoModel
 from gato.eval.rl.gato_agent import GatoAgent
 from gato.processing import GatoProcessor
-from gia2.eval.rl import make
+from gia.eval.rl import make
 
 
 @pytest.mark.parametrize("task_name", ["atari-alien", "babyai-action-obj-door", "metaworld-assembly", "mujoco-ant"])

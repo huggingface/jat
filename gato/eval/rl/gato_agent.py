@@ -9,7 +9,7 @@ from torch import Tensor
 from gato.datasets import GatoDataCollator, Prompter
 from gato.model.gato_model import GatoModel
 from gato.processing import GatoProcessor
-from gia2.eval.rl import TASK_NAME_TO_ENV_ID, make
+from gia.eval.rl import TASK_NAME_TO_ENV_ID, make
 
 
 class GatoAgent:
