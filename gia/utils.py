@@ -232,7 +232,7 @@ def generate_rl_eval_results(scores_dict: Dict[str, List[float]]) -> List[EvalRe
     for task_name, scores in scores_dict.items():
         mean_reward = np.mean(scores)
         std_reward = np.std(scores)
-        with open("gia2/eval/rl/scores_dict.json", "r") as file:
+        with open("gia/eval/rl/scores_dict.json", "r") as file:
             scores_dict = json.load(file)
 
         expert_score = scores_dict[task_name]["expert"]["mean"]
@@ -282,7 +282,7 @@ def generate_model_card(model_name: str, scores_dict: Optional[Dict[str, List[fl
         card_data,
         template_path="templates/model_card.md",
         model_name=model_name,
-        model_id="Gia2",
+        model_id="Gia",
         tasks=[PRETTY_TASK_NAMES[task_name] for task_name in scores_dict.keys()] if scores_dict is not None else [],
     )
     return card

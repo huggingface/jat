@@ -171,7 +171,7 @@ ENV_NAMES = [
     "mujoco-walker",
 ]
 
-FILENAME = "gia2/eval/rl/scores_dict.json"
+FILENAME = "gia/eval/rl/scores_dict.json"
 
 for env_name in tqdm(ENV_NAMES):
     tqdm.write(f"Downloading expert scores for {env_name}")
