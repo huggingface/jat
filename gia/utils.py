@@ -275,7 +275,7 @@ def generate_model_card(model_name: str, scores_dict: Optional[Dict[str, List[fl
         tags=tags,
         eval_results=generate_rl_eval_results(scores_dict) if scores_dict is not None else None,
         model_name=model_name,
-        datasets="gia-project/gia-dataset-parquet",
+        datasets="gia-project/gia-dataset",
         pipeline_tag="reinforcement-learning",
     )
     card = ModelCard.from_template(

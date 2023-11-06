@@ -122,24 +122,24 @@ def main():
     dataset_dict = {}
     if HF_DATASETS_OFFLINE:
         for task in tasks:
-            if not os.path.exists(f"{HF_DATASETS_CACHE}/gia-project/gia-dataset-parquet/{task}"):
+            if not os.path.exists(f"{HF_DATASETS_CACHE}/gia-project/gia-dataset/{task}"):
                 raise ValueError(
-                    f"""Dataset {task} not found in {HF_DATASETS_CACHE}/gia-project/gia-dataset-parquet/
+                    f"""Dataset {task} not found in {HF_DATASETS_CACHE}/gia-project/gia-dataset/
 Make sure to download and save it first with
 ```
 from datasets import load_dataset
-dataset = load_dataset('gia-project/gia-dataset-parquet', '{task}')
-dataset.save_to_disk('{HF_DATASETS_CACHE}/gia-project/gia-dataset-parquet/{task}')
+dataset = load_dataset('gia-project/gia-dataset', '{task}')
+dataset.save_to_disk('{HF_DATASETS_CACHE}/gia-project/gia-dataset/{task}')
 ```"""
                 )
-            dataset = load_from_disk(f"{HF_DATASETS_CACHE}/gia-project/gia-dataset-parquet/{task}")
+            dataset = load_from_disk(f"{HF_DATASETS_CACHE}/gia-project/gia-dataset/{task}")
             dataset_dict[task] = {s: d.to_iterable_dataset() for s, d in dataset.items()}
     else:
         for task in tasks:
             if task == "oscar":
                 dataset_dict[task] = load_dataset("ClementRomac/cleaned_deduplicated_oscar", streaming=True)
             else:
-                dataset_dict[task] = load_dataset("gia-project/gia-dataset-parquet", task, streaming=True)
+                dataset_dict[task] = load_dataset("gia-project/gia-dataset", task, streaming=True)
 
     # Preprocess the dataset
     for task in dataset_dict.keys():
