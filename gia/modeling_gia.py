@@ -690,12 +690,12 @@ class GiaModel(GPTNeoPreTrainedModel):
     def get_next_action(
         self,
         processor: GiaProcessor,
-        continuous_observations: Optional[List[List[float]]] = None,
-        discrete_observations: Optional[List[List[int]]] = None,
-        text_observations: Optional[List[str]] = None,
-        image_observations: Optional[List[np.ndarray]] = None,
+        continuous_observations: Optional[List[float]] = None,
+        discrete_observations: Optional[List[int]] = None,
+        text_observations: Optional[str] = None,
+        image_observations: Optional[np.ndarray] = None,
         action_space: Union[spaces.Box, spaces.Discrete] = None,
-        rewards: Optional[List[float]] = None,
+        rewards: Optional[float] = None,
         deterministic: bool = False,
     ):
         # Get the maximum sequence length
@@ -708,14 +708,13 @@ class GiaModel(GPTNeoPreTrainedModel):
         continuous_observations = to_list(continuous_observations)
         discrete_observations = to_list(discrete_observations)
 
-        # Add a fake action and reward to the end of the sequence
+        # Add a fake action to the end of the sequence
         if isinstance(action_space, spaces.Box):
             fake_continuous_actions = [0.0 for _ in range(action_space.shape[0])]
             fake_discrete_actions = None
         elif isinstance(action_space, spaces.Discrete):
             fake_continuous_actions = None
             fake_discrete_actions = 0
-        fake_rewards = 0.0
 
         continuous_observations = [continuous_observations] if continuous_observations is not None else None
         discrete_observations = [discrete_observations] if discrete_observations is not None else None
@@ -723,8 +722,9 @@ class GiaModel(GPTNeoPreTrainedModel):
         image_observations = [image_observations] if image_observations is not None else None
         continuous_actions = [fake_continuous_actions] if fake_continuous_actions is not None else None
         discrete_actions = [fake_discrete_actions] if fake_discrete_actions is not None else None
-        rewards = [fake_rewards]
+
         if self._last_key_values is not None:
+            assert rewards is not None  # rewards must be provided, except for the first step
             # We concatenate the last observation with the current one
             continuous_observations = (
                 [self.last_continuous_observation] + continuous_observations
@@ -744,7 +744,10 @@ class GiaModel(GPTNeoPreTrainedModel):
                 [self.last_continuous_action] + continuous_actions if continuous_actions is not None else None
             )
             discrete_actions = [self.last_discrete_action] + discrete_actions if discrete_actions is not None else None
-            rewards = [self.last_reward] + rewards
+            rewards = [self.last_reward] + [rewards]
+        else:
+            assert rewards is None  # rewards must not be provided for the first step
+            rewards = [0.0]
 
         # Store the last observation
         self.last_continuous_observation = continuous_observations[-1] if continuous_observations is not None else None

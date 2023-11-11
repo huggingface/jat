@@ -311,7 +311,7 @@ class GiaProcessor(ProcessorMixin):
             encoding["discrete_actions"] = copy.deepcopy(discrete_actions)
 
         if rewards is not None:
-            encoding["rewards"] = copy.deepcopy(rewards)
+            encoding["rewards"] = [[float(r) for r in ep] for ep in rewards]
 
         # Handle image+text case, need to reduce the max_len as the image and text will be concatenated
         if text is not None and images is not None:
