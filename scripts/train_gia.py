@@ -147,6 +147,15 @@ dataset.save_to_disk('{HF_DATASETS_CACHE}/gia-project/gia-dataset/{task}')
             dataset = dataset_dict[task][split]
             column_names = set(dataset.column_names)  # need to be done here because this info is lost after the map
             dataset = dataset.filter(lambda example: example.get("rewards") != [])
+
+            # Add an initial 0 reward and remove the last reward
+            def add_initial_reward(example):
+                if "rewards" in example:
+                    example["rewards"] = [0.0] + example["rewards"][:-1]
+                return example
+
+            dataset = dataset.map(add_initial_reward)
+
             # We've shown that reducing the sequence length for atari doesn't impact performance but allows for a
             # larger global batch size
             max_length = 64 if task.startswith("atari") else None

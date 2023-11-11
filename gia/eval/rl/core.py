@@ -190,12 +190,12 @@ class AtariDictObservationWrapper(ObservationWrapper):
     def __init__(self, env):
         super().__init__(env)
         self.observation_space = spaces.Dict(
-            {"image_observations": spaces.Box(low=0, high=255, shape=(84, 84, 4), dtype=np.uint8)}
+            {"image_observation": spaces.Box(low=0, high=255, shape=(84, 84, 4), dtype=np.uint8)}
         )
 
     def observation(self, observation):
-        observations = np.transpose(observation, (1, 2, 0))  # make channel last
-        return {"image_observations": observations}
+        observation = np.transpose(observation, (1, 2, 0))  # make channel last
+        return {"image_observation": observation}
 
 
 def make_atari(task_name: str, episodic_life: bool = True, clip_reward: bool = True, **kwargs) -> Env:
@@ -234,16 +234,16 @@ class BabyAIDictObservationWrapper(ObservationWrapper):
         n_direction = self.observation_space["direction"].n
         self.observation_space = spaces.Dict(
             {
-                "text_observations": env.observation_space.spaces["mission"],
-                "discrete_observations": spaces.MultiDiscrete([n_direction, *n_image]),
+                "text_observation": env.observation_space.spaces["mission"],
+                "discrete_observation": spaces.MultiDiscrete([n_direction, *n_image]),
             }
         )
 
     def observation(self, observation: Dict[str, np.ndarray]):
-        discrete_observations = np.append(observation["direction"], observation["image"].flatten())
+        discrete_observation = np.append(observation["direction"], observation["image"].flatten())
         return {
-            "text_observations": observation["mission"],
-            "discrete_observations": discrete_observations,
+            "text_observation": observation["mission"],
+            "discrete_observation": discrete_observation,
         }
 
 
@@ -263,10 +263,10 @@ def make_babyai(task_name: str, **kwargs) -> Env:
 class ContinuousObservationDictWrapper(ObservationWrapper):
     def __init__(self, env):
         super().__init__(env)
-        self.observation_space = spaces.Dict({"continuous_observations": env.observation_space})
+        self.observation_space = spaces.Dict({"continuous_observation": env.observation_space})
 
     def observation(self, observation):
-        return {"continuous_observations": observation}
+        return {"continuous_observation": observation}
 
 
 def make_metaworld(task_name: str, **kwargs) -> Env:

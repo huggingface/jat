@@ -84,7 +84,7 @@ def eval_rl(model, processor, task, eval_args):
         done = False
         model.reset_rl()  # remove KV Cache
         while not done:
-            action = model.get_next_action(processor, **observation, rewards=reward, action_space=env.action_space)
+            action = model.get_next_action(processor, **observation, reward=reward, action_space=env.action_space)
             observation, reward, termined, truncated, info = env.step(action)
             done = termined or truncated
 
