@@ -11,11 +11,9 @@ from typing import List, Optional
 import numpy as np
 import torch
 from tqdm import tqdm
-from transformers import HfArgumentParser
+from transformers import AutoModelForCausalLM, AutoProcessor, HfArgumentParser
 
 from gia.eval.rl import TASK_NAME_TO_ENV_ID, make
-from gia.modeling_gia import GiaModel
-from gia.processing_gia import GiaProcessor
 from gia.utils import push_to_hub, save_video_grid, suppress_stdout
 
 
@@ -31,6 +29,16 @@ class ModelArguments:
     cache_dir: Optional[str] = field(
         default=None,
         metadata={"help": "Where do you want to store the pretrained models downloaded from huggingface.co"},
+    )
+    trust_remote_code: bool = field(
+        default=False,
+        metadata={
+            "help": (
+                "Whether or not to allow for custom models defined on the Hub in their own modeling files. This option"
+                "should only be set to `True` for repositories you trust and in which you have read the code, as it "
+                "will execute code present on the Hub on your local machine."
+            )
+        },
     )
 
 
@@ -144,8 +152,12 @@ def main():
             tasks.extend([env_id for env_id in TASK_NAME_TO_ENV_ID.keys() if env_id.startswith(domain)])
 
     device = torch.device("cpu") if eval_args.use_cpu else get_default_device()
-    model = GiaModel.from_pretrained(model_args.model_name_or_path, cache_dir=model_args.cache_dir).to(device)
-    processor = GiaProcessor.from_pretrained(model_args.model_name_or_path, cache_dir=model_args.cache_dir)
+    model = AutoModelForCausalLM.from_pretrained(
+        model_args.model_name_or_path, cache_dir=model_args.cache_dir, trust_remote_code=model_args.trust_remote_code
+    ).to(device)
+    processor = AutoProcessor.from_pretrained(
+        model_args.model_name_or_path, cache_dir=model_args.cache_dir, trust_remote_code=model_args.trust_remote_code
+    )
 
     scores_dict = {}
     video_list = []
