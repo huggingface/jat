@@ -68,12 +68,15 @@ class DataTrainingArguments:
 
 
 LOSS_WEIGHTS = {
-    "mujoco-pendulum": 20.0,
-    "mujoco-doublependulum": 10.0,
+    **{task: 10.0 for task in TASK_NAME_TO_ENV_ID.keys() if task.startswith("mujoco")},
+    **{task: 50.0 for task in TASK_NAME_TO_ENV_ID.keys() if task.startswith("metaworld")},
+    "mujoco-pendulum": 50.0,
+    "mujoco-doublependulum": 20.0,
 }
 SAMPLE_WEIGHTS = {
-    # "oscar": 10.0,
-    # "conceptual_caption": 10.0,
+    "conceptual-captions": 10.0,
+    "oscar": 10.0,
+    "wikipedia": 10.0,
 }
 
 os.environ["WANDB_ENTITY"] = "gia-project"
