@@ -363,6 +363,8 @@ class GiaModel(GPTNeoPreTrainedModel):
         hidden_size = config.hidden_size
         max_discrete_value = config.max_discrete_value
         max_continuous_size = config.max_continuous_size
+        self.observation_loss_coef = config.observation_loss_coef
+        self.action_loss_coef = config.action_loss_coef
 
         # Transformer
         self.transformer = GPTNeoModel(config)
@@ -389,7 +391,9 @@ class GiaModel(GPTNeoPreTrainedModel):
             nn.ReLU(),
             nn.Linear(hidden_size // 50, hidden_size),  # (B, L, X, H)
             nn.ReLU(),
-            self.single_discrete_decoder,  # (B, L, X, V)
+            nn.Linear(
+                hidden_size, 8, bias=False
+            ),  # (B, L, X, 8) - 8 because in our dataset, the max possible value is 8
         )
         self.image_decoder = DualBatchReshapeWrapper(ImageDecoder(hidden_size))
 
@@ -541,29 +545,33 @@ class GiaModel(GPTNeoPreTrainedModel):
                 )
             pred_observations = pred_observations[..., :obs_size]
         elif discrete_observations is not None:  # Note: reward is not predicted
-            warnings.warn("Observations aren't predicted as it is highly memory demanding.")
-            pred_observations = None
-            observation_loss = 0.0
-            # pred_observations = self.multi_discrete_decoder(hidden_states[:, 1::2])
-            # if return_loss:
-            #     observation_loss = compute_ce_loss(
-            #         pred_observations[:, :-1],
-            #         discrete_observations[:, 1:],
-            #         observations_mask[:, 1:] if observations_mask is not None else None,
-            #         weights=loss_weight[:, 1:] if loss_weight is not None else None,
-            #     )
+            if self.observation_loss_coef == 0.0:
+                warnings.warn("observation_loss_coef is 0.0, skipping memory-intensive observations prediction.")
+                pred_observations = None
+                observation_loss = 0.0
+            else:
+                pred_observations = self.multi_discrete_decoder(hidden_states[:, 1::2])
+                if return_loss:
+                    observation_loss = compute_ce_loss(
+                        pred_observations[:, :-1],
+                        discrete_observations[:, 1:],
+                        observations_mask[:, 1:] if observations_mask is not None else None,
+                        weights=loss_weight[:, 1:] if loss_weight is not None else None,
+                    )
         elif image_observations is not None:
-            warnings.warn("Observations aren't predicted as it is highly memory demanding.")
-            pred_observations = None
-            observation_loss = 0.0
-            # pred_observations = self.image_decoder(hidden_states[:, 1::2])
-            # if return_loss:
-            #     observation_loss = compute_mse_loss(
-            #         pred_observations[:, :-1],
-            #         image_observations[:, 1:],
-            #         observations_mask[:, 1:] if observations_mask is not None else None,
-            #         weights=loss_weight[:, 1:] if loss_weight is not None else None,
-            #     )
+            if self.observation_loss_coef == 0.0:
+                warnings.warn("observation_loss_coef is 0.0, skipping memory-intensive observations prediction.")
+                pred_observations = None
+                observation_loss = 0.0
+            else:
+                pred_observations = self.image_decoder(hidden_states[:, 1::2])
+                if return_loss:
+                    observation_loss = compute_mse_loss(
+                        pred_observations[:, :-1],
+                        image_observations[:, 1:],
+                        observations_mask[:, 1:] if observations_mask is not None else None,
+                        weights=loss_weight[:, 1:] if loss_weight is not None else None,
+                    )
 
         # Actions
         actions_mask = attention_mask[:, ::2] if attention_mask is not None else None
@@ -581,7 +589,7 @@ class GiaModel(GPTNeoPreTrainedModel):
 
         # Return output
         if return_loss:
-            loss = 0.0 * observation_loss + 1.0 * action_loss
+            loss = self.observation_loss_coef * observation_loss + self.action_loss_coef * action_loss
 
         if not return_dict:
             output = (pred_observations, pred_actions) + transformer_outputs[1:]

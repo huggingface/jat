@@ -64,6 +64,10 @@ class GiaConfig(GPTNeoConfig):
             The size (resolution) of each image.
         patch_size (`int`, *optional*, defaults to 16):
             The size (resolution) of each patch.
+        observation_loss_coef (`float`, *optional*, defaults to 0.0):
+            The coefficient for the observation loss. When set to 0.0, the observation is not even predicted.
+        action_loss_coef (`float`, *optional*, defaults to 1.0):
+            The coefficient for the action loss.
     """
 
     model_type = "gia"
@@ -93,6 +97,8 @@ class GiaConfig(GPTNeoConfig):
         image_size=224,
         num_channels=3,
         patch_size=16,
+        observation_loss_coef=0.0,
+        action_loss_coef=1.0,
         **kwargs,
     ):
         super().__init__(
@@ -121,6 +127,8 @@ class GiaConfig(GPTNeoConfig):
         self.image_size = image_size
         self.num_channels = num_channels
         self.patch_size = patch_size
+        self.observation_loss_coef = observation_loss_coef
+        self.action_loss_coef = action_loss_coef
 
 
 GiaConfig.register_for_auto_class()
