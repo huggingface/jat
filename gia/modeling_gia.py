@@ -57,15 +57,15 @@ def compute_mse_loss(
 
 
 def compute_ce_loss(
-    predicted: FloatTensor, true: torch.LongTensor, mask: Optional[BoolTensor], weights: Optional[FloatTensor] = None
+    logits: FloatTensor, labels: torch.LongTensor, mask: Optional[BoolTensor], weights: Optional[FloatTensor] = None
 ) -> FloatTensor:
     """
     Compute the Cross Entropy (CE) loss between predicted logits and true class labels, considering valid timesteps.
 
     Args:
-        predicted (`FloatTensor` of shape `(batch_size, max_seq_len, num_classes)`):
+        logits (`FloatTensor` of shape `(batch_size, max_seq_len, [inner_size,] num_classes)`):
             Predicted logits at the output of the model.
-        true (`torch.LongTensor` of shape `(batch_size, max_seq_len)`):
+        labels (`torch.LongTensor` of shape `(batch_size, max_seq_len, [inner_size,])`):
             Ground truth class labels.
         mask (`BoolTensor` of shape `(batch_size, max_seq_len)`, *optional*):
             Boolean mask indicating valid timesteps.
@@ -76,21 +76,27 @@ def compute_ce_loss(
         loss (`FloatTensor` of shape `(,)`):
             CE loss between predicted logits and true class labels.
     """
-
-    # Compute element-wise CE loss
-    loss = F.cross_entropy(predicted.view(-1, predicted.size(-1)), true.view(-1), reduction="none")
-    loss = loss.view(true.size())
-
-    # Use the mask to zero out invalid entries
     if mask is not None:
-        loss = loss * mask
+        logits = logits[mask.bool()]  # (Y, X, C)
+        labels = labels[mask.bool()]  # (Y, X)
+        if weights is not None:
+            weights = weights[mask.bool()]  # (Y,)
+    else:
+        logits = logits.flatten(end_dim=2)  # (B, L, X, C) -> (B*L, X, C)
+        labels = labels.flatten(end_dim=1)  # (B, L, X) -> (B*L, X)
+        if weights is not None:
+            weights = weights.flatten(end_dim=1)  # (B, L) -> (B*L,)
 
-    # Apply weights if provided
+    loss = F.cross_entropy(logits.view(-1, logits.size(-1)), labels.view(-1), reduction="none")  # (Y*X,)
+    loss = loss.view(labels.size())  # (Y, X)
+    loss = loss.mean(-1)  # (Y,)
+
+    # Multiply the loss by the weights
     if weights is not None:
-        loss = loss * weights
+        loss = loss * weights  # (Y,)
 
-    # Sum the loss and normalize by the number of valid elements
-    loss = loss.sum() / mask.sum() if mask is not None else loss.mean()
+    # Average the loss
+    loss = loss.mean()
 
     return loss
 
@@ -259,7 +265,7 @@ class ImageDecoder(nn.Module):
         x = self.att1(x)
         x = F.leaky_relu(self.norm2(self.deconv2(x)), inplace=True)
         x = self.att2(x)
-        x = F.tanh(self.deconv3(x), inplace=True)
+        x = F.tanh(self.deconv3(x))
         return x
 
 
@@ -543,7 +549,7 @@ class GiaModel(GPTNeoPreTrainedModel):
                 )
             pred_observations = pred_observations[..., :obs_size]
         elif discrete_observations is not None:  # Note: reward is not predicted
-            if self.observation_loss_coef == 0.0:
+            if self.observation_loss_coef == 0.0 or True:  # FIXME
                 warnings.warn("observation_loss_coef is 0.0, skipping memory-intensive observations prediction.")
                 pred_observations = None
                 observation_loss = 0.0
