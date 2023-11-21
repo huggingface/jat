@@ -707,7 +707,6 @@ class GiaModel(GPTNeoPreTrainedModel):
             fake_continuous_action = [0.0 for _ in range(action_space.shape[0])]
             fake_discrete_action = None
         elif isinstance(action_space, spaces.Discrete):
-
             fake_continuous_action = None
             fake_discrete_action = 0
 
