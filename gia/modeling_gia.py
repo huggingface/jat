@@ -707,6 +707,7 @@ class GiaModel(GPTNeoPreTrainedModel):
             fake_continuous_action = [0.0 for _ in range(action_space.shape[0])]
             fake_discrete_action = None
         elif isinstance(action_space, spaces.Discrete):
+
             fake_continuous_action = None
             fake_discrete_action = 0
 
@@ -739,7 +740,10 @@ class GiaModel(GPTNeoPreTrainedModel):
                 [self.last_continuous_action] + continuous_actions if continuous_actions is not None else None
             )
             discrete_actions = [self.last_discrete_action] + discrete_actions if discrete_actions is not None else None
-            rewards = [self.last_reward] + rewards
+            rewards = [self.last_reward] + [rewards]
+        else:
+            assert rewards is None  # rewards must not be provided for the first step
+            rewards = [0.0]
 
         # Store the last observation
         self.last_continuous_observation = continuous_observations[-1] if continuous_observations is not None else None
