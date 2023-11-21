@@ -434,8 +434,6 @@ class GiaModel(GPTNeoPreTrainedModel):
         # Prepare RL inputs (pad and cat rewards to observations)
         assert rewards is not None
         if continuous_observations is not None:
-            # Modify the rewards to move from [r_1, r_2, ..., r_T] to [0, r_1, r_2, ..., r_T-1]
-            rewards = torch.cat((torch.zeros_like(rewards[:, :1]), rewards[:, :-1]), dim=1)
             continuous_observations = torch.cat((continuous_observations, rewards.unsqueeze(-1)), dim=-1)
             continuous_observations = cyclic_expand_dim(continuous_observations, self.config.max_continuous_size)
         if continuous_actions is not None:
@@ -448,8 +446,6 @@ class GiaModel(GPTNeoPreTrainedModel):
         elif discrete_observations is not None:
             batch_size, seq_len = discrete_observations.shape[:2]
             inputs_embeds_observations = self.multi_discrete_encoder(discrete_observations)
-            # Modify the rewards to move from [r_1, r_2, ..., r_T] to [0, r_1, r_2, ..., r_T-1]
-            rewards = torch.cat((torch.zeros_like(rewards[:, :1]), rewards[:, :-1]), dim=1)
             inputs_embeds_observations = torch.cat((inputs_embeds_observations, rewards.unsqueeze(-1)), dim=-1)
         elif image_observations is not None:
             batch_size, seq_len = image_observations.shape[:2]
@@ -532,9 +528,7 @@ class GiaModel(GPTNeoPreTrainedModel):
         assert rewards is not None
         observations_mask = attention_mask[:, 1::2] if attention_mask is not None else None
         if continuous_observations is not None:
-            # Modify the rewards to move from [r_1, r_2, ..., r_T] to [0, r_1, r_2, ..., r_T-1]
             obs_size = continuous_observations.shape[-1]
-            rewards = torch.cat((torch.zeros_like(rewards[:, :1]), rewards[:, :-1]), dim=1)
             continuous_observations = torch.cat((continuous_observations, rewards.unsqueeze(-1)), dim=-1)
             continuous_observations = cyclic_expand_dim(continuous_observations, self.config.max_continuous_size)
             pred_observations = self.continuous_decoder(hidden_states[:, 1::2])
@@ -690,12 +684,12 @@ class GiaModel(GPTNeoPreTrainedModel):
     def get_next_action(
         self,
         processor: GiaProcessor,
-        continuous_observations: Optional[List[float]] = None,
-        discrete_observations: Optional[List[int]] = None,
-        text_observations: Optional[str] = None,
-        image_observations: Optional[np.ndarray] = None,
+        continuous_observation: Optional[List[float]] = None,
+        discrete_observation: Optional[List[int]] = None,
+        text_observation: Optional[str] = None,
+        image_observation: Optional[np.ndarray] = None,
         action_space: Union[spaces.Box, spaces.Discrete] = None,
-        rewards: Optional[float] = None,
+        reward: Optional[float] = None,
         deterministic: bool = False,
     ):
         # Get the maximum sequence length
@@ -705,26 +699,27 @@ class GiaModel(GPTNeoPreTrainedModel):
         def to_list(x):
             return x.tolist() if isinstance(x, np.ndarray) else x
 
-        continuous_observations = to_list(continuous_observations)
-        discrete_observations = to_list(discrete_observations)
+        continuous_observation = to_list(continuous_observation)
+        discrete_observation = to_list(discrete_observation)
 
         # Add a fake action to the end of the sequence
         if isinstance(action_space, spaces.Box):
-            fake_continuous_actions = [0.0 for _ in range(action_space.shape[0])]
-            fake_discrete_actions = None
+            fake_continuous_action = [0.0 for _ in range(action_space.shape[0])]
+            fake_discrete_action = None
         elif isinstance(action_space, spaces.Discrete):
-            fake_continuous_actions = None
-            fake_discrete_actions = 0
+            fake_continuous_action = None
+            fake_discrete_action = 0
 
-        continuous_observations = [continuous_observations] if continuous_observations is not None else None
-        discrete_observations = [discrete_observations] if discrete_observations is not None else None
-        text_observations = [text_observations] if text_observations is not None else None
-        image_observations = [image_observations] if image_observations is not None else None
-        continuous_actions = [fake_continuous_actions] if fake_continuous_actions is not None else None
-        discrete_actions = [fake_discrete_actions] if fake_discrete_actions is not None else None
+        continuous_observations = [continuous_observation] if continuous_observation is not None else None
+        discrete_observations = [discrete_observation] if discrete_observation is not None else None
+        text_observations = [text_observation] if text_observation is not None else None
+        image_observations = [image_observation] if image_observation is not None else None
+        continuous_actions = [fake_continuous_action] if fake_continuous_action is not None else None
+        discrete_actions = [fake_discrete_action] if fake_discrete_action is not None else None
+        rewards = [reward] if reward is not None else [0.0]
 
         if self._last_key_values is not None:
-            assert rewards is not None  # rewards must be provided, except for the first step
+            assert reward is not None  # rewards must be provided, except for the first step
             # We concatenate the last observation with the current one
             continuous_observations = (
                 [self.last_continuous_observation] + continuous_observations
