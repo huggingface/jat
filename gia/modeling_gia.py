@@ -391,9 +391,7 @@ class GiaModel(GPTNeoPreTrainedModel):
             nn.ReLU(),
             nn.Linear(hidden_size // 50, hidden_size),  # (B, L, X, H)
             nn.ReLU(),
-            nn.Linear(
-                hidden_size, 8, bias=False
-            ),  # (B, L, X, 8) - 8 because in our dataset, the max possible value is 8
+            nn.Linear(hidden_size, 8, bias=False),  # (B, L, X, 8) - the max possible value in the dataset is 8
         )
         self.image_decoder = DualBatchReshapeWrapper(ImageDecoder(hidden_size))
 
