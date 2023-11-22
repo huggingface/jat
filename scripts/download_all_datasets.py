@@ -19,8 +19,5 @@ for task in tasks:
     print(f"Loading {task}...")
     cache_path = f"{HF_DATASETS_CACHE}/gia-project/gia-dataset/{task}"
     if not os.path.exists(cache_path):
-        if task == "oscar":
-            dataset = load_dataset("ClementRomac/cleaned_deduplicated_oscar")
-        else:
-            dataset = load_dataset("gia-project/gia-dataset", task)
+        dataset = load_dataset("gia-project/gia-dataset", task)
         dataset.save_to_disk(cache_path)
