@@ -434,15 +434,15 @@ def mix_iterable_datasets(
     def generator(
         datasets: List[IterableDataset],
         batch_size: int,
-        stopping_strategy: str = "first_exhausted",
+        stopping_strategy: str = "all_exhausted",
         weights: List[float] = None,
     ):
         assert stopping_strategy in ["first_exhausted", "all_exhausted"]
         iterators = [iter(dataset) for dataset in datasets]
         exhausted = [False] * len(datasets)  # A list to keep track of which iterators are exhausted
         weights = weights if weights is not None else [1.0] * len(datasets)
-
-        while True:
+        should_stop = False
+        while not should_stop:
             dataset_idx = random.choices(range(len(datasets)), weights=weights, k=1)[0]  # Choose a dataset randomly
             iterator = iterators[dataset_idx]
             for _ in range(batch_size):
@@ -450,16 +450,16 @@ def mix_iterable_datasets(
                     yield next(iterator)
                 except StopIteration:
                     if stopping_strategy == "first_exhausted":
-                        return
+                        should_stop = True
                     else:
                         # Mark the iterator as exhausted
                         exhausted[dataset_idx] = True
                         # Check if all iterators are exhausted
                         if all(exhausted):
-                            return
-                        # Reinitialize the exhausted iterator
-                        iterator = iterators[dataset_idx] = iter(datasets[dataset_idx])
-                        yield next(iterators[dataset_idx])
+                            should_stop = True
+                    # Reinitialize the exhausted iterator
+                    iterator = iterators[dataset_idx] = iter(datasets[dataset_idx])
+                    yield next(iterators[dataset_idx])
 
     gen_kwargs = {
         "datasets": datasets,
