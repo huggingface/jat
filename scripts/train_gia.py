@@ -139,10 +139,7 @@ dataset.save_to_disk('{HF_DATASETS_CACHE}/gia-project/gia-dataset/{task}')
             dataset_dict[task] = {s: d.to_iterable_dataset() for s, d in dataset.items()}
     else:
         for task in tasks:
-            if task == "oscar":
-                dataset_dict[task] = load_dataset("ClementRomac/cleaned_deduplicated_oscar", streaming=True)
-            else:
-                dataset_dict[task] = load_dataset("gia-project/gia-dataset", task, streaming=True)
+            dataset_dict[task] = load_dataset("gia-project/gia-dataset", task, streaming=True)
 
     # Preprocess the dataset
     for task in dataset_dict.keys():
