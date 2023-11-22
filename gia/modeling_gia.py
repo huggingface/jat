@@ -731,7 +731,6 @@ class GiaModel(GPTNeoPreTrainedModel):
         rewards = [reward] if reward is not None else [0.0]
 
         if self._last_key_values is not None:
-            assert reward is not None  # rewards must be provided, except for the first step
             # We concatenate the last observation with the current one
             continuous_observations = (
                 [self.last_continuous_observation] + continuous_observations
@@ -751,10 +750,7 @@ class GiaModel(GPTNeoPreTrainedModel):
                 [self.last_continuous_action] + continuous_actions if continuous_actions is not None else None
             )
             discrete_actions = [self.last_discrete_action] + discrete_actions if discrete_actions is not None else None
-            rewards = [self.last_reward] + [rewards]
-        else:
-            assert rewards is None  # rewards must not be provided for the first step
-            rewards = [0.0]
+            rewards = [self.last_reward] + rewards
 
         # Store the last observation
         self.last_continuous_observation = continuous_observations[-1] if continuous_observations is not None else None
