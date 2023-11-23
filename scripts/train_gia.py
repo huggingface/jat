@@ -61,9 +61,7 @@ class DataTrainingArguments:
     """
 
     tasks: List[str] = field(default_factory=list, metadata={"help": "Tasks to train on."})
-    preprocess_num_proc: int = field(
-        default=1, metadata={"help": "Number of processes to use for preprocessing the data."}
-    )
+    preprocess_num_proc: int = field(default=1, metadata={"help": "Number of processes to use for preprocessing the data."})
     eval_num_samples: int = field(default=1000, metadata={"help": "Number of samples to use for evaluation."})
 
 
@@ -170,9 +168,12 @@ dataset.save_to_disk('{HF_DATASETS_CACHE}/gia-project/gia-dataset/{task}')
                 remove_columns={"text", "images", "text_observations"}.intersection(column_names),
                 fn_kwargs={"max_length": max_length},
             )
-            dataset = dataset.map(
-                lambda x: {"loss_weight": [LOSS_WEIGHTS.get(task, 1.0)] * len(next(iter(x.values())))}
-            )
+
+            def add_loss_weight(example, loss_weight):
+                example["loss_weight"] = [loss_weight] * len(next(iter(example.values())))
+                return example
+
+            dataset = dataset.map(add_loss_weight, fn_kwargs={"loss_weight": LOSS_WEIGHTS.get(task, 1.0)})
             dataset_dict[task][split] = dataset
 
     train_dataset = {t: d["train"] for t, d in dataset_dict.items()}
