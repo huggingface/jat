@@ -536,32 +536,40 @@ class GiaModel(GPTNeoPreTrainedModel):
         assert rewards is not None
         observations_mask = attention_mask[:, 1::2] if attention_mask is not None else None
         if continuous_observations is not None:
-            obs_size = continuous_observations.shape[-1]
-            continuous_observations = torch.cat((continuous_observations, rewards.unsqueeze(-1)), dim=-1)
-            continuous_observations = cyclic_expand_dim(continuous_observations, self.config.max_continuous_size)
-            pred_observations = self.continuous_decoder(hidden_states[:, 1::2])
-            if return_loss:
-                observation_loss = compute_mse_loss(
-                    pred_observations[:, :-1],
-                    continuous_observations[:, 1:],
-                    observations_mask[:, 1:] if observations_mask is not None else None,
-                    weights=loss_weight[:, 1:] if loss_weight is not None else None,
-                )
-            pred_observations = pred_observations[..., :obs_size]
-        elif discrete_observations is not None:  # Note: reward is not predicted
-            if self.observation_loss_coef == 0.0 or True:  # FIXME
+            if self.observation_loss_coef == 0.0:
                 warnings.warn("observation_loss_coef is 0.0, skipping memory-intensive observations prediction.")
                 pred_observations = None
                 observation_loss = 0.0
             else:
-                pred_observations = self.multi_discrete_decoder(hidden_states[:, 1::2])
+                obs_size = continuous_observations.shape[-1]
+                continuous_observations = torch.cat((continuous_observations, rewards.unsqueeze(-1)), dim=-1)
+                continuous_observations = cyclic_expand_dim(continuous_observations, self.config.max_continuous_size)
+                pred_observations = self.continuous_decoder(hidden_states[:, 1::2])
                 if return_loss:
-                    observation_loss = compute_ce_loss(
+                    observation_loss = compute_mse_loss(
                         pred_observations[:, :-1],
-                        discrete_observations[:, 1:],
+                        continuous_observations[:, 1:],
                         observations_mask[:, 1:] if observations_mask is not None else None,
                         weights=loss_weight[:, 1:] if loss_weight is not None else None,
                     )
+                pred_observations = pred_observations[..., :obs_size]
+        elif discrete_observations is not None:  # Note: reward is not predicted
+            if self.observation_loss_coef == 0.0:
+                warnings.warn("observation_loss_coef is 0.0, skipping memory-intensive observations prediction.")
+                pred_observations = None
+                observation_loss = 0.0
+            else:
+                warnings.warn("Discrete observations prediction are not supported yet.")  # way too expensive
+                pred_observations = None
+                observation_loss = 0.0
+                # pred_observations = self.multi_discrete_decoder(hidden_states[:, 1::2])
+                # if return_loss:
+                #     observation_loss = compute_ce_loss(
+                #         pred_observations[:, :-1],
+                #         discrete_observations[:, 1:],
+                #         observations_mask[:, 1:] if observations_mask is not None else None,
+                #         weights=loss_weight[:, 1:] if loss_weight is not None else None,
+                #     )
         elif image_observations is not None:
             if self.observation_loss_coef == 0.0:
                 warnings.warn("observation_loss_coef is 0.0, skipping memory-intensive observations prediction.")
