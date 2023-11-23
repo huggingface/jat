@@ -93,8 +93,6 @@ def eval_rl(model, processor, task, eval_args):
                 if "episode" not in info:
                     observation, info = env.reset()
                     done = False
-                else:
-                    print("Episode done, score:", info["episode"]["r"], sum(rewards))
 
             # Update the return
             rewards.append(reward)
@@ -159,14 +157,14 @@ def main():
         model_args.model_name_or_path, cache_dir=model_args.cache_dir, trust_remote_code=model_args.trust_remote_code
     )
 
-    scores_dict = {}
+    evaluations = {}
     video_list = []
     input_fps = []
 
     for task in tqdm(tasks, desc="Evaluation", unit="task", leave=True):
         if task in TASK_NAME_TO_ENV_ID.keys():
             scores, frames, fps = eval_rl(model, processor, task, eval_args)
-            scores_dict[task] = scores
+            evaluations[task] = scores
             # Save the video
             if eval_args.save_video:
                 video_list.append(frames)
@@ -175,9 +173,9 @@ def main():
             warnings.warn(f"Task {task} is not supported.")
 
     # Extract mean and std, and save scores dict
-    to_save = {task: {"mean": np.mean(scores), "std": np.std(scores)} for task, scores in scores_dict.items()}
-    with open(f"{model_args.model_name_or_path}/scores_dict.json", "w") as file:
-        json.dump(to_save, file)
+    eval_path = f"{model_args.model_name_or_path}/evaluations.json"
+    with open(eval_path, "w") as file:
+        json.dump(evaluations, file)
 
     # Save the video
     if eval_args.save_video:
@@ -189,7 +187,7 @@ def main():
     # Push the model to the hub
     if eval_args.push_to_hub:
         assert eval_args.repo_id is not None, "You need to specify a repo_id to push to."
-        push_to_hub(model, processor, eval_args.repo_id, scores_dict=scores_dict, replay_path=replay_path)
+        push_to_hub(model, processor, eval_args.repo_id, replay_path=replay_path, eval_path=eval_path)
 
 
 if __name__ == "__main__":
