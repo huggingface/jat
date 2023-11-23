@@ -200,20 +200,20 @@ def no_print_decorator(func):
     return wrapper
 
 
-def generate_rl_eval_results(scores_dict: Dict[str, List[float]]) -> List[EvalResult]:
+def generate_rl_eval_results(evaluations: Dict[str, List[float]]) -> List[EvalResult]:
     """
     Generate a list of EvalResult objects.
 
     Args:
-        scores_dict (`Dict[str, List[float]]`):
-            Dictionary containing the scores for each task.
+        evaluations (`Dict[str, List[float]]`):
+            Dictionary containing the evaluation results for each task.
 
     Returns:
         `List[EvalResult]`:
             A list of EvalResult objects.
     """
     eval_results = []
-    for task_name, scores in scores_dict.items():
+    for task_name, scores in evaluations.items():
         mean_reward = np.mean(scores)
         std_reward = np.std(scores)
 
@@ -229,7 +229,7 @@ def generate_rl_eval_results(scores_dict: Dict[str, List[float]]) -> List[EvalRe
             )
         )
 
-    for task_name, scores in scores_dict.items():
+    for task_name, scores in evaluations.items():
         mean_reward = np.mean(scores)
         std_reward = np.std(scores)
         with open("gia/eval/rl/scores_dict.json", "r") as file:
@@ -254,26 +254,26 @@ def generate_rl_eval_results(scores_dict: Dict[str, List[float]]) -> List[EvalRe
     return eval_results
 
 
-def generate_model_card(model_name: str, scores_dict: Optional[Dict[str, List[float]]] = None) -> ModelCard:
+def generate_model_card(model_name: str, evaluations: Optional[Dict[str, List[float]]] = None) -> ModelCard:
     """
     Generate a ModelCard from a template.
 
     Args:
         model_name (`str`):
             Model name.
-        scores_dict (`Dict[str, List[float]]`):
-            Dictionary containing the scores for each task.
+        evaluations (`Dict[str, List[float]]`):
+            Dictionary containing the evaluation results for each task.
 
     Returns:
         `ModelCard`:
             A ModelCard object.
     """
     tags = ["reinforcement-learning"]
-    if scores_dict is not None:
-        tags.extend(scores_dict.keys())
+    if evaluations is not None:
+        tags.extend(evaluations.keys())
     card_data = ModelCardData(
         tags=tags,
-        eval_results=generate_rl_eval_results(scores_dict) if scores_dict is not None else None,
+        eval_results=generate_rl_eval_results(evaluations) if evaluations is not None else None,
         model_name=model_name,
         datasets="gia-project/gia-dataset",
         pipeline_tag="reinforcement-learning",
@@ -283,7 +283,7 @@ def generate_model_card(model_name: str, scores_dict: Optional[Dict[str, List[fl
         template_path="templates/model_card.md",
         model_name=model_name,
         model_id="Gia",
-        tasks=[PRETTY_TASK_NAMES[task_name] for task_name in scores_dict.keys()] if scores_dict is not None else [],
+        tasks=[PRETTY_TASK_NAMES[task_name] for task_name in evaluations.keys()] if evaluations is not None else [],
     )
     return card
 
@@ -292,8 +292,8 @@ def push_to_hub(
     model: PreTrainedModel,
     processor: ProcessorMixin,
     repo_id: str,
-    scores_dict: Optional[Dict[str, List[float]]] = None,
     replay_path: Optional[str] = None,
+    eval_path: Optional[str] = None,
 ) -> None:
     """
     Push a model to the Hugging Face Hub.
@@ -305,18 +305,25 @@ def push_to_hub(
             Processor to push.
         repo_id (`str`):
             Repository ID to push to.
-        scores_dict (`Dict[str, List[float]]` or `None`, **optional**):
-            Dictionary containing the scores for each task.
         replay_path (`str` or `None`, **optional**):
             Path to the replay video.
+        eval_path (`str` or `None`, **optional**):
+            Path to the evaluation scores.
     """
     api = HfApi()
 
     # Create the repo
     api.create_repo(repo_id=repo_id, repo_type="model", exist_ok=True)
 
+    # Get the evaluation scores to compute the mean and std
+    if eval_path is not None:
+        with open(eval_path, "r") as file:
+            evaluations = json.load(file)
+    else:
+        evaluations = None
+
     # Create a README.md using a template
-    model_card = generate_model_card(repo_id, scores_dict)
+    model_card = generate_model_card(repo_id, evaluations)
     model_card.push_to_hub(repo_id, commit_message="Upload model card")
 
     # Push the model
@@ -332,6 +339,16 @@ def push_to_hub(
             path_in_repo="replay.mp4",
             repo_id=repo_id,
             commit_message="Upload replay",
+            repo_type="model",
+        )
+
+    # Push the evaluation scores
+    if eval_path is not None:
+        api.upload_file(
+            path_or_fileobj=eval_path,
+            path_in_repo="evaluations.json",
+            repo_id=repo_id,
+            commit_message="Upload evaluations",
             repo_type="model",
         )
 
