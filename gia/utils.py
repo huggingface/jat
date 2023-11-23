@@ -292,8 +292,8 @@ def push_to_hub(
     model: PreTrainedModel,
     processor: ProcessorMixin,
     repo_id: str,
-    scores_dict: Optional[Dict[str, List[float]]] = None,
     replay_path: Optional[str] = None,
+    eval_path: Optional[str] = None,
 ) -> None:
     """
     Push a model to the Hugging Face Hub.
@@ -305,15 +305,23 @@ def push_to_hub(
             Processor to push.
         repo_id (`str`):
             Repository ID to push to.
-        scores_dict (`Dict[str, List[float]]` or `None`, **optional**):
-            Dictionary containing the scores for each task.
         replay_path (`str` or `None`, **optional**):
             Path to the replay video.
+        eval_path (`str` or `None`, **optional**):
+            Path to the evaluation scores.
     """
     api = HfApi()
 
     # Create the repo
     api.create_repo(repo_id=repo_id, repo_type="model", exist_ok=True)
+
+    # Get the evaluation scores to compute the mean and std
+    if eval_path is not None:
+        with open(eval_path, "r") as file:
+            scores_dict = json.load(file)
+        # scores_dict = {t: {"mean": np.mean(s), "std": np.std(s)} for t, s in evaluations.items()}
+    else:
+        scores_dict = None
 
     # Create a README.md using a template
     model_card = generate_model_card(repo_id, scores_dict)
@@ -332,6 +340,16 @@ def push_to_hub(
             path_in_repo="replay.mp4",
             repo_id=repo_id,
             commit_message="Upload replay",
+            repo_type="model",
+        )
+
+    # Push the evaluation scores
+    if eval_path is not None:
+        api.upload_file(
+            path_or_fileobj=eval_path,
+            path_in_repo="evaluations.json",
+            repo_id=repo_id,
+            commit_message="Upload evaluations",
             repo_type="model",
         )
 
