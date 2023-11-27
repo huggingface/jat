@@ -57,15 +57,15 @@ def compute_mse_loss(
 
 
 def compute_ce_loss(
-    predicted: FloatTensor, true: torch.LongTensor, mask: Optional[BoolTensor], weights: Optional[FloatTensor] = None
+    logits: FloatTensor, labels: torch.LongTensor, mask: Optional[BoolTensor], weights: Optional[FloatTensor] = None
 ) -> FloatTensor:
     """
     Compute the Cross Entropy (CE) loss between predicted logits and true class labels, considering valid timesteps.
 
     Args:
-        predicted (`FloatTensor` of shape `(batch_size, max_seq_len, num_classes)`):
+        logits (`FloatTensor` of shape `(batch_size, max_seq_len, [inner_size,] num_classes)`):
             Predicted logits at the output of the model.
-        true (`torch.LongTensor` of shape `(batch_size, max_seq_len)`):
+        labels (`torch.LongTensor` of shape `(batch_size, max_seq_len, [inner_size,])`):
             Ground truth class labels.
         mask (`BoolTensor` of shape `(batch_size, max_seq_len)`, *optional*):
             Boolean mask indicating valid timesteps.
@@ -76,21 +76,27 @@ def compute_ce_loss(
         loss (`FloatTensor` of shape `(,)`):
             CE loss between predicted logits and true class labels.
     """
-
-    # Compute element-wise CE loss
-    loss = F.cross_entropy(predicted.view(-1, predicted.size(-1)), true.view(-1), reduction="none")
-    loss = loss.view(true.size())
-
-    # Use the mask to zero out invalid entries
     if mask is not None:
-        loss = loss * mask
+        logits = logits[mask.bool()]  # (Y, X, C)
+        labels = labels[mask.bool()]  # (Y, X)
+        if weights is not None:
+            weights = weights[mask.bool()]  # (Y,)
+    else:
+        logits = logits.flatten(end_dim=2)  # (B, L, X, C) -> (B*L, X, C)
+        labels = labels.flatten(end_dim=1)  # (B, L, X) -> (B*L, X)
+        if weights is not None:
+            weights = weights.flatten(end_dim=1)  # (B, L) -> (B*L,)
 
-    # Apply weights if provided
+    loss = F.cross_entropy(logits.view(-1, logits.size(-1)), labels.view(-1), reduction="none")  # (Y*X,)
+    loss = loss.view(labels.size())  # (Y, X)
+    loss = loss.mean(-1)  # (Y,)
+
+    # Multiply the loss by the weights
     if weights is not None:
-        loss = loss * weights
+        loss = loss * weights  # (Y,)
 
-    # Sum the loss and normalize by the number of valid elements
-    loss = loss.sum() / mask.sum() if mask is not None else loss.mean()
+    # Average the loss
+    loss = loss.mean()
 
     return loss
 
@@ -259,7 +265,7 @@ class ImageDecoder(nn.Module):
         x = self.att1(x)
         x = F.leaky_relu(self.norm2(self.deconv2(x)), inplace=True)
         x = self.att2(x)
-        x = F.tanh(self.deconv3(x), inplace=True)
+        x = F.tanh(self.deconv3(x))
         return x
 
 
@@ -363,6 +369,8 @@ class GiaModel(GPTNeoPreTrainedModel):
         hidden_size = config.hidden_size
         max_discrete_value = config.max_discrete_value
         max_continuous_size = config.max_continuous_size
+        self.observation_loss_coef = config.observation_loss_coef
+        self.action_loss_coef = config.action_loss_coef
 
         # Transformer
         self.transformer = GPTNeoModel(config)
@@ -389,7 +397,7 @@ class GiaModel(GPTNeoPreTrainedModel):
             nn.ReLU(),
             nn.Linear(hidden_size // 50, hidden_size),  # (B, L, X, H)
             nn.ReLU(),
-            self.single_discrete_decoder,  # (B, L, X, V)
+            nn.Linear(hidden_size, 8, bias=False),  # (B, L, X, 8) - the max possible value in the dataset is 8
         )
         self.image_decoder = DualBatchReshapeWrapper(ImageDecoder(hidden_size))
 
@@ -528,42 +536,54 @@ class GiaModel(GPTNeoPreTrainedModel):
         assert rewards is not None
         observations_mask = attention_mask[:, 1::2] if attention_mask is not None else None
         if continuous_observations is not None:
-            obs_size = continuous_observations.shape[-1]
-            continuous_observations = torch.cat((continuous_observations, rewards.unsqueeze(-1)), dim=-1)
-            continuous_observations = cyclic_expand_dim(continuous_observations, self.config.max_continuous_size)
-            pred_observations = self.continuous_decoder(hidden_states[:, 1::2])
-            if return_loss:
-                observation_loss = compute_mse_loss(
-                    pred_observations[:, :-1],
-                    continuous_observations[:, 1:],
-                    observations_mask[:, 1:] if observations_mask is not None else None,
-                    weights=loss_weight[:, 1:] if loss_weight is not None else None,
-                )
-            pred_observations = pred_observations[..., :obs_size]
+            if self.observation_loss_coef == 0.0:
+                warnings.warn("observation_loss_coef is 0.0, skipping memory-intensive observations prediction.")
+                pred_observations = None
+                observation_loss = 0.0
+            else:
+                obs_size = continuous_observations.shape[-1]
+                continuous_observations = torch.cat((continuous_observations, rewards.unsqueeze(-1)), dim=-1)
+                continuous_observations = cyclic_expand_dim(continuous_observations, self.config.max_continuous_size)
+                pred_observations = self.continuous_decoder(hidden_states[:, 1::2])
+                if return_loss:
+                    observation_loss = compute_mse_loss(
+                        pred_observations[:, :-1],
+                        continuous_observations[:, 1:],
+                        observations_mask[:, 1:] if observations_mask is not None else None,
+                        weights=loss_weight[:, 1:] if loss_weight is not None else None,
+                    )
+                pred_observations = pred_observations[..., :obs_size]
         elif discrete_observations is not None:  # Note: reward is not predicted
-            warnings.warn("Observations aren't predicted as it is highly memory demanding.")
-            pred_observations = None
-            observation_loss = 0.0
-            # pred_observations = self.multi_discrete_decoder(hidden_states[:, 1::2])
-            # if return_loss:
-            #     observation_loss = compute_ce_loss(
-            #         pred_observations[:, :-1],
-            #         discrete_observations[:, 1:],
-            #         observations_mask[:, 1:] if observations_mask is not None else None,
-            #         weights=loss_weight[:, 1:] if loss_weight is not None else None,
-            #     )
+            if self.observation_loss_coef == 0.0:
+                warnings.warn("observation_loss_coef is 0.0, skipping memory-intensive observations prediction.")
+                pred_observations = None
+                observation_loss = 0.0
+            else:
+                warnings.warn("Discrete observations prediction are not supported yet.")  # way too expensive
+                pred_observations = None
+                observation_loss = 0.0
+                # pred_observations = self.multi_discrete_decoder(hidden_states[:, 1::2])
+                # if return_loss:
+                #     observation_loss = compute_ce_loss(
+                #         pred_observations[:, :-1],
+                #         discrete_observations[:, 1:],
+                #         observations_mask[:, 1:] if observations_mask is not None else None,
+                #         weights=loss_weight[:, 1:] if loss_weight is not None else None,
+                #     )
         elif image_observations is not None:
-            warnings.warn("Observations aren't predicted as it is highly memory demanding.")
-            pred_observations = None
-            observation_loss = 0.0
-            # pred_observations = self.image_decoder(hidden_states[:, 1::2])
-            # if return_loss:
-            #     observation_loss = compute_mse_loss(
-            #         pred_observations[:, :-1],
-            #         image_observations[:, 1:],
-            #         observations_mask[:, 1:] if observations_mask is not None else None,
-            #         weights=loss_weight[:, 1:] if loss_weight is not None else None,
-            #     )
+            if self.observation_loss_coef == 0.0:
+                warnings.warn("observation_loss_coef is 0.0, skipping memory-intensive observations prediction.")
+                pred_observations = None
+                observation_loss = 0.0
+            else:
+                pred_observations = self.image_decoder(hidden_states[:, 1::2])
+                if return_loss:
+                    observation_loss = compute_mse_loss(
+                        pred_observations[:, :-1],
+                        image_observations[:, 1:],
+                        observations_mask[:, 1:] if observations_mask is not None else None,
+                        weights=loss_weight[:, 1:] if loss_weight is not None else None,
+                    )
 
         # Actions
         actions_mask = attention_mask[:, ::2] if attention_mask is not None else None
@@ -581,7 +601,7 @@ class GiaModel(GPTNeoPreTrainedModel):
 
         # Return output
         if return_loss:
-            loss = 0.0 * observation_loss + 1.0 * action_loss
+            loss = self.observation_loss_coef * observation_loss + self.action_loss_coef * action_loss
 
         if not return_dict:
             output = (pred_observations, pred_actions) + transformer_outputs[1:]
@@ -719,7 +739,6 @@ class GiaModel(GPTNeoPreTrainedModel):
         rewards = [reward] if reward is not None else [0.0]
 
         if self._last_key_values is not None:
-            assert reward is not None  # rewards must be provided, except for the first step
             # We concatenate the last observation with the current one
             continuous_observations = (
                 [self.last_continuous_observation] + continuous_observations
@@ -739,10 +758,7 @@ class GiaModel(GPTNeoPreTrainedModel):
                 [self.last_continuous_action] + continuous_actions if continuous_actions is not None else None
             )
             discrete_actions = [self.last_discrete_action] + discrete_actions if discrete_actions is not None else None
-            rewards = [self.last_reward] + [rewards]
-        else:
-            assert rewards is None  # rewards must not be provided for the first step
-            rewards = [0.0]
+            rewards = [self.last_reward] + rewards
 
         # Store the last observation
         self.last_continuous_observation = continuous_observations[-1] if continuous_observations is not None else None
