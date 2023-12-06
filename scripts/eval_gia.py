@@ -122,6 +122,12 @@ def eval_rl(model, processor, task, eval_args):
         f"Task {task} Raw score: {raw_mean:.2f} ± {raw_std:.2f} " f"Normalized score: {norm_mean:.2f} ± {norm_std:.2f}"
     )
 
+    # Resize images by 1/3 to limit memory usage (the video is reduced anyway when aggregated with the others)
+    if eval_args.save_video:
+        import cv2
+
+        frames = [cv2.resize(frame, (0, 0), fx=1 / 3, fy=1 / 3) for frame in frames]
+
     return scores, frames, env.metadata["render_fps"]
 
 
