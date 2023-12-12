@@ -39,3 +39,12 @@ python script/train.py --output_dir=./output \
                        --max_eval_samples=64 # number of test samples to compute the loss on
 ```
 
+
+
+# issues
+
+video painball random and human are probably wrong:
+        // "random": {
+        //     "mean": 23917.169921875,
+        //     "std": 19449.591796875
+        // },
