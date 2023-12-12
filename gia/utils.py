@@ -8,108 +8,111 @@ from typing import Dict, List, Optional
 
 import cv2
 import numpy as np
+import pandas as pd
+from arch.bootstrap import IIDBootstrap
 from datasets import IterableDataset
 from huggingface_hub import EvalResult, HfApi, ModelCard, ModelCardData
+from scipy.stats import trim_mean
 from transformers import PreTrainedModel, ProcessorMixin
 
 
 PRETTY_TASK_NAMES = {
-    "atari-alien": "ALE/Alien-v5",
-    "atari-amidar": "ALE/Amidar-v5",
-    "atari-assault": "ALE/Assault-v5",
-    "atari-asterix": "ALE/Asterix-v5",
-    "atari-asteroids": "ALE/Asteroids-v5",
-    "atari-atlantis": "ALE/Atlantis-v5",
-    "atari-bankheist": "ALE/BankHeist-v5",
-    "atari-battlezone": "ALE/BattleZone-v5",
-    "atari-beamrider": "ALE/BeamRider-v5",
-    "atari-berzerk": "ALE/Berzerk-v5",
-    "atari-bowling": "ALE/Bowling-v5",
-    "atari-boxing": "ALE/Boxing-v5",
-    "atari-breakout": "ALE/Breakout-v5",
-    "atari-centipede": "ALE/Centipede-v5",
-    "atari-choppercommand": "ALE/ChopperCommand-v5",
-    "atari-crazyclimber": "ALE/CrazyClimber-v5",
-    "atari-defender": "ALE/Defender-v5",
-    "atari-demonattack": "ALE/DemonAttack-v5",
-    "atari-doubledunk": "ALE/DoubleDunk-v5",
-    "atari-enduro": "ALE/Enduro-v5",
-    "atari-fishingderby": "ALE/FishingDerby-v5",
-    "atari-freeway": "ALE/Freeway-v5",
-    "atari-frostbite": "ALE/Frostbite-v5",
-    "atari-gopher": "ALE/Gopher-v5",
-    "atari-gravitar": "ALE/Gravitar-v5",
-    "atari-hero": "ALE/Hero-v5",
-    "atari-icehockey": "ALE/IceHockey-v5",
-    "atari-jamesbond": "ALE/Jamesbond-v5",
-    "atari-kangaroo": "ALE/Kangaroo-v5",
-    "atari-krull": "ALE/Krull-v5",
-    "atari-kungfumaster": "ALE/KungFuMaster-v5",
-    "atari-montezumarevenge": "ALE/MontezumaRevenge-v5",
-    "atari-mspacman": "ALE/MsPacman-v5",
-    "atari-namethisgame": "ALE/NameThisGame-v5",
-    "atari-phoenix": "ALE/Phoenix-v5",
-    "atari-pitfall": "ALE/Pitfall-v5",
-    "atari-pong": "ALE/Pong-v5",
-    "atari-privateeye": "ALE/PrivateEye-v5",
-    "atari-qbert": "ALE/Qbert-v5",
-    "atari-riverraid": "ALE/Riverraid-v5",
-    "atari-roadrunner": "ALE/RoadRunner-v5",
-    "atari-robotank": "ALE/Robotank-v5",
-    "atari-seaquest": "ALE/Seaquest-v5",
-    "atari-skiing": "ALE/Skiing-v5",
-    "atari-solaris": "ALE/Solaris-v5",
-    "atari-spaceinvaders": "ALE/SpaceInvaders-v5",
-    "atari-stargunner": "ALE/StarGunner-v5",
-    "atari-surround": "ALE/Surround-v5",
-    "atari-tennis": "ALE/Tennis-v5",
-    "atari-timepilot": "ALE/TimePilot-v5",
-    "atari-tutankham": "ALE/Tutankham-v5",
-    "atari-upndown": "ALE/UpNDown-v5",
-    "atari-venture": "ALE/Venture-v5",
-    "atari-videopinball": "ALE/VideoPinball-v5",
-    "atari-wizardofwor": "ALE/WizardOfWor-v5",
-    "atari-yarsrevenge": "ALE/YarsRevenge-v5",
-    "atari-zaxxon": "ALE/Zaxxon-v5",
-    "babyai-action-obj-door": "BabyAI-ActionObjDoor-v0",
-    "babyai-blocked-unlock-pickup": "BabyAI-BlockedUnlockPickup-v0",
-    "babyai-boss-level-no-unlock": "BabyAI-BossLevelNoUnlock-v0",
-    "babyai-boss-level": "BabyAI-BossLevel-v0",
-    "babyai-find-obj-s5": "BabyAI-FindObjS5-v0",
-    "babyai-go-to-door": "BabyAI-GoToDoor-v0",
-    "babyai-go-to-imp-unlock": "BabyAI-GoToImpUnlock-v0",
-    "babyai-go-to-local": "BabyAI-GoToLocal-v0",
-    "babyai-go-to-obj-door": "BabyAI-GoToObjDoor-v0",
-    "babyai-go-to-obj": "BabyAI-GoToObj-v0",
-    "babyai-go-to-red-ball-grey": "BabyAI-GoToRedBallGrey-v0",
-    "babyai-go-to-red-ball-no-dists": "BabyAI-GoToRedBallNoDists-v0",
-    "babyai-go-to-red-ball": "BabyAI-GoToRedBall-v0",
-    "babyai-go-to-red-blue-ball": "BabyAI-GoToRedBlueBall-v0",
-    "babyai-go-to-seq": "BabyAI-GoToSeq-v0",
-    "babyai-go-to": "BabyAI-GoTo-v0",
-    "babyai-key-corridor": "BabyAI-KeyCorridor-v0",
-    "babyai-mini-boss-level": "BabyAI-MiniBossLevel-v0",
-    "babyai-move-two-across-s8n9": "BabyAI-MoveTwoAcrossS8N9-v0",
-    "babyai-one-room-s8": "BabyAI-OneRoomS8-v0",
-    "babyai-open-door": "BabyAI-OpenDoor-v0",
-    "babyai-open-doors-order-n4": "BabyAI-OpenDoorsOrderN4-v0",
-    "babyai-open-red-door": "BabyAI-OpenRedDoor-v0",
-    "babyai-open-two-doors": "BabyAI-OpenTwoDoors-v0",
-    "babyai-open": "BabyAI-Open-v0",
-    "babyai-pickup-above": "BabyAI-PickupAbove-v0",
-    "babyai-pickup-dist": "BabyAI-PickupDist-v0",
-    "babyai-pickup-loc": "BabyAI-PickupLoc-v0",
-    "babyai-pickup": "BabyAI-Pickup-v0",
-    "babyai-put-next-local": "BabyAI-PutNextLocal-v0",
-    "babyai-put-next": "BabyAI-PutNextS7N4-v0",
-    "babyai-synth-loc": "BabyAI-SynthLoc-v0",
-    "babyai-synth-seq": "BabyAI-SynthSeq-v0",
-    "babyai-synth": "BabyAI-Synth-v0",
-    "babyai-unblock-pickup": "BabyAI-UnblockPickup-v0",
-    "babyai-unlock-local": "BabyAI-UnlockLocal-v0",
-    "babyai-unlock-pickup": "BabyAI-UnlockPickup-v0",
-    "babyai-unlock-to-unlock": "BabyAI-UnlockToUnlock-v0",
-    "babyai-unlock": "BabyAI-Unlock-v0",
+    "atari-alien": "Alien-v5",
+    "atari-amidar": "Amidar-v5",
+    "atari-assault": "Assault-v5",
+    "atari-asterix": "Asterix-v5",
+    "atari-asteroids": "Asteroids-v5",
+    "atari-atlantis": "Atlantis-v5",
+    "atari-bankheist": "BankHeist-v5",
+    "atari-battlezone": "BattleZone-v5",
+    "atari-beamrider": "BeamRider-v5",
+    "atari-berzerk": "Berzerk-v5",
+    "atari-bowling": "Bowling-v5",
+    "atari-boxing": "Boxing-v5",
+    "atari-breakout": "Breakout-v5",
+    "atari-centipede": "Centipede-v5",
+    "atari-choppercommand": "ChopperCommand-v5",
+    "atari-crazyclimber": "CrazyClimber-v5",
+    "atari-defender": "Defender-v5",
+    "atari-demonattack": "DemonAttack-v5",
+    "atari-doubledunk": "DoubleDunk-v5",
+    "atari-enduro": "Enduro-v5",
+    "atari-fishingderby": "FishingDerby-v5",
+    "atari-freeway": "Freeway-v5",
+    "atari-frostbite": "Frostbite-v5",
+    "atari-gopher": "Gopher-v5",
+    "atari-gravitar": "Gravitar-v5",
+    "atari-hero": "Hero-v5",
+    "atari-icehockey": "IceHockey-v5",
+    "atari-jamesbond": "Jamesbond-v5",
+    "atari-kangaroo": "Kangaroo-v5",
+    "atari-krull": "Krull-v5",
+    "atari-kungfumaster": "KungFuMaster-v5",
+    "atari-montezumarevenge": "MontezumaRevenge-v5",
+    "atari-mspacman": "MsPacman-v5",
+    "atari-namethisgame": "NameThisGame-v5",
+    "atari-phoenix": "Phoenix-v5",
+    "atari-pitfall": "Pitfall-v5",
+    "atari-pong": "Pong-v5",
+    "atari-privateeye": "PrivateEye-v5",
+    "atari-qbert": "Qbert-v5",
+    "atari-riverraid": "Riverraid-v5",
+    "atari-roadrunner": "RoadRunner-v5",
+    "atari-robotank": "Robotank-v5",
+    "atari-seaquest": "Seaquest-v5",
+    "atari-skiing": "Skiing-v5",
+    "atari-solaris": "Solaris-v5",
+    "atari-spaceinvaders": "SpaceInvaders-v5",
+    "atari-stargunner": "StarGunner-v5",
+    "atari-surround": "Surround-v5",
+    "atari-tennis": "Tennis-v5",
+    "atari-timepilot": "TimePilot-v5",
+    "atari-tutankham": "Tutankham-v5",
+    "atari-upndown": "UpNDown-v5",
+    "atari-venture": "Venture-v5",
+    "atari-videopinball": "VideoPinball-v5",
+    "atari-wizardofwor": "WizardOfWor-v5",
+    "atari-yarsrevenge": "YarsRevenge-v5",
+    "atari-zaxxon": "Zaxxon-v5",
+    "babyai-action-obj-door": "ActionObjDoor-v0",
+    "babyai-blocked-unlock-pickup": "BlockedUnlockPickup-v0",
+    "babyai-boss-level-no-unlock": "BossLevelNoUnlock-v0",
+    "babyai-boss-level": "BossLevel-v0",
+    "babyai-find-obj-s5": "FindObjS5-v0",
+    "babyai-go-to-door": "GoToDoor-v0",
+    "babyai-go-to-imp-unlock": "GoToImpUnlock-v0",
+    "babyai-go-to-local": "GoToLocal-v0",
+    "babyai-go-to-obj-door": "GoToObjDoor-v0",
+    "babyai-go-to-obj": "GoToObj-v0",
+    "babyai-go-to-red-ball-grey": "GoToRedBallGrey-v0",
+    "babyai-go-to-red-ball-no-dists": "GoToRedBallNoDists-v0",
+    "babyai-go-to-red-ball": "GoToRedBall-v0",
+    "babyai-go-to-red-blue-ball": "GoToRedBlueBall-v0",
+    "babyai-go-to-seq": "GoToSeq-v0",
+    "babyai-go-to": "GoTo-v0",
+    "babyai-key-corridor": "KeyCorridor-v0",
+    "babyai-mini-boss-level": "MiniBossLevel-v0",
+    "babyai-move-two-across-s8n9": "MoveTwoAcrossS8N9-v0",
+    "babyai-one-room-s8": "OneRoomS8-v0",
+    "babyai-open-door": "OpenDoor-v0",
+    "babyai-open-doors-order-n4": "OpenDoorsOrderN4-v0",
+    "babyai-open-red-door": "OpenRedDoor-v0",
+    "babyai-open-two-doors": "OpenTwoDoors-v0",
+    "babyai-open": "Open-v0",
+    "babyai-pickup-above": "PickupAbove-v0",
+    "babyai-pickup-dist": "PickupDist-v0",
+    "babyai-pickup-loc": "PickupLoc-v0",
+    "babyai-pickup": "Pickup-v0",
+    "babyai-put-next-local": "PutNextLocal-v0",
+    "babyai-put-next": "PutNextS7N4-v0",
+    "babyai-synth-loc": "SynthLoc-v0",
+    "babyai-synth-seq": "SynthSeq-v0",
+    "babyai-synth": "Synth-v0",
+    "babyai-unblock-pickup": "UnblockPickup-v0",
+    "babyai-unlock-local": "UnlockLocal-v0",
+    "babyai-unlock-pickup": "UnlockPickup-v0",
+    "babyai-unlock-to-unlock": "UnlockToUnlock-v0",
+    "babyai-unlock": "Unlock-v0",
     "conceptual-captions": "Conceptual Captions",
     "metaworld-assembly": "assembly-v2",
     "metaworld-basketball": "basketball-v2",
@@ -176,6 +179,8 @@ PRETTY_TASK_NAMES = {
     "oscar": "OSCAR",
 }
 
+PRETTY_DOMAIN_NAMES = {"atari": "Atari 57", "babyai": "BabyAI", "metaworld": "MetaWorld", "mujoco": "MuJoCo"}
+
 
 @contextmanager
 def suppress_stdout():
@@ -200,6 +205,86 @@ def no_print_decorator(func):
     return wrapper
 
 
+def normalize(values: np.ndarray, env_id: Optional[str], strategy: str) -> np.ndarray:
+    """
+    Normalize the scores.
+
+    Args:
+        values (np.ndarray): Scores to normalize.
+        env_id (str, optional): Environment name.
+        strategy (str): Normalization strategy. Can be either "max" or "expert" or "human".
+
+    Returns:
+        np.ndarray: Normalized scores.
+    """
+    with open("gia/eval/rl/scores_dict.json", "r") as f:
+        scores_dict = json.load(f)
+
+    # Check if the environment is available
+    if env_id not in scores_dict:
+        raise KeyError(f"Environment {env_id} not found in scores_dict.json")
+    if "random" not in scores_dict[env_id]:
+        raise KeyError(f"Random scores not found for environment {env_id}")
+    random_score = scores_dict[env_id]["random"]["mean"]
+
+    # Get the max score depending on the strategy
+    if strategy == "max":
+        max_score = np.max(values)
+    elif strategy == "expert":
+        if "expert" not in scores_dict[env_id]:
+            raise KeyError(f"Expert scores not found for environment {env_id}")
+        max_score = scores_dict[env_id]["expert"]["mean"]
+    elif strategy == "human":
+        if "human" not in scores_dict[env_id]:
+            raise KeyError(f"Human scores not found for environment {env_id}")
+        max_score = scores_dict[env_id]["human"]["mean"]
+
+    return [(v - random_score) / (max_score - random_score) for v in values]
+
+
+def iqm(x):
+    return trim_mean(x, proportiontocut=0.25)
+
+
+def stratified_with_ci(data_list, func):
+    """
+    Calculate the stratified interquartile mean and confidence interval of a list of datasets.
+
+    Args:
+        data_list (list of list of float): List of datasets. Each dataset is a list of scores.
+
+    Returns:
+        np.ndarray: Confidence interval of shape (2,).
+    """
+    # Convert the list of lists into a DataFrame
+    data = []
+    for i, dataset in enumerate(data_list):
+        for v in dataset:
+            data.append({"dataset": i, "val": v})
+    data = pd.DataFrame(data)
+
+    # Bootstrap
+    bs = IIDBootstrap(data)
+    def stratified_func(d):
+        return d.groupby("dataset")["val"].apply(func).mean()
+    ci = bs.conf_int(stratified_func, 1000, method="percentile")
+    val = stratified_func(data)
+    return val, ci[:, 0]
+
+
+def stratified_iqm_with_ci(data_list: List[List[float]]) -> np.ndarray:
+    """
+    Calculate the stratified interquartile mean and confidence interval of a list of datasets.
+
+    Args:
+        data_list (list of list of float): List of datasets. Each dataset is a list of scores.
+
+    Returns:
+        np.ndarray: Confidence interval of shape (2,).
+    """
+    return stratified_with_ci(data_list, iqm)
+
+
 def generate_rl_eval_results(evaluations: Dict[str, List[float]]) -> List[EvalResult]:
     """
     Generate a list of EvalResult objects.
@@ -213,6 +298,52 @@ def generate_rl_eval_results(evaluations: Dict[str, List[float]]) -> List[EvalRe
             A list of EvalResult objects.
     """
     eval_results = []
+
+    # Aggregate the results
+    for domain in ["atari", "babyai", "metaworld", "mujoco"]:
+        domain_scores = {
+            task_name: scores for task_name, scores in evaluations.items() if task_name.startswith(domain)
+        }
+        # Normalize the scores
+        norm_scores = {
+            task_name: normalize(np.array(scores), task_name, "expert") for task_name, scores in domain_scores.items()
+        }
+
+        # Compute the stratified interquartile mean and confidence interval
+        mean_scores, ci = stratified_iqm_with_ci(list(norm_scores.values()))
+
+        eval_results.append(
+            EvalResult(
+                task_type="reinforcement-learning",
+                task_name="Reinforcement Learning",
+                dataset_type=domain,
+                dataset_name=PRETTY_DOMAIN_NAMES[domain],
+                metric_type="iqm_expert_normalized_total_reward",
+                metric_name="IQM expert normalized total reward",
+                metric_value=f"{mean_scores:.2f} [{ci[0]:.2f}, {ci[1]:.2f}]",
+            )
+        )
+
+    atari_scores = {task_name: scores for task_name, scores in evaluations.items() if task_name.startswith("atari")}
+    # Normalize the scores
+    norm_scores = {
+        task_name: normalize(np.array(scores), task_name, "human") for task_name, scores in atari_scores.items()
+    }
+    # Compute the stratified interquartile mean and confidence interval
+    mean_scores, ci = stratified_iqm_with_ci(list(norm_scores.values()))
+
+    eval_results.append(
+        EvalResult(
+            task_type="reinforcement-learning",
+            task_name="Reinforcement Learning",
+            dataset_type="atari",
+            dataset_name=PRETTY_DOMAIN_NAMES["atari"],
+            metric_type="iqm_human_normalized_total_reward",
+            metric_name="IQM human normalized total reward",
+            metric_value=f"{mean_scores:.2f} [{ci[0]:.2f}, {ci[1]:.2f}]",
+        )
+    )
+
     for task_name, scores in evaluations.items():
         mean_reward = np.mean(scores)
         std_reward = np.std(scores)
@@ -230,15 +361,9 @@ def generate_rl_eval_results(evaluations: Dict[str, List[float]]) -> List[EvalRe
         )
 
     for task_name, scores in evaluations.items():
-        mean_reward = np.mean(scores)
-        std_reward = np.std(scores)
-        with open("gia/eval/rl/scores_dict.json", "r") as file:
-            scores_dict = json.load(file)
-
-        expert_score = scores_dict[task_name]["expert"]["mean"]
-        random_score = scores_dict[task_name]["random"]["mean"]
-        norm_mean_reward = (mean_reward - random_score) / (expert_score - random_score)
-        norm_std_reward = std_reward / (expert_score - random_score)
+        norm_scores = normalize(np.array(scores), task_name, "expert")
+        mean_scores = np.mean(norm_scores)
+        std_scores = np.std(norm_scores)
 
         eval_results.append(
             EvalResult(
@@ -248,9 +373,29 @@ def generate_rl_eval_results(evaluations: Dict[str, List[float]]) -> List[EvalRe
                 dataset_name=PRETTY_TASK_NAMES[task_name],
                 metric_type="expert_normalized_total_reward",
                 metric_name="Expert normalized total reward",
-                metric_value=f"{norm_mean_reward:.2f} +/- {norm_std_reward:.2f}",
+                metric_value=f"{mean_scores:.2f} +/- {std_scores:.2f}",
             )
         )
+
+    for task_name, scores in evaluations.items():
+        if not task_name.startswith("atari"):
+            continue
+        norm_scores = normalize(np.array(scores), task_name, "human")
+        mean_scores = np.mean(norm_scores)
+        std_scores = np.std(norm_scores)
+
+        eval_results.append(
+            EvalResult(
+                task_type="reinforcement-learning",
+                task_name="Reinforcement Learning",
+                dataset_type=task_name,
+                dataset_name=PRETTY_TASK_NAMES[task_name],
+                metric_type="human_normalized_total_reward",
+                metric_name="Human normalized total reward",
+                metric_value=f"{mean_scores:.2f} +/- {std_scores:.2f}",
+            )
+        )
+
     return eval_results
 
 
