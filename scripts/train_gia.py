@@ -14,7 +14,7 @@ from datasets.config import HF_DATASETS_CACHE, HF_DATASETS_OFFLINE
 from transformers import AutoConfig, AutoProcessor, HfArgumentParser, Trainer, TrainingArguments
 
 from jat.eval.rl.core import TASK_NAME_TO_ENV_ID
-from jat.modeling_jat import GiaModel
+from jat.modeling_jat import JatModel
 from jat.utils import mix_iterable_datasets
 
 
@@ -105,7 +105,7 @@ def main():
         cache_dir=model_args.cache_dir,
         trust_remote_code=model_args.trust_remote_code,
     )
-    model = GiaModel(config)
+    model = JatModel(config)
     processor = AutoProcessor.from_pretrained(
         model_args.config_name if model_args.config_name else model_args.model_name_or_path,
         cache_dir=model_args.cache_dir,

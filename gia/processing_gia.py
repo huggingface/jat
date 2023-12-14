@@ -144,12 +144,12 @@ def pad(encoding: Dict[str, List[List[Any]]], target_length: int) -> Dict[str, L
     return padded_encoding
 
 
-class GiaProcessor(ProcessorMixin):
+class JatProcessor(ProcessorMixin):
     r"""
     Constructs a GIA processor which wraps a CLIP image processor and a BERT tokenizer into a single processor.
 
-    [`GiaProcessor`] offers all the functionalities of [`CLIPImageProcessor`] and [`BertTokenizerFast`]. See the
-    [`~GiaProcessor.__call__`] and [`~GiaProcessor.decode`] for more information.
+    [`JatProcessor`] offers all the functionalities of [`CLIPImageProcessor`] and [`BertTokenizerFast`]. See the
+    [`~JatProcessor.__call__`] and [`~JatProcessor.decode`] for more information.
 
     Args:
         image_processor ([`AutoImageProcessor`]):
@@ -368,4 +368,4 @@ class GiaProcessor(ProcessorMixin):
         ]
 
 
-GiaProcessor.register_for_auto_class("AutoProcessor")
+JatProcessor.register_for_auto_class("AutoProcessor")

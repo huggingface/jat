@@ -1,9 +1,9 @@
 from transformers import GPTNeoConfig
 
 
-class GiaConfig(GPTNeoConfig):
+class JatConfig(GPTNeoConfig):
     r"""
-    This is the configuration class to store the configuration of a [`GiaModel`]. It is used to instantiate a Gia
+    This is the configuration class to store the configuration of a [`JatModel`]. It is used to instantiate a Jat
     model according to the specified arguments, defining the model architecture. Instantiating a configuration with
     the defaults will yield a similar configuration to that of the ... (TODO)
 
@@ -131,4 +131,4 @@ class GiaConfig(GPTNeoConfig):
         self.action_loss_coef = action_loss_coef
 
 
-GiaConfig.register_for_auto_class()
+JatConfig.register_for_auto_class()

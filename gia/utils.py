@@ -282,7 +282,7 @@ def generate_model_card(model_name: str, evaluations: Optional[Dict[str, List[fl
         card_data,
         template_path="templates/model_card.md",
         model_name=model_name,
-        model_id="Gia",
+        model_id="Jat",
         tasks=[PRETTY_TASK_NAMES[task_name] for task_name in evaluations.keys()] if evaluations is not None else [],
     )
     return card

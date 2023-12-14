@@ -1,5 +1,5 @@
-from .configuration_jat import GiaConfig
-from .modeling_jat import GiaModel
+from .configuration_jat import JatConfig
+from .modeling_jat import JatModel
 
 
-__all__ = ["GiaModel", "GiaConfig"]
+__all__ = ["JatModel", "JatConfig"]
