@@ -20,9 +20,9 @@ More details to come!
 
 ### Dataset loading
 
-See [GIA Dataset](https://huggingface.co/datasets/jat-project/jat-dataset)
+See [JAT Dataset](https://huggingface.co/datasets/jat-project/jat-dataset)
 
-### GIA model
+### JAT model
 
 TODO: write this section
 

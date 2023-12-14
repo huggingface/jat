@@ -146,7 +146,7 @@ def pad(encoding: Dict[str, List[List[Any]]], target_length: int) -> Dict[str, L
 
 class JatProcessor(ProcessorMixin):
     r"""
-    Constructs a GIA processor which wraps a CLIP image processor and a BERT tokenizer into a single processor.
+    JAT processor which wraps a CLIP image processor and a BERT tokenizer into a single processor.
 
     [`JatProcessor`] offers all the functionalities of [`CLIPImageProcessor`] and [`BertTokenizerFast`]. See the
     [`~JatProcessor.__call__`] and [`~JatProcessor.decode`] for more information.

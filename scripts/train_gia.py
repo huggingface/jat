@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Train a GIA model on the GIA dataset"""
+"""Train a JAT model on the JAT dataset"""
 
 
 import logging

@@ -10,7 +10,7 @@ This is a multi-modal and multi-task model.
 
 ### Model Description
 
-- **Developed by:** The GIA Team
+- **Developed by:** The JAT Team
 - **License:** Apache 2.0
 
 ### Model Sources

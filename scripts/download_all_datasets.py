@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Load and generate batch for all datasets from the GIA dataset"""
+"""Load and generate batch for all datasets from the JAT dataset"""
 
 import argparse
 import os

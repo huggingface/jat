@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Eval a GIA model on the GIA dataset"""
+"""Eval a JAT model"""
 import json
 import logging
 import os
