@@ -33,7 +33,7 @@ def generate_dataset_card(
     readme_path = os.path.join(dir_path, "README.md")
     readme = f"""
     An imitation learning environment for the {env} environment, sample for the policy {experiment_name} \n
-    This environment was created as part of the Generally Intelligent Agents project jat:
+    This environment was created as part of the Jack of All Trades (JAT) project:
     https://github.com/huggingface/jat \n
     \n
     """

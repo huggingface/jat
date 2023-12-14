@@ -1,5 +1,5 @@
 # Lint as: python3
-""" HuggingFace/jat is an open library the training of generally intelligent agents
+""" HuggingFace/jat is an open library the training of Jack of All Trades (JAT) agents.
 
 Note:
 
@@ -96,7 +96,7 @@ EXTRAS_REQUIRE = {
 setup(
     name="jat",
     version=__version__,
-    description="is an open library for the training of generally intelligent agents",
+    description="is an open library for the training of Jack of All Trades (JAT) agents.",
     long_description=open("README.md", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
     author="HuggingFace Inc.",
