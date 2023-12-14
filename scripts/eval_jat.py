@@ -14,7 +14,7 @@ from tqdm import tqdm
 from transformers import AutoModelForCausalLM, AutoProcessor, HfArgumentParser
 
 from jat.eval.rl import TASK_NAME_TO_ENV_ID, make
-from jat.utils import push_to_hub, save_video_grid, suppress_stdout
+from jat.utils import normalize, push_to_hub, save_video_grid
 
 
 @dataclass
@@ -72,8 +72,8 @@ def eval_rl(model, processor, task, eval_args):
         env_kwargs["clip_reward"] = False
     if eval_args.save_video:
         env_kwargs["render_mode"] = "rgb_array"
-    with suppress_stdout():  # avoid printing the env info
-        env = make(task, **env_kwargs)
+
+    env = make(task, **env_kwargs)
 
     scores = []
     frames = []
@@ -104,18 +104,10 @@ def eval_rl(model, processor, task, eval_args):
         scores.append(sum(rewards))
     env.close()
 
-    # Get the mean and std of the expert and random scores
-    with open("jat/eval/rl/scores_dict.json", "r") as file:
-        scores_dict = json.load(file)
-
-    expert_mean = scores_dict[task]["expert"]["mean"]
-    random_mean = scores_dict[task]["random"]["mean"]
-
     # Normalize the scores
-    raw_mean = np.mean(scores)
-    raw_std = np.std(scores)
-    norm_mean = (raw_mean - random_mean) / (expert_mean - random_mean)
-    norm_std = raw_std / (expert_mean - random_mean)
+    norm_scores = normalize(scores, task, "expert")
+    raw_mean, raw_std = np.mean(scores), np.std(scores)
+    norm_mean, norm_std = np.mean(norm_scores), np.std(norm_scores)
 
     # Print the results
     tqdm.write(

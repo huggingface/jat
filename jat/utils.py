@@ -1,9 +1,7 @@
 import json
 import os
 import random
-import sys
 import tempfile
-from contextlib import contextmanager
 from typing import Dict, List, Optional
 
 import cv2
@@ -182,43 +180,35 @@ PRETTY_TASK_NAMES = {
 PRETTY_DOMAIN_NAMES = {"atari": "Atari 57", "babyai": "BabyAI", "metaworld": "MetaWorld", "mujoco": "MuJoCo"}
 
 
-@contextmanager
-def suppress_stdout():
-    class DummyFile(object):
-        def write(self, x):
-            pass
+def get_scores_dict() -> Dict[str, Dict[str, Dict[str, float]]]:
+    """
+    Get the scores dictionary.
 
-    # Save the current stdout
-    original_stdout = sys.stdout
-    sys.stdout = DummyFile()
-    try:
-        yield
-    finally:
-        sys.stdout = original_stdout
+    Returns:
+        Dict[str, Dict[str, Dict[str, float]]]: Dictionary containing the scores for each task.
+    """
+    file_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "eval", "rl", "scores_dict.json"))
 
+    # Now you can use this path to open and read the JSON file
+    with open(file_path, "r") as file:
+        scores_dict = json.load(file)
 
-def no_print_decorator(func):
-    def wrapper(*args, **kwargs):
-        with suppress_stdout():
-            return func(*args, **kwargs)
-
-    return wrapper
+    return scores_dict
 
 
-def normalize(values: np.ndarray, env_id: Optional[str], strategy: str) -> np.ndarray:
+def normalize(values: List[float], env_id: str, strategy: str) -> List[float]:
     """
     Normalize the scores.
 
     Args:
-        values (np.ndarray): Scores to normalize.
-        env_id (str, optional): Environment name.
+        values (List[float]): Scores to normalize.
+        env_id (str): Environment name.
         strategy (str): Normalization strategy. Can be either "max" or "expert" or "human".
 
     Returns:
-        np.ndarray: Normalized scores.
+        List[float]: Normalized scores.
     """
-    with open("jat/eval/rl/scores_dict.json", "r") as f:
-        scores_dict = json.load(f)
+    scores_dict = get_scores_dict()
 
     # Check if the environment is available
     if env_id not in scores_dict:
@@ -265,8 +255,10 @@ def stratified_with_ci(data_list, func):
 
     # Bootstrap
     bs = IIDBootstrap(data)
+
     def stratified_func(d):
         return d.groupby("dataset")["val"].apply(func).mean()
+
     ci = bs.conf_int(stratified_func, 1000, method="percentile")
     val = stratified_func(data)
     return val, ci[:, 0]
