@@ -217,7 +217,7 @@ def normalize(values: np.ndarray, env_id: Optional[str], strategy: str) -> np.nd
     Returns:
         np.ndarray: Normalized scores.
     """
-    with open("gia/eval/rl/scores_dict.json", "r") as f:
+    with open("jat/eval/rl/scores_dict.json", "r") as f:
         scores_dict = json.load(f)
 
     # Check if the environment is available
