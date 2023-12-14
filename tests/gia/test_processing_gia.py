@@ -3,7 +3,7 @@ import torch
 from PIL import Image
 from transformers import AutoTokenizer, CLIPImageProcessor
 
-from gia.processing_gia import GiaProcessor
+from jat.processing_jat import GiaProcessor
 
 
 @pytest.fixture

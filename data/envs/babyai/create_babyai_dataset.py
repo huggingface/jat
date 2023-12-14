@@ -139,7 +139,7 @@ def create_babyai_dataset(task_name, max_num_episodes):
 
     print("Pushing dataset to hub...")
     dataset = dataset.train_test_split(test_size=0.02)
-    dataset.push_to_hub("gia-project/gia-dataset", task_name, branch="additional_babyai_tasks")
+    dataset.push_to_hub("jat-project/jat-dataset", task_name, branch="additional_babyai_tasks")
     print("Pushed dataset to hub!")
 
 

@@ -65,5 +65,5 @@ ENVS=(
 for ENV in "${ENVS[@]}"; do
     python -m sample_factory.huggingface.load_from_hub -r edbeeching/atari_2B_${ENV}_1111 -d train_dir
     echo $ENV
-    python data/envs/atari/create_atari_dataset.py --env=$ENV --experiment=atari_2B_${ENV}_1111 --train_dir=train_dir --push_to_hub --hf_repository=edbeeching/prj_gia_dataset_atari_2B_${ENV}_1111 --max_num_frames=500000 --no_render
+    python data/envs/atari/create_atari_dataset.py --env=$ENV --experiment=atari_2B_${ENV}_1111 --train_dir=train_dir --push_to_hub --hf_repository=edbeeching/prj_jat_dataset_atari_2B_${ENV}_1111 --max_num_frames=500000 --no_render
 done

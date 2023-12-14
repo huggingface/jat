@@ -33,8 +33,8 @@ def generate_dataset_card(
     readme_path = os.path.join(dir_path, "README.md")
     readme = f"""
     An imitation learning environment for the {env} environment, sample for the policy {experiment_name} \n
-    This environment was created as part of the Generally Intelligent Agents project gia:
-    https://github.com/huggingface/gia \n
+    This environment was created as part of the Generally Intelligent Agents project jat:
+    https://github.com/huggingface/jat \n
     \n
     """
 
@@ -42,11 +42,11 @@ def generate_dataset_card(
         f.write(readme)
 
     metadata = {}
-    metadata["library_name"] = "gia"
+    metadata["library_name"] = "jat"
     metadata["tags"] = [
         "deep-reinforcement-learning",
         "reinforcement-learning",
-        "gia",
+        "jat",
         "multi-task",
         "multi-modal",
         "imitation-learning",

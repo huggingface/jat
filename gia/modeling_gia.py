@@ -11,8 +11,8 @@ from transformers import GPTNeoModel, GPTNeoPreTrainedModel
 from transformers.modeling_outputs import ModelOutput
 from transformers.models.vit.modeling_vit import ViTPatchEmbeddings
 
-from .configuration_gia import GiaConfig
-from .processing_gia import GiaProcessor
+from .configuration_jat import GiaConfig
+from .processing_jat import GiaProcessor
 
 
 def compute_mse_loss(

@@ -1,7 +1,7 @@
 # How to create the BabyAI dataset and push it to the hub
 
 ## Install
-1. Install the gia lib from the root dir `pip install .[dev]`
+1. Install the jat lib from the root dir `pip install .[dev]`
 2. Install Minigrid:
 ```shell
 pip install -r requirements.txt

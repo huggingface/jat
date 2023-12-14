@@ -15,7 +15,7 @@ This is a multi-modal and multi-task model.
 
 ### Model Sources
 
-- **Repository:** <https://github.com/huggingface/gia>
+- **Repository:** <https://github.com/huggingface/jat>
 - **Paper:** Coming soon
 - **Demo:** Coming soon
 

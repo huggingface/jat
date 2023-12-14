@@ -232,7 +232,7 @@ def generate_rl_eval_results(evaluations: Dict[str, List[float]]) -> List[EvalRe
     for task_name, scores in evaluations.items():
         mean_reward = np.mean(scores)
         std_reward = np.std(scores)
-        with open("gia/eval/rl/scores_dict.json", "r") as file:
+        with open("jat/eval/rl/scores_dict.json", "r") as file:
             scores_dict = json.load(file)
 
         expert_score = scores_dict[task_name]["expert"]["mean"]
@@ -275,7 +275,7 @@ def generate_model_card(model_name: str, evaluations: Optional[Dict[str, List[fl
         tags=tags,
         eval_results=generate_rl_eval_results(evaluations) if evaluations is not None else None,
         model_name=model_name,
-        datasets="gia-project/gia-dataset",
+        datasets="jat-project/jat-dataset",
         pipeline_tag="reinforcement-learning",
     )
     card = ModelCard.from_template(

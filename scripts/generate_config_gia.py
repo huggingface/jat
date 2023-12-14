@@ -1,7 +1,7 @@
 from transformers import AutoTokenizer, CLIPImageProcessor
 
-from gia.configuration_gia import GiaConfig
-from gia.processing_gia import GiaProcessor
+from jat.configuration_jat import GiaConfig
+from jat.processing_jat import GiaProcessor
 
 
 # Small model
@@ -22,8 +22,8 @@ image_processor = CLIPImageProcessor(
 tokenizer.model_max_length = config.max_position_embeddings
 tokenizer.pad_token = tokenizer.eos_token
 processor = GiaProcessor(tokenizer=tokenizer, image_processor=image_processor)
-config.push_to_hub("gia-project/gia-small")
-processor.push_to_hub("gia-project/gia-small")
+config.push_to_hub("jat-project/jat-small")
+processor.push_to_hub("jat-project/jat-small")
 
 # Medium model
 tokenizer = AutoTokenizer.from_pretrained("gpt2", model_input_names=["input_ids", "attention_mask"])
@@ -43,8 +43,8 @@ image_processor = CLIPImageProcessor(
 tokenizer.model_max_length = config.max_position_embeddings
 tokenizer.pad_token = tokenizer.eos_token
 processor = GiaProcessor(tokenizer=tokenizer, image_processor=image_processor)
-config.push_to_hub("gia-project/gia-medium")
-processor.push_to_hub("gia-project/gia-medium")
+config.push_to_hub("jat-project/jat-medium")
+processor.push_to_hub("jat-project/jat-medium")
 
 # Large model
 tokenizer = AutoTokenizer.from_pretrained("gpt2", model_input_names=["input_ids", "attention_mask"])
@@ -64,5 +64,5 @@ image_processor = CLIPImageProcessor(
 tokenizer.model_max_length = config.max_position_embeddings
 tokenizer.pad_token = tokenizer.eos_token
 processor = GiaProcessor(tokenizer=tokenizer, image_processor=image_processor)
-config.push_to_hub("gia-project/gia-large")
-processor.push_to_hub("gia-project/gia-large")
+config.push_to_hub("jat-project/jat-large")
+processor.push_to_hub("jat-project/jat-large")

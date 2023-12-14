@@ -10,7 +10,7 @@ import gymnasium as gym
 import numpy as np
 
 
-FILENAME = "gia/eval/rl/scores_dict.json"
+FILENAME = "jat/eval/rl/scores_dict.json"
 
 TASK_NAME_TO_ENV_NAME = {
     "babyai-action-obj-door": "BabyAI-ActionObjDoor-v0",

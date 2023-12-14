@@ -13,8 +13,8 @@ import torch
 from tqdm import tqdm
 from transformers import AutoModelForCausalLM, AutoProcessor, HfArgumentParser
 
-from gia.eval.rl import TASK_NAME_TO_ENV_ID, make
-from gia.utils import push_to_hub, save_video_grid, suppress_stdout
+from jat.eval.rl import TASK_NAME_TO_ENV_ID, make
+from jat.utils import push_to_hub, save_video_grid, suppress_stdout
 
 
 @dataclass
@@ -105,7 +105,7 @@ def eval_rl(model, processor, task, eval_args):
     env.close()
 
     # Get the mean and std of the expert and random scores
-    with open("gia/eval/rl/scores_dict.json", "r") as file:
+    with open("jat/eval/rl/scores_dict.json", "r") as file:
         scores_dict = json.load(file)
 
     expert_mean = scores_dict[task]["expert"]["mean"]

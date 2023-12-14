@@ -13,9 +13,9 @@ from datasets import load_dataset, load_from_disk
 from datasets.config import HF_DATASETS_CACHE, HF_DATASETS_OFFLINE
 from transformers import AutoConfig, AutoProcessor, HfArgumentParser, Trainer, TrainingArguments
 
-from gia.eval.rl.core import TASK_NAME_TO_ENV_ID
-from gia.modeling_gia import GiaModel
-from gia.utils import mix_iterable_datasets
+from jat.eval.rl.core import TASK_NAME_TO_ENV_ID
+from jat.modeling_jat import GiaModel
+from jat.utils import mix_iterable_datasets
 
 
 # Sometimes, the server is down; increasing the number of
@@ -79,8 +79,8 @@ SAMPLE_WEIGHTS = {
     "wikipedia": 10.0,
 }
 
-os.environ["WANDB_ENTITY"] = "gia-project"
-os.environ["WANDB_PROJECT"] = "gia"
+os.environ["WANDB_ENTITY"] = "jat-project"
+os.environ["WANDB_PROJECT"] = "jat"
 
 
 def main():
@@ -125,21 +125,21 @@ def main():
     dataset_dict = {}
     if HF_DATASETS_OFFLINE:
         for task in tasks:
-            if not os.path.exists(f"{HF_DATASETS_CACHE}/gia-project/gia-dataset/{task}"):
+            if not os.path.exists(f"{HF_DATASETS_CACHE}/jat-project/jat-dataset/{task}"):
                 raise ValueError(
-                    f"""Dataset {task} not found in {HF_DATASETS_CACHE}/gia-project/gia-dataset/
+                    f"""Dataset {task} not found in {HF_DATASETS_CACHE}/jat-project/jat-dataset/
 Make sure to download and save it first with
 ```
 from datasets import load_dataset
-dataset = load_dataset('gia-project/gia-dataset', '{task}')
-dataset.save_to_disk('{HF_DATASETS_CACHE}/gia-project/gia-dataset/{task}')
+dataset = load_dataset('jat-project/jat-dataset', '{task}')
+dataset.save_to_disk('{HF_DATASETS_CACHE}/jat-project/jat-dataset/{task}')
 ```"""
                 )
-            dataset = load_from_disk(f"{HF_DATASETS_CACHE}/gia-project/gia-dataset/{task}")
+            dataset = load_from_disk(f"{HF_DATASETS_CACHE}/jat-project/jat-dataset/{task}")
             dataset_dict[task] = {s: d.to_iterable_dataset() for s, d in dataset.items()}
     else:
         for task in tasks:
-            dataset_dict[task] = load_dataset("gia-project/gia-dataset", task, streaming=True)
+            dataset_dict[task] = load_dataset("jat-project/jat-dataset", task, streaming=True)
 
     # Preprocess the dataset
     for task in dataset_dict.keys():
@@ -198,7 +198,7 @@ dataset.save_to_disk('{HF_DATASETS_CACHE}/gia-project/gia-dataset/{task}')
     trainer = Trainer(
         model=model, args=training_args, train_dataset=train_dataset, eval_dataset=eval_dataset, tokenizer=processor
     )
-    trainer.train()
+    trainer.train(resume_from_checkpoint=training_args.resume_from_checkpoint)
 
 
 if __name__ == "__main__":

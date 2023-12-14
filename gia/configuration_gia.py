@@ -70,7 +70,7 @@ class GiaConfig(GPTNeoConfig):
             The coefficient for the action loss.
     """
 
-    model_type = "gia"
+    model_type = "jat"
 
     def __init__(
         self,
