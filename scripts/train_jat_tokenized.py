@@ -120,7 +120,7 @@ def main():
     dataset_dict = {}
     if HF_DATASETS_OFFLINE:
         for task in tasks:
-            if not os.path.exists(f"{HF_DATASETS_CACHE}/jat-project/jat-dataset/{task}"):
+            if not os.path.exists(f"{HF_DATASETS_CACHE}/jat-project/jat-dataset-tokenized/{task}"):
                 raise ValueError(
                     f"""Dataset {task} not found in {HF_DATASETS_CACHE}/jat-project/jat-dataset-tokenized/
 Make sure to download and save it first with
