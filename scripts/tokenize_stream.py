@@ -152,7 +152,7 @@ def main():
             print(f"Generated examples for {task}/{split}")
             task_dataset[split] = Dataset.from_generator(partial(gen_from_iterable_dataset, dataset))
         task_dataset = DatasetDict(task_dataset)
-        task_dataset.save_to_disk(f"{HF_DATASETS_CACHE}/jat-project/jat-dataset-tokenized/{task}")
+
         print(f"Pushing {task} to the hub...")
         task_dataset.push_to_hub("jat-project/jat-dataset-tokenized", config_name=task)
 
