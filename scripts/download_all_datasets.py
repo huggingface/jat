@@ -15,7 +15,7 @@ parser.add_argument("--tasks", nargs="+", default=[])
 
 tasks = parser.parse_args().tasks
 if tasks == ["all"]:
-    tasks = get_dataset_config_names("jat-project/jat-dataset")  # get all task names from jat dataset
+    tasks = get_dataset_config_names("jat-project/jat-dataset-tokenized")  # get all task names from jat dataset
 
 for domain in ["atari", "babyai", "metaworld", "mujoco"]:
     if domain in tasks:
@@ -24,7 +24,7 @@ for domain in ["atari", "babyai", "metaworld", "mujoco"]:
 
 for task in tasks:
     print(f"Loading {task}...")
-    cache_path = f"{HF_DATASETS_CACHE}/jat-project/jat-dataset/{task}"
+    cache_path = f"{HF_DATASETS_CACHE}/jat-project/jat-dataset-tokenized/{task}"
     if not os.path.exists(cache_path):
-        dataset = load_dataset("jat-project/jat-dataset", task)
+        dataset = load_dataset("jat-project/jat-dataset-tokenized", task)
         dataset.save_to_disk(cache_path)
