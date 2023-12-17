@@ -348,9 +348,14 @@ class JatProcessor(ProcessorMixin):
 
     def pad(self, *args, **kwargs):
         inputs = {key: [arg[key] for arg in args[0]] for key in args[0][0].keys()}
-        encoding = self._truncate_and_pad(
-            inputs, padding=kwargs.get("padding", False), truncation=False, max_length=kwargs.get("max_length")
-        )
+        elmt = next(iter(inputs.values()))
+        if isinstance(elmt[0], torch.Tensor) and not isinstance(elmt, torch.Tensor):
+            encoding = {key: torch.stack(inputs[key]) for key in inputs.keys()}
+        else:
+            encoding = self._truncate_and_pad(
+                inputs, padding=kwargs.get("padding", False), truncation=False, max_length=kwargs.get("max_length")
+            )
+
         return BatchEncoding(encoding, tensor_type=kwargs.get("return_tensors"))
 
     @property
