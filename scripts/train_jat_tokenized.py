@@ -11,7 +11,7 @@ from typing import List, Optional
 import datasets.config
 from datasets import load_dataset, load_from_disk
 from datasets.config import HF_DATASETS_CACHE, HF_DATASETS_OFFLINE
-from transformers import AutoConfig, AutoProcessor, HfArgumentParser, Trainer, TrainingArguments
+from transformers import AutoConfig, AutoProcessor, BatchEncoding, HfArgumentParser, Trainer, TrainingArguments
 
 from jat.eval.rl.core import TASK_NAME_TO_ENV_ID
 from jat.modeling_jat import JatModel
@@ -145,7 +145,12 @@ dataset.save_to_disk('{HF_DATASETS_CACHE}/jat-project/jat-dataset-tokenized/{tas
     train_dataset = mix_iterable_datasets(
         list(train_dataset.values()), batch_size=training_args.per_device_train_batch_size, weights=weights
     )
-    train_dataset = train_dataset.with_format(type="numpy")
+
+    def transform(encoding):
+        return BatchEncoding(encoding, tensor_type="pt")
+
+    train_dataset = train_dataset.map(transform)
+
     # Due to the train dataset's structure, where every 'n' consecutive samples share the same modalities, we can't
     # load all samples at once. Different sets of 'n' samples have different modalities. Therefore, we must load and
     # process each set of 'n' samples separately.
