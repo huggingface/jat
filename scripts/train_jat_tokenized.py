@@ -67,7 +67,6 @@ class DataTrainingArguments:
     eval_num_samples: int = field(default=1000, metadata={"help": "Number of samples to use for evaluation."})
 
 
-
 SAMPLE_WEIGHTS = {
     "conceptual-captions": 10.0,
     "oscar": 10.0,
@@ -146,6 +145,7 @@ dataset.save_to_disk('{HF_DATASETS_CACHE}/jat-project/jat-dataset-tokenized/{tas
     train_dataset = mix_iterable_datasets(
         list(train_dataset.values()), batch_size=training_args.per_device_train_batch_size, weights=weights
     )
+    train_dataset = train_dataset.with_format(type="numpy")
     # Due to the train dataset's structure, where every 'n' consecutive samples share the same modalities, we can't
     # load all samples at once. Different sets of 'n' samples have different modalities. Therefore, we must load and
     # process each set of 'n' samples separately.
