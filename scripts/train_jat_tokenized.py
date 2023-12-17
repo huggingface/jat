@@ -73,7 +73,7 @@ SAMPLE_WEIGHTS = {
     "wikipedia": 10.0,
 }
 
-os.environ["WANDB_ENTITY"] = "jat-project"
+os.environ["WANDB_ENTITY"] = "qgallouedec"
 os.environ["WANDB_PROJECT"] = "jat"
 
 
