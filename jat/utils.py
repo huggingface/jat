@@ -567,7 +567,7 @@ def mix_iterable_datasets(
     datasets: List[IterableDataset],
     batch_size: int,
     stopping_strategy: str = "all_exhausted",
-    weights: List[float] = None,
+    weights: List[int] = None,
 ):
     """
     Mixes multiple IterableDataset objects into a single IterableDataset.
@@ -579,7 +579,7 @@ def mix_iterable_datasets(
             Batch size.
         stopping_strategy (`str`, **optional**):
             Stopping strategy. Can be either "first_exhausted" or "all_exhausted".
-        weights (`List[float]`, **optional**):
+        weights (`List[int]`, **optional**):
             List of weights for each dataset. If None, uniform weights are used.
 
     Returns:
@@ -591,15 +591,13 @@ def mix_iterable_datasets(
         datasets: List[IterableDataset],
         batch_size: int,
         stopping_strategy: str = "all_exhausted",
-        weights: List[float] = None,
     ):
         assert stopping_strategy in ["first_exhausted", "all_exhausted"]
         iterators = [iter(dataset) for dataset in datasets]
         exhausted = [False] * len(datasets)  # A list to keep track of which iterators are exhausted
-        weights = weights if weights is not None else [1.0] * len(datasets)
         should_stop = False
         while not should_stop:
-            dataset_idx = random.choices(range(len(datasets)), weights=weights, k=1)[0]  # Choose a dataset randomly
+            dataset_idx = random.choices(range(len(datasets)), k=1)[0]  # Choose a dataset randomly
             iterator = iterators[dataset_idx]
             for _ in range(batch_size):
                 try:
@@ -616,11 +614,13 @@ def mix_iterable_datasets(
                     # Reinitialize the exhausted iterator
                     iterator = iterators[dataset_idx] = iter(datasets[dataset_idx])
                     yield next(iterators[dataset_idx])
-
+    _datasets = []
+    weights = weights if weights is not None else [1] * len(datasets)
+    for dataset, weight in zip(datasets, weights):
+        _datasets.extend([dataset] * weight)
     gen_kwargs = {
-        "datasets": datasets,
+        "datasets": _datasets,
         "batch_size": batch_size,
         "stopping_strategy": stopping_strategy,
-        "weights": weights,
     }
     return IterableDataset.from_generator(generator=generator, gen_kwargs=gen_kwargs)

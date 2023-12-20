@@ -68,9 +68,9 @@ class DataTrainingArguments:
 
 
 SAMPLE_WEIGHTS = {
-    "conceptual-captions": 10.0,
-    "oscar": 10.0,
-    "wikipedia": 10.0,
+    "conceptual-captions": 10,
+    "oscar": 10,
+    "wikipedia": 10,
 }
 
 os.environ["WANDB_ENTITY"] = "qgallouedec"
@@ -130,7 +130,7 @@ dataset.save_to_disk('{HF_DATASETS_CACHE}/jat-project/jat-dataset-tokenized/{tas
 ```"""
                 )
             dataset = load_from_disk(f"{HF_DATASETS_CACHE}/jat-project/jat-dataset-tokenized/{task}")
-            dataset_dict[task] = {s: d.to_iterable_dataset() for s, d in dataset.items()}
+            dataset_dict[task] = {s: d.to_iterable_dataset(128) for s, d in dataset.items()}
     else:
         for task in tasks:
             dataset_dict[task] = load_dataset("jat-project/jat-dataset-tokenized", task, streaming=True)
@@ -141,7 +141,7 @@ dataset.save_to_disk('{HF_DATASETS_CACHE}/jat-project/jat-dataset-tokenized/{tas
     for key in tasks:  # Reduce the number of eval samples
         eval_dataset[key] = eval_dataset[key].take(data_args.eval_num_samples)
 
-    weights = [SAMPLE_WEIGHTS.get(t, 1.0) for t in train_dataset.keys()]
+    weights = [SAMPLE_WEIGHTS.get(t, 1) for t in train_dataset.keys()]
     train_dataset = mix_iterable_datasets(
         list(train_dataset.values()), batch_size=training_args.per_device_train_batch_size, weights=weights
     )
