@@ -348,7 +348,7 @@ class JatProcessor(ProcessorMixin):
 
     def pad(self, *args, **kwargs):
         inputs = args[0]
-        keys = [key for key in inputs.keys() if inputs[0][key] is not None]
+        keys = [key for key in inputs[0].keys() if inputs[0][key] is not None]
         inputs = {key: [arg[key] for arg in inputs] for key in keys}
         elmt = next(iter(inputs.values()))
         if isinstance(elmt[0], torch.Tensor) and not isinstance(elmt, torch.Tensor):
