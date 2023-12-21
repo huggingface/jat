@@ -145,6 +145,7 @@ dataset.save_to_disk('{HF_DATASETS_CACHE}/jat-project/jat-dataset-tokenized/{tas
     train_dataset = interleave_datasets(
         list(train_dataset.values()),
         probabilities=[w / sum(weights) for w in weights],
+        seed=training_args.seed,
         stopping_strategy="all_exhausted",
         n_contiguous=training_args.per_device_train_batch_size,
     )
