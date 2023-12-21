@@ -347,7 +347,9 @@ class JatProcessor(ProcessorMixin):
         return self.tokenizer.decode(*args, **kwargs)
 
     def pad(self, *args, **kwargs):
-        inputs = {key: [arg[key] for arg in args[0]] for key in args[0][0].keys()}
+        inputs = args[0]
+        keys = [key for key in inputs.keys() if inputs[0][key] is not None]
+        inputs = {key: [arg[key] for arg in inputs] for key in keys}
         elmt = next(iter(inputs.values()))
         if isinstance(elmt[0], torch.Tensor) and not isinstance(elmt, torch.Tensor):
             encoding = {key: torch.stack(inputs[key]) for key in inputs.keys()}
