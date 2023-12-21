@@ -6,8 +6,6 @@ from typing import Iterator, List, Optional, TypeVar
 import numpy as np
 from datasets.arrow_dataset import Dataset, _interleave_map_style_datasets
 from datasets.dataset_dict import DatasetDict, IterableDatasetDict
-from datasets.features import Features
-from datasets.features.features import _align_features, _check_if_features_can_be_aligned
 from datasets.info import DatasetInfo
 from datasets.iterable_dataset import CyclingMultiSourcesExamplesIterable, IterableDataset, _BaseExamplesIterable
 from datasets.splits import NamedSplit
@@ -117,17 +115,6 @@ def _interleave_iterable_datasets(
     Output:
         `datasets.IterableDataset`
     """
-    datasets = [d._resolve_features() for d in datasets]
-
-    # Perform checks
-    _check_if_features_can_be_aligned([dset.features for dset in datasets])
-
-    # TODO: improve this to account for a mix of ClassLabel and Value for example
-    # right now it would keep the type of the first dataset in the list
-    features = Features(
-        {k: v for features in _align_features([dset.features for dset in datasets]) for k, v in features.items()}
-    )
-
     ex_iterables = [d._ex_iterable for d in datasets]
 
     # Use cycling or random cycling of sources
@@ -148,7 +135,6 @@ def _interleave_iterable_datasets(
         info = DatasetInfo.from_merge([d.info for d in datasets])
     else:
         info = info.copy()
-    info.features = features
     # Get all the auth tokens per repository - in case the datasets come from different private repositories
     token_per_repo_id = {
         repo_id: token for dataset in datasets for repo_id, token in dataset._token_per_repo_id.items()

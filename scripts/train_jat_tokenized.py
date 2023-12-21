@@ -150,8 +150,6 @@ dataset.save_to_disk('{HF_DATASETS_CACHE}/jat-project/jat-dataset-tokenized/{tas
         n_contiguous=training_args.per_device_train_batch_size,
     )
 
-    train_dataset.cast(None)
-
     def transform(encoding):
         encoding = {k: v for k, v in encoding.items() if v is not None}
         return BatchEncoding(encoding, tensor_type="pt")
