@@ -1,6 +1,5 @@
 import json
 import os
-import random
 import tempfile
 from typing import Dict, List, Optional
 
@@ -8,7 +7,6 @@ import cv2
 import numpy as np
 import pandas as pd
 from arch.bootstrap import IIDBootstrap
-from datasets import IterableDataset
 from huggingface_hub import EvalResult, HfApi, ModelCard, ModelCardData
 from scipy.stats import trim_mean
 from transformers import PreTrainedModel, ProcessorMixin
@@ -561,66 +559,3 @@ def save_video_grid(
 
     out.release()
     os.system(f"ffmpeg -y -i {temp_filename} -vcodec h264 {output_filename}")
-
-
-def mix_iterable_datasets(
-    datasets: List[IterableDataset],
-    batch_size: int,
-    stopping_strategy: str = "all_exhausted",
-    weights: List[int] = None,
-):
-    """
-    Mixes multiple IterableDataset objects into a single IterableDataset.
-
-    Args:
-        datasets (`List[IterableDataset]`):
-            List of IterableDataset objects.
-        batch_size (`int`):
-            Batch size.
-        stopping_strategy (`str`, **optional**):
-            Stopping strategy. Can be either "first_exhausted" or "all_exhausted".
-        weights (`List[int]`, **optional**):
-            List of weights for each dataset. If None, uniform weights are used.
-
-    Returns:
-        `IterableDataset`:
-            A mixed IterableDataset object.
-    """
-
-    def generator(
-        datasets: List[IterableDataset],
-        batch_size: int,
-        stopping_strategy: str = "all_exhausted",
-    ):
-        assert stopping_strategy in ["first_exhausted", "all_exhausted"]
-        iterators = [iter(dataset) for dataset in datasets]
-        exhausted = [False] * len(datasets)  # A list to keep track of which iterators are exhausted
-        should_stop = False
-        while not should_stop:
-            dataset_idx = random.choices(range(len(datasets)), k=1)[0]  # Choose a dataset randomly
-            iterator = iterators[dataset_idx]
-            for _ in range(batch_size):
-                try:
-                    yield next(iterator)
-                except StopIteration:
-                    if stopping_strategy == "first_exhausted":
-                        should_stop = True
-                    else:
-                        # Mark the iterator as exhausted
-                        exhausted[dataset_idx] = True
-                        # Check if all iterators are exhausted
-                        if all(exhausted):
-                            should_stop = True
-                    # Reinitialize the exhausted iterator
-                    iterator = iterators[dataset_idx] = iter(datasets[dataset_idx])
-                    yield next(iterators[dataset_idx])
-    _datasets = []
-    weights = weights if weights is not None else [1] * len(datasets)
-    for dataset, weight in zip(datasets, weights):
-        _datasets.extend([dataset] * weight)
-    gen_kwargs = {
-        "datasets": _datasets,
-        "batch_size": batch_size,
-        "stopping_strategy": stopping_strategy,
-    }
-    return IterableDataset.from_generator(generator=generator, gen_kwargs=gen_kwargs)

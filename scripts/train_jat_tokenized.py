@@ -15,7 +15,7 @@ from transformers import AutoConfig, AutoProcessor, BatchEncoding, HfArgumentPar
 
 from jat.eval.rl.core import TASK_NAME_TO_ENV_ID
 from jat.modeling_jat import JatModel
-from jat.utils import mix_iterable_datasets
+from jat.utils_interleave_datasets import interleave_datasets
 
 
 # Sometimes, the server is down; increasing the number of
@@ -142,8 +142,11 @@ dataset.save_to_disk('{HF_DATASETS_CACHE}/jat-project/jat-dataset-tokenized/{tas
         eval_dataset[key] = eval_dataset[key].take(data_args.eval_num_samples)
 
     weights = [SAMPLE_WEIGHTS.get(t, 1) for t in train_dataset.keys()]
-    train_dataset = mix_iterable_datasets(
-        list(train_dataset.values()), batch_size=training_args.per_device_train_batch_size, weights=weights
+    train_dataset = interleave_datasets(
+        list(train_dataset.values()),
+        probabilities=[w / sum(weights) for w in weights],
+        stopping_strategy="all_exhausted",
+        n_contiguous=training_args.per_device_train_batch_size,
     )
 
     def transform(encoding):
