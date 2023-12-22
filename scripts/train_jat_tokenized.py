@@ -9,8 +9,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 
 import datasets.config
-from datasets import load_dataset, load_from_disk
-from datasets.config import HF_DATASETS_CACHE, HF_DATASETS_OFFLINE
+from datasets import load_dataset
 from transformers import AutoConfig, AutoProcessor, HfArgumentParser, Trainer, TrainingArguments
 
 from jat.eval.rl.core import TASK_NAME_TO_ENV_ID
@@ -112,25 +111,7 @@ def main():
     # Load the dataset
     # Automatic cache is broken for parquet datasets
     # The following is a fix from https://github.com/huggingface/datasets/issues/3547#issuecomment-1252503988
-    dataset_dict = {}
-    if HF_DATASETS_OFFLINE:
-        for task in tasks:
-            if not os.path.exists(f"{HF_DATASETS_CACHE}/jat-project/jat-dataset-tokenized/{task}"):
-                raise ValueError(
-                    f"""Dataset {task} not found in {HF_DATASETS_CACHE}/jat-project/jat-dataset-tokenized/
-Make sure to download and save it first with
-```
-from datasets import load_dataset
-dataset = load_dataset('jat-project/jat-dataset-tokenized', '{task}')
-dataset.save_to_disk('{HF_DATASETS_CACHE}/jat-project/jat-dataset-tokenized/{task}')
-```"""
-                )
-            dataset_dict[task] = load_from_disk(f"{HF_DATASETS_CACHE}/jat-project/jat-dataset-tokenized/{task}")
-    else:
-        for task in tasks:
-            dataset_dict[task] = load_dataset("jat-project/jat-dataset-tokenized", task)
-
-    train_dataset = {t: d["train"] for t, d in dataset_dict.items()}
+    train_dataset = {load_dataset("jat-project/jat-dataset-tokenized", task, split="train"): task for task in tasks}
 
     weights = [SAMPLE_WEIGHTS.get(t, 1.0) for t in train_dataset.keys()]
 
