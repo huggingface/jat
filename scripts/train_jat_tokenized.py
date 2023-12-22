@@ -129,8 +129,7 @@ dataset = load_dataset('jat-project/jat-dataset-tokenized', '{task}')
 dataset.save_to_disk('{HF_DATASETS_CACHE}/jat-project/jat-dataset-tokenized/{task}')
 ```"""
                 )
-            dataset = load_from_disk(f"{HF_DATASETS_CACHE}/jat-project/jat-dataset-tokenized/{task}")
-            dataset_dict[task] = {s: d.to_iterable_dataset(128) for s, d in dataset.items()}
+            dataset_dict[task] = load_from_disk(f"{HF_DATASETS_CACHE}/jat-project/jat-dataset-tokenized/{task}")
     else:
         for task in tasks:
             dataset_dict[task] = load_dataset("jat-project/jat-dataset-tokenized", task, streaming=True)
