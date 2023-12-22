@@ -73,6 +73,11 @@ os.environ["WANDB_ENTITY"] = "qgallouedec"
 os.environ["WANDB_PROJECT"] = "jat"
 
 
+class MyTrainer(Trainer):
+    def _get_train_sampler(self) -> None:
+        return None
+
+
 def main():
     parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments))
 
@@ -148,7 +153,7 @@ dataset.save_to_disk('{HF_DATASETS_CACHE}/jat-project/jat-dataset-tokenized/{tas
         raise ValueError("Make sure to pass `--dispatch_batches False`.")
 
     # Why the training continue after exauhsting the dataset? https://github.com/huggingface/transformers/issues/26635
-    trainer = Trainer(model=model, args=training_args, train_dataset=train_dataset, tokenizer=processor)
+    trainer = MyTrainer(model=model, args=training_args, train_dataset=train_dataset, tokenizer=processor)
     trainer.train(resume_from_checkpoint=training_args.resume_from_checkpoint)
 
 
