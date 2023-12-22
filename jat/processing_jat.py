@@ -209,7 +209,7 @@ class JatProcessor(ProcessorMixin):
 
         # Particular case, we handle the conversion to tensor of image_observations, as the format used
         # (list of tensors) is not properly handled by the BatchEncoding class:
-        if "image_observations" in encoding:
+        if "image_observations" in encoding and isinstance(encoding["image_observations"][0], torch.Tensor):
             encoding["image_observations"] = torch.stack([torch.stack(ep) for ep in encoding["image_observations"]])
 
         return encoding

@@ -173,6 +173,7 @@ PRETTY_TASK_NAMES = {
     "mujoco-walker": "Walker 2d",
     "ok-vqa": "OK-VQA",
     "oscar": "OSCAR",
+    "wikipedia": "Wikipedia",
 }
 
 PRETTY_DOMAIN_NAMES = {"atari": "Atari 57", "babyai": "BabyAI", "metaworld": "MetaWorld", "mujoco": "MuJoCo"}
