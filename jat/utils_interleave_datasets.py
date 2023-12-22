@@ -227,9 +227,7 @@ def _interleave_map_style_datasets(
             """Get an infinite iterator that randomly samples the index of the source to pick examples from."""
             rng = np.random.default_rng(seed)
             while True:
-                for i in rng.choice(len(datasets), size=1000, p=probabilities):
-                    for _ in range(n_contiguous):
-                        yield int(i)
+                yield from (int(i) for i in rng.choice(len(datasets), size=1000, p=probabilities))
 
         current_index = [0] * len(datasets)
         indices = []
@@ -240,14 +238,15 @@ def _interleave_map_style_datasets(
                 # the stopping condition was reached, let's stop
                 break
 
-            # let's add the example at the current index of the `source_idx`-th dataset
-            indices.append(current_index[source_idx] + offsets[source_idx])
-            current_index[source_idx] += 1
+            for _ in range(n_contiguous):
+                # let's add the example at the current index of the `source_idx`-th dataset
+                indices.append(current_index[source_idx] + offsets[source_idx])
+                current_index[source_idx] += 1
 
-            # we've ran out of examples for the current dataset, let's update our boolean array and bring the current_index back to 0
-            if current_index[source_idx] >= lengths[source_idx]:
-                is_exhausted[source_idx] = True
-                current_index[source_idx] = 0
+                # we've ran out of examples for the current dataset, let's update our boolean array and bring the current_index back to 0
+                if current_index[source_idx] >= lengths[source_idx]:
+                    is_exhausted[source_idx] = True
+                    current_index[source_idx] = 0
 
     return concatenated_datasets.select(indices, **kwargs)
 
@@ -400,3 +399,11 @@ def interleave_datasets(
             stopping_strategy=stopping_strategy,
             n_contiguous=n_contiguous,
         )
+
+
+if __name__ == "__main__":
+    d1 = Dataset.from_dict({"a": [2, 3, 4]})
+    d2 = Dataset.from_dict({"b": [4, 5, 6]})
+    it = interleave_datasets([d1, d2], probabilities=[0.5, 0.5], n_contiguous=2, stopping_strategy="all_exhausted")
+    for i in it:
+        print(i)
