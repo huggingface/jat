@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 
 import datasets.config
-from datasets import load_dataset, load_from_disk
+from datasets import features, load_dataset, load_from_disk
 from datasets.config import HF_DATASETS_CACHE, HF_DATASETS_OFFLINE
 from transformers import AutoConfig, AutoProcessor, BatchEncoding, HfArgumentParser, Trainer, TrainingArguments
 
@@ -141,6 +141,11 @@ dataset.save_to_disk('{HF_DATASETS_CACHE}/jat-project/jat-dataset-tokenized/{tas
         eval_dataset[key] = eval_dataset[key].select(range(data_args.eval_num_samples))
 
     weights = [SAMPLE_WEIGHTS.get(t, 1) for t in train_dataset.keys()]
+
+    for k, d in train_dataset.items():
+        if "rewards" in d.column_names:
+            train_dataset[k] = d.cast_column("rewards", features.Sequence(features.Value("float32")))
+
     train_dataset = interleave_datasets(
         list(train_dataset.values()),
         probabilities=[w / sum(weights) for w in weights],

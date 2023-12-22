@@ -4,7 +4,7 @@ from copy import deepcopy
 from typing import Iterator, List, Optional, TypeVar
 
 import numpy as np
-from datasets.arrow_dataset import Dataset, _concatenate_map_style_datasets, _interleave_map_style_datasets
+from datasets.arrow_dataset import Dataset, _concatenate_map_style_datasets
 from datasets.dataset_dict import DatasetDict, IterableDatasetDict
 from datasets.info import DatasetInfo
 from datasets.iterable_dataset import CyclingMultiSourcesExamplesIterable, IterableDataset, _BaseExamplesIterable
