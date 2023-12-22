@@ -9,9 +9,9 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 
 import datasets.config
-from datasets import features, load_dataset, load_from_disk
+from datasets import load_dataset, load_from_disk
 from datasets.config import HF_DATASETS_CACHE, HF_DATASETS_OFFLINE
-from transformers import AutoConfig, AutoProcessor, BatchEncoding, HfArgumentParser, Trainer, TrainingArguments
+from transformers import AutoConfig, AutoProcessor, HfArgumentParser, Trainer, TrainingArguments
 
 from jat.eval.rl.core import TASK_NAME_TO_ENV_ID
 from jat.modeling_jat import JatModel
@@ -61,16 +61,12 @@ class DataTrainingArguments:
     """
 
     tasks: List[str] = field(default_factory=list, metadata={"help": "Tasks to train on."})
-    preprocess_num_proc: int = field(
-        default=1, metadata={"help": "Number of processes to use for preprocessing the data."}
-    )
-    eval_num_samples: int = field(default=1000, metadata={"help": "Number of samples to use for evaluation."})
 
 
 SAMPLE_WEIGHTS = {
-    "conceptual-captions": 10,
-    "oscar": 10,
-    "wikipedia": 10,
+    "conceptual-captions": 10.0,
+    "oscar": 10.0,
+    "wikipedia": 10.0,
 }
 
 os.environ["WANDB_ENTITY"] = "qgallouedec"
@@ -132,19 +128,11 @@ dataset.save_to_disk('{HF_DATASETS_CACHE}/jat-project/jat-dataset-tokenized/{tas
             dataset_dict[task] = load_from_disk(f"{HF_DATASETS_CACHE}/jat-project/jat-dataset-tokenized/{task}")
     else:
         for task in tasks:
-            dataset_dict[task] = load_dataset("jat-project/jat-dataset-tokenized", task, streaming=True)
+            dataset_dict[task] = load_dataset("jat-project/jat-dataset-tokenized", task)
 
     train_dataset = {t: d["train"] for t, d in dataset_dict.items()}
-    eval_dataset = {t: d["test"] for t, d in dataset_dict.items()}
 
-    for key in tasks:  # Reduce the number of eval samples
-        eval_dataset[key] = eval_dataset[key].select(range(data_args.eval_num_samples))
-
-    weights = [SAMPLE_WEIGHTS.get(t, 1) for t in train_dataset.keys()]
-
-    for k, d in train_dataset.items():
-        if "rewards" in d.column_names:
-            train_dataset[k] = d.cast_column("rewards", features.Sequence(features.Value("float32")))
+    weights = [SAMPLE_WEIGHTS.get(t, 1.0) for t in train_dataset.keys()]
 
     train_dataset = interleave_datasets(
         list(train_dataset.values()),
@@ -154,12 +142,6 @@ dataset.save_to_disk('{HF_DATASETS_CACHE}/jat-project/jat-dataset-tokenized/{tas
         n_contiguous=training_args.per_device_train_batch_size,
     )
 
-    def transform(encoding):
-        encoding = {k: v for k, v in encoding.items() if v is not None}
-        return BatchEncoding(encoding, tensor_type="pt")
-
-    train_dataset = train_dataset.map(transform)
-
     # Due to the train dataset's structure, where every 'n' consecutive samples share the same modalities, we can't
     # load all samples at once. Different sets of 'n' samples have different modalities. Therefore, we must load and
     # process each set of 'n' samples separately.
@@ -167,9 +149,7 @@ dataset.save_to_disk('{HF_DATASETS_CACHE}/jat-project/jat-dataset-tokenized/{tas
         raise ValueError("Make sure to pass `--dispatch_batches False`.")
 
     # Why the training continue after exauhsting the dataset? https://github.com/huggingface/transformers/issues/26635
-    trainer = Trainer(
-        model=model, args=training_args, train_dataset=train_dataset, eval_dataset=eval_dataset, tokenizer=processor
-    )
+    trainer = Trainer(model=model, args=training_args, train_dataset=train_dataset, tokenizer=processor)
     trainer.train(resume_from_checkpoint=training_args.resume_from_checkpoint)
 
 
