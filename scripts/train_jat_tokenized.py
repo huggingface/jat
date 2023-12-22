@@ -138,7 +138,7 @@ dataset.save_to_disk('{HF_DATASETS_CACHE}/jat-project/jat-dataset-tokenized/{tas
     eval_dataset = {t: d["test"] for t, d in dataset_dict.items()}
 
     for key in tasks:  # Reduce the number of eval samples
-        eval_dataset[key] = eval_dataset[key].take(data_args.eval_num_samples)
+        eval_dataset[key] = eval_dataset[key].select(range(data_args.eval_num_samples))
 
     weights = [SAMPLE_WEIGHTS.get(t, 1) for t in train_dataset.keys()]
     train_dataset = interleave_datasets(
