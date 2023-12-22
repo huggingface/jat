@@ -111,7 +111,7 @@ def main():
     # Load the dataset
     # Automatic cache is broken for parquet datasets
     # The following is a fix from https://github.com/huggingface/datasets/issues/3547#issuecomment-1252503988
-    train_dataset = {load_dataset("jat-project/jat-dataset-tokenized", task, split="train"): task for task in tasks}
+    train_dataset = {task: load_dataset("jat-project/jat-dataset-tokenized", task, split="train") for task in tasks}
 
     weights = [SAMPLE_WEIGHTS.get(t, 1.0) for t in train_dataset.keys()]
 
