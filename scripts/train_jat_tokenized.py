@@ -11,6 +11,7 @@ from typing import List, Optional
 import datasets.config
 from datasets import load_dataset, load_from_disk
 from datasets.config import HF_DATASETS_CACHE, HF_DATASETS_OFFLINE
+from tqdm import tqdm
 from transformers import AutoConfig, AutoProcessor, HfArgumentParser, Trainer, TrainingArguments
 
 from jat.eval.rl.core import TASK_NAME_TO_ENV_ID
@@ -114,7 +115,7 @@ def main():
             tasks.remove(domain)
             tasks.extend([env_id for env_id in TASK_NAME_TO_ENV_ID.keys() if env_id.startswith(domain)])
 
-    # Load the dataset
+    # Load the datasets
     if HF_DATASETS_OFFLINE:
         for task in tasks:
             if not os.path.exists(f"{HF_DATASETS_CACHE}/jat-project/jat-dataset-tokenized/{task}"):
@@ -127,10 +128,10 @@ dataset = load_dataset('jat-project/jat-dataset-tokenized', '{task}')
 dataset.save_to_disk('{HF_DATASETS_CACHE}/jat-project/jat-dataset-tokenized/{task}')
 ```"""
                 )
-        train_dataset = {
-            task: load_from_disk(f"{HF_DATASETS_CACHE}/jat-project/jat-dataset-tokenized/{task}")["train"]
-            for task in tasks
-        }
+        train_dataset = {}
+        for task in tqdm(tasks, desc="Loading datasets"):
+            d = load_from_disk(f"{HF_DATASETS_CACHE}/jat-project/jat-dataset-tokenized/{task}")
+            train_dataset[task] = d["train"]
     else:
         train_dataset = {
             task: load_dataset("jat-project/jat-dataset-tokenized", task, split="train") for task in tasks
