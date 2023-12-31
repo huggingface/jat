@@ -104,15 +104,15 @@ def eval_rl(model, processor, task, eval_args):
         scores.append(sum(rewards))
     env.close()
 
+    raw_mean, raw_std = np.mean(scores), np.std(scores)
+
     # Normalize the scores
     norm_scores = normalize(scores, task, "expert")
-    raw_mean, raw_std = np.mean(scores), np.std(scores)
-    norm_mean, norm_std = np.mean(norm_scores), np.std(norm_scores)
-
-    # Print the results
-    tqdm.write(
-        f"Task {task} Raw score: {raw_mean:.2f} ± {raw_std:.2f} " f"Normalized score: {norm_mean:.2f} ± {norm_std:.2f}"
-    )
+    if norm_scores is not None: # Can be None if random is better than expert 
+        norm_mean, norm_std = np.mean(norm_scores), np.std(norm_scores)
+        tqdm.write(f"Task {task} Raw score: {raw_mean:.2f} ± {raw_std:.2f}   Normalized score: {norm_mean:.2f} ± {norm_std:.2f}")
+    else:
+        tqdm.write(f"Task {task} Raw score: {raw_mean:.2f} ± {raw_std:.2f}")
 
     # Resize images by 1/3 to limit memory usage (the video is reduced anyway when aggregated with the others)
     if eval_args.save_video:
