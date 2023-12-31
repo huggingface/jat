@@ -1,10 +1,38 @@
 import copy
 from typing import Any, Dict, List, Optional, Union
 
+import numpy as np
 import torch
-from torchvision.transforms.functional import to_tensor
+import torchvision.transforms.functional as F
 from transformers import BatchEncoding
 from transformers.processing_utils import ProcessorMixin
+
+
+def to_tensor(data):
+    """
+    Convert a nested structure of numpy arrays or tensors (including lists and tuples of them)
+    into a tensor. Assumes that all nested structures can be converted into a tensor directly.
+
+    :param data: Nested structure containing numpy arrays, tensors, lists, or tuples
+    :return: torch.Tensor
+    """
+    # If the data is already a tensor, return it as is
+    if isinstance(data, torch.Tensor):
+        return data
+
+    # If the data is a numpy array, convert it to a tensor
+    if isinstance(data, np.ndarray):
+        return torch.tensor(data)
+
+    # If the data is a list or tuple, try to convert its elements
+    if isinstance(data, (list, tuple)):
+        # Convert all elements in the list or tuple to tensors
+        tensor_list = [to_tensor(item) for item in data]
+
+        return torch.stack(tensor_list)
+
+    # If the data type is not supported, raise an error
+    raise TypeError("Unsupported data type for conversion to tensor")
 
 
 def truncate(
@@ -209,8 +237,8 @@ class JatProcessor(ProcessorMixin):
 
         # Particular case, we handle the conversion to tensor of image_observations, as the format used
         # (list of tensors) is not properly handled by the BatchEncoding class:
-        if "image_observations" in encoding and isinstance(encoding["image_observations"][0], torch.Tensor):
-            encoding["image_observations"] = torch.stack([torch.stack(ep) for ep in encoding["image_observations"]])
+        if "image_observations" in encoding:
+            encoding["image_observations"] = to_tensor(encoding["image_observations"])
 
         return encoding
 
@@ -303,7 +331,7 @@ class JatProcessor(ProcessorMixin):
                 for timestep, text_tokens in enumerate(encoded_text):
                     encoding["discrete_observations"][batch_idx][timestep].extend(text_tokens)
         if image_observations is not None:
-            image_observations = [[(to_tensor(im) - 0.5) / 0.5 for im in ep] for ep in image_observations]
+            image_observations = [[(F.to_tensor(im) - 0.5) / 0.5 for im in ep] for ep in image_observations]
             encoding["image_observations"] = image_observations
         if continuous_actions is not None:
             encoding["continuous_actions"] = copy.deepcopy(continuous_actions)

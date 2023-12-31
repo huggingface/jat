@@ -6,7 +6,6 @@ from typing import Dict, List, Optional
 import cv2
 import numpy as np
 import pandas as pd
-import torch
 from arch.bootstrap import IIDBootstrap
 from huggingface_hub import EvalResult, HfApi, ModelCard, ModelCardData
 from scipy.stats import trim_mean
@@ -561,30 +560,3 @@ def save_video_grid(
 
     out.release()
     os.system(f"ffmpeg -y -i {temp_filename} -vcodec h264 {output_filename}")
-
-
-def to_tensor(data):
-    """
-    Convert a nested structure of numpy arrays or tensors (including lists and tuples of them)
-    into a tensor. Assumes that all nested structures can be converted into a tensor directly.
-
-    :param data: Nested structure containing numpy arrays, tensors, lists, or tuples
-    :return: torch.Tensor
-    """
-    # If the data is already a tensor, return it as is
-    if isinstance(data, torch.Tensor):
-        return data
-
-    # If the data is a numpy array, convert it to a tensor
-    if isinstance(data, np.ndarray):
-        return torch.tensor(data)
-
-    # If the data is a list or tuple, try to convert its elements
-    if isinstance(data, (list, tuple)):
-        # Convert all elements in the list or tuple to tensors
-        tensor_list = [to_tensor(item) for item in data]
-
-        return torch.stack(tensor_list)
-
-    # If the data type is not supported, raise an error
-    raise TypeError("Unsupported data type for conversion to tensor")
