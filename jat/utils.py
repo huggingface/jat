@@ -301,6 +301,8 @@ def generate_rl_eval_results(evaluations: Dict[str, List[float]]) -> List[EvalRe
         norm_scores = {
             task_name: normalize(np.array(scores), task_name, "expert") for task_name, scores in domain_scores.items()
         }
+        # Exlcude None
+        norm_scores = {k: v for k, v in norm_scores.items() if v is not None}
 
         # Compute the stratified interquartile mean and confidence interval
         mean_scores, ci = stratified_iqm_with_ci(list(norm_scores.values()))
