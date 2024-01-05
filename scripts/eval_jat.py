@@ -108,9 +108,11 @@ def eval_rl(model, processor, task, eval_args):
 
     # Normalize the scores
     norm_scores = normalize(scores, task, "expert")
-    if norm_scores is not None: # Can be None if random is better than expert 
+    if norm_scores is not None:  # Can be None if random is better than expert
         norm_mean, norm_std = np.mean(norm_scores), np.std(norm_scores)
-        tqdm.write(f"Task {task} Raw score: {raw_mean:.2f} ± {raw_std:.2f}   Normalized score: {norm_mean:.2f} ± {norm_std:.2f}")
+        tqdm.write(
+            f"Task {task} Raw score: {raw_mean:.2f} ± {raw_std:.2f}   Normalized score: {norm_mean:.2f} ± {norm_std:.2f}"
+        )
     else:
         tqdm.write(f"Task {task} Raw score: {raw_mean:.2f} ± {raw_std:.2f}")
 
@@ -172,8 +174,9 @@ def main():
 
     # Extract mean and std, and save scores dict
     eval_path = f"{model_args.model_name_or_path}/evaluations.json"
-    with open(eval_path, "w") as file:
-        json.dump(evaluations, file)
+    if evaluations:
+        with open(eval_path, "w") as file:
+            json.dump(evaluations, file)
 
     # Save the video
     if eval_args.save_video:

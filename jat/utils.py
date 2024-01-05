@@ -5,10 +5,9 @@ from typing import Dict, List, Optional
 
 import cv2
 import numpy as np
-import pandas as pd
-from arch.bootstrap import IIDBootstrap
 from huggingface_hub import EvalResult, HfApi, ModelCard, ModelCardData
-from scipy.stats import trim_mean
+from rliable import library as rly
+from rliable import metrics
 from transformers import PreTrainedModel, ProcessorMixin
 
 
@@ -233,51 +232,6 @@ def normalize(values: List[float], env_id: str, strategy: str) -> List[float]:
     return [(v - random_score) / (max_score - random_score) for v in values]
 
 
-def iqm(x):
-    return trim_mean(x, proportiontocut=0.25)
-
-
-def stratified_with_ci(data_list, func):
-    """
-    Calculate the stratified interquartile mean and confidence interval of a list of datasets.
-
-    Args:
-        data_list (list of list of float): List of datasets. Each dataset is a list of scores.
-
-    Returns:
-        np.ndarray: Confidence interval of shape (2,).
-    """
-    # Convert the list of lists into a DataFrame
-    data = []
-    for i, dataset in enumerate(data_list):
-        for v in dataset:
-            data.append({"dataset": i, "val": v})
-    data = pd.DataFrame(data)
-
-    # Bootstrap
-    bs = IIDBootstrap(data)
-
-    def stratified_func(d):
-        return d.groupby("dataset")["val"].apply(func).mean()
-
-    ci = bs.conf_int(stratified_func, 1000, method="percentile")
-    val = stratified_func(data)
-    return val, ci[:, 0]
-
-
-def stratified_iqm_with_ci(data_list: List[List[float]]) -> np.ndarray:
-    """
-    Calculate the stratified interquartile mean and confidence interval of a list of datasets.
-
-    Args:
-        data_list (list of list of float): List of datasets. Each dataset is a list of scores.
-
-    Returns:
-        np.ndarray: Confidence interval of shape (2,).
-    """
-    return stratified_with_ci(data_list, iqm)
-
-
 def generate_rl_eval_results(evaluations: Dict[str, List[float]]) -> List[EvalResult]:
     """
     Generate a list of EvalResult objects.
@@ -305,7 +259,13 @@ def generate_rl_eval_results(evaluations: Dict[str, List[float]]) -> List[EvalRe
         norm_scores = {k: v for k, v in norm_scores.items() if v is not None}
 
         # Compute the stratified interquartile mean and confidence interval
-        mean_scores, ci = stratified_iqm_with_ci(list(norm_scores.values()))
+        scores_dict = {"a": np.array(list(norm_scores.values())).T}
+
+        def aggregate_func(x):
+            return np.array([metrics.aggregate_iqm(x)])
+
+        aggregate_scores, aggregate_score_cis = rly.get_interval_estimates(scores_dict, aggregate_func)
+        iqm, low, high = aggregate_scores["a"][0], aggregate_score_cis["a"][0][0], aggregate_score_cis["a"][1][0]
 
         eval_results.append(
             EvalResult(
@@ -315,7 +275,7 @@ def generate_rl_eval_results(evaluations: Dict[str, List[float]]) -> List[EvalRe
                 dataset_name=PRETTY_DOMAIN_NAMES[domain],
                 metric_type="iqm_expert_normalized_total_reward",
                 metric_name="IQM expert normalized total reward",
-                metric_value=f"{mean_scores:.2f} [{ci[0]:.2f}, {ci[1]:.2f}]",
+                metric_value=f"{iqm:.2f} [{low:.2f}, {high:.2f}]",
             )
         )
 
@@ -325,7 +285,11 @@ def generate_rl_eval_results(evaluations: Dict[str, List[float]]) -> List[EvalRe
         task_name: normalize(np.array(scores), task_name, "human") for task_name, scores in atari_scores.items()
     }
     # Compute the stratified interquartile mean and confidence interval
-    mean_scores, ci = stratified_iqm_with_ci(list(norm_scores.values()))
+    def aggregate_func(x):
+        return np.array([metrics.aggregate_iqm(x)])
+
+    aggregate_scores, aggregate_score_cis = rly.get_interval_estimates(scores_dict, aggregate_func)
+    iqm, low, high = aggregate_scores["a"][0], aggregate_score_cis["a"][0][0], aggregate_score_cis["a"][1][0]
 
     eval_results.append(
         EvalResult(
@@ -335,7 +299,7 @@ def generate_rl_eval_results(evaluations: Dict[str, List[float]]) -> List[EvalRe
             dataset_name=PRETTY_DOMAIN_NAMES["atari"],
             metric_type="iqm_human_normalized_total_reward",
             metric_name="IQM human normalized total reward",
-            metric_value=f"{mean_scores:.2f} [{ci[0]:.2f}, {ci[1]:.2f}]",
+            metric_value=f"{iqm:.2f} [{low:.2f}, {high:.2f}]",
         )
     )
 
@@ -357,6 +321,8 @@ def generate_rl_eval_results(evaluations: Dict[str, List[float]]) -> List[EvalRe
 
     for task_name, scores in evaluations.items():
         norm_scores = normalize(np.array(scores), task_name, "expert")
+        if norm_scores is None:
+            continue
         mean_scores = np.mean(norm_scores)
         std_scores = np.std(norm_scores)
 
