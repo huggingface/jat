@@ -61,15 +61,15 @@ from setuptools import find_packages
 __version__ = "0.0.1.dev0"  # expected format is one of x.y.z.dev0, or x.y.z.rc1 or x.y.z (no to dashes, yes to dots)
 
 REQUIRED_PKGS = [
-    "accelerate==0.22.0",
-    "datasets==2.14.4",
+    "accelerate==0.25.0",
+    "datasets==2.15.0",
     "gymnasium==0.29.1",  # For RL action spaces and API
     "huggingface_hub>=0.10",  # For sharing objects, environments & trained RL policies
     "numpy",
     "opencv-python",
-    "torch==2.0.1",
+    "torch==2.1.1",
     "torchvision",
-    "transformers==4.32.1",
+    "transformers==4.36.1",
     "wandb",
 ]
 

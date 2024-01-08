@@ -265,8 +265,10 @@ def stratified_with_ci(data_list, func):
 
     # Bootstrap
     bs = IIDBootstrap(data)
+
     def stratified_func(d):
         return d.groupby("dataset")["val"].apply(func).mean()
+
     ci = bs.conf_int(stratified_func, 1000, method="percentile")
     val = stratified_func(data)
     return val, ci[:, 0]

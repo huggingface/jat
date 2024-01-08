@@ -31,7 +31,6 @@ def push_to_hf(dir_path: str, repo_name: str):
 
 # most of this function is redundant as it is copied from sample.enjoy.enjoy
 def create_atari_dataset(cfg: Config):
-
     cfg = load_from_checkpoint(cfg)
 
     eval_env_frameskip: int = cfg.env_frameskip if cfg.eval_env_frameskip is None else cfg.eval_env_frameskip
