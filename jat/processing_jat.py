@@ -1,38 +1,35 @@
 import copy
+import warnings
 from typing import Any, Dict, List, Optional, Union
 
-import numpy as np
 import torch
 import torchvision.transforms.functional as F
 from transformers import BatchEncoding
 from transformers.processing_utils import ProcessorMixin
 
 
-def to_tensor(data):
+def to_tensor(x):
     """
     Convert a nested structure of numpy arrays or tensors (including lists and tuples of them)
     into a tensor. Assumes that all nested structures can be converted into a tensor directly.
 
-    :param data: Nested structure containing numpy arrays, tensors, lists, or tuples
+    :param x: Nested structure containing numpy arrays, tensors, lists, or tuples
     :return: torch.Tensor
     """
-    # If the data is already a tensor, return it as is
-    if isinstance(data, torch.Tensor):
-        return data
-
-    # If the data is a numpy array, convert it to a tensor
-    if isinstance(data, np.ndarray):
-        return torch.tensor(data)
-
-    # If the data is a list or tuple, try to convert its elements
-    if isinstance(data, (list, tuple)):
-        # Convert all elements in the list or tuple to tensors
-        tensor_list = [to_tensor(item) for item in data]
-
-        return torch.stack(tensor_list)
-
-    # If the data type is not supported, raise an error
-    raise TypeError("Unsupported data type for conversion to tensor")
+    with warnings.catch_warnings():
+        # Convert specific warning to an error
+        warnings.filterwarnings(
+            "error",
+            category=UserWarning,
+            message=".*Creating a tensor from a list of numpy.ndarrays is extremely slow.*",
+        )
+        try:
+            return torch.Tensor(x)
+        except Exception:
+            if isinstance(x, list):
+                return torch.stack([to_tensor(item) for item in x])
+            else:
+                raise TypeError("Unsupported type for conversion to tensor")
 
 
 def truncate(
