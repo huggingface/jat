@@ -4,7 +4,7 @@ import pytest
 from gia.eval.rl import make
 
 
-OBS_KEYS = {"discrete_observations", "continuous_observations", "image_observation", "text_observations"}
+OBS_KEYS = {"discrete_observation", "continuous_observation", "image_observation", "text_observation"}
 
 
 @pytest.mark.parametrize("task_name", ["atari-alien", "babyai-action-obj-door", "metaworld-assembly", "mujoco-ant"])
