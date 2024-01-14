@@ -228,8 +228,12 @@ def normalize(values: List[float], env_id: str, strategy: str) -> List[float]:
         max_score = scores_dict[env_id]["human"]["mean"]
 
     if max_score <= random_score:
-        return None
-    return [(v - random_score) / (max_score - random_score) for v in values]
+        print(env_id)
+        return [1.0 for v in values]
+    # if "human" in scores_dict[env_id] and scores_dict[env_id]["human"]["mean"] > scores_dict[env_id]["expert"]["mean"]:
+    #     print(env_id)
+    #     return None
+    return [(v - random_score) / abs(max_score - random_score) for v in values]
 
 
 def generate_rl_eval_results(evaluations: Dict[str, List[float]]) -> List[EvalResult]:
@@ -280,11 +284,15 @@ def generate_rl_eval_results(evaluations: Dict[str, List[float]]) -> List[EvalRe
         )
 
     atari_scores = {task_name: scores for task_name, scores in evaluations.items() if task_name.startswith("atari")}
+
     # Normalize the scores
     norm_scores = {
         task_name: normalize(np.array(scores), task_name, "human") for task_name, scores in atari_scores.items()
     }
+
     # Compute the stratified interquartile mean and confidence interval
+    scores_dict = {"a": np.array(list(norm_scores.values())).T}
+
     def aggregate_func(x):
         return np.array([metrics.aggregate_iqm(x)])
 
