@@ -255,6 +255,10 @@ def generate_rl_eval_results(evaluations: Dict[str, List[float]]) -> List[EvalRe
         domain_scores = {
             task_name: scores for task_name, scores in evaluations.items() if task_name.startswith(domain)
         }
+
+        if not domain_scores:
+            continue
+
         # Normalize the scores
         norm_scores = {
             task_name: normalize(np.array(scores), task_name, "expert") for task_name, scores in domain_scores.items()
