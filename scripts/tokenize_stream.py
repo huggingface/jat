@@ -9,8 +9,7 @@ from functools import partial
 from typing import List, Optional
 
 import datasets.config
-from datasets import Dataset, DatasetDict, load_dataset, load_from_disk
-from datasets.config import HF_DATASETS_CACHE, HF_DATASETS_OFFLINE
+from datasets import Dataset, DatasetDict, load_dataset
 from transformers import AutoProcessor, HfArgumentParser
 
 from jat.eval.rl.core import TASK_NAME_TO_ENV_ID
@@ -98,7 +97,7 @@ def main():
     for task in tasks:
         dataset = load_dataset("jat-project/jat-dataset", task, streaming=True)
         if task == "oscar":
-            dataset = DatasetDict({"train": dataset["train"].take(1_000_000), "test":dataset["test"].take(1_000)})
+            dataset = DatasetDict({"train": dataset["train"].take(1_000_000), "test": dataset["test"].take(1_000)})
 
         dataset_dict[task] = dataset
 

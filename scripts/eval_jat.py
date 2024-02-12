@@ -111,7 +111,8 @@ def eval_rl(model, processor, task, eval_args):
     if norm_scores is not None:  # Can be None if random is better than expert
         norm_mean, norm_std = np.mean(norm_scores), np.std(norm_scores)
         tqdm.write(
-            f"Task {task} Raw score: {raw_mean:.2f} ± {raw_std:.2f}   Normalized score: {norm_mean:.2f} ± {norm_std:.2f}"
+            f"Task {task} Raw score: {raw_mean:.2f} ± {raw_std:.2f}\t"
+            f"Normalized score: {norm_mean:.2f} ± {norm_std:.2f}"
         )
     else:
         tqdm.write(f"Task {task} Raw score: {raw_mean:.2f} ± {raw_std:.2f}")

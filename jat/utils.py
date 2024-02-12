@@ -228,11 +228,9 @@ def normalize(values: List[float], env_id: str, strategy: str) -> List[float]:
         max_score = scores_dict[env_id]["human"]["mean"]
 
     if max_score <= random_score:
-        print(env_id)
-        return [1.0 for v in values]
-    # if "human" in scores_dict[env_id] and scores_dict[env_id]["human"]["mean"] > scores_dict[env_id]["expert"]["mean"]:
-    #     print(env_id)
-    #     return None
+        print(f"Upper score is under random score for {env_id}")
+        return [1.0 for _ in values]
+
     return [(v - random_score) / abs(max_score - random_score) for v in values]
 
 
