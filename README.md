@@ -1,6 +1,24 @@
 # Jack of All Trades, Master of Some, a Multi-Purpose Transformer Agent
 
-![render](https://github.com/huggingface/gia/assets/45557362/5b4d4920-fafd-4cb8-90d1-ac4df3a97073)
+<p align="center">
+    <a href="https://github.com/huggingface/gia/actions/workflows/ci.yml?query=branch%3Amain">
+        <img alt="Build" src="https://github.com/huggingface/jat/actions/workflows/test-ci.yml/badge.svg?branch=main">
+    </a>
+    <a href="https://github.com/huggingface/jat/blob/main/LICENSE">
+        <img alt="GitHub" src="https://img.shields.io/github/license/huggingface/jat.svg?color=blue">
+    </a>
+    <a href="https://huggingface.co/jat-project">
+        <img alt="Documentation" src="https://img.shields.io/website/http/huggingface.co/jat-project.svg?down_color=red&down_message=offline&up_message=online">
+    </a>
+</p>
+
+<p align="center">
+  <picture>
+    <img alt="Rendering" src="https://github.com/huggingface/gia/assets/45557362/5b4d4920-fafd-4cb8-90d1-ac4df3a97073" style="max-width: 100%;">
+  </picture>
+  <br/>
+  <br/>
+</p>
 
 
 ## Installation
