@@ -1,16 +1,10 @@
 # Jack of All Trades, Master of Some, a Multi-Purpose Transformer Agent
 
-<p align="center">
-    <a href="https://github.com/huggingface/jat/actions/workflows/ci.yml?query=branch%3Amain">
-        <img alt="Build" src="https://github.com/huggingface/jat/actions/workflows/test-ci.yml/badge.svg?branch=main">
-    </a>
-    <a href="https://github.com/huggingface/jat/blob/main/LICENSE">
-        <img alt="GitHub" src="https://img.shields.io/github/license/huggingface/jat.svg?color=blue">
-    </a>
-    <a href="https://huggingface.co/jat-project">
-        <img alt="Documentation" src="https://img.shields.io/website/http/huggingface.co/jat-project.svg?down_color=red&down_message=offline&up_message=online">
-    </a>
-</p>
+[![Build](https://github.com/huggingface/jat/actions/workflows/test-ci.yml/badge.svg?branch=main)](https://github.com/huggingface/jat/actions/workflows/ci.yml?query=branch%3Amain)
+[![License](https://img.shields.io/github/license/huggingface/jat.svg?color=blue)](https://github.com/huggingface/jat/blob/main/LICENSE)
+[![arXiv](https://img.shields.io/badge/cs.AI-arXiv%3A2402.09844-B31B1B.svg)](https://arxiv.org/abs/2402.09844)
+[![Website](https://img.shields.io/website/http/huggingface.co/jat-project.svg?down_color=red&down_message=offline&up_message=online)](https://huggingface.co/jat-project)
+
 
 <p align="center">
   <picture>
