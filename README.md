@@ -5,7 +5,6 @@
 [![arXiv](https://img.shields.io/badge/cs.AI-arXiv%3A2402.09844-B31B1B.svg)](https://arxiv.org/abs/2402.09844)
 [![Website](https://img.shields.io/website/http/huggingface.co/jat-project.svg?down_color=red&down_message=offline&up_message=online)](https://huggingface.co/jat-project)
 
-
 <p align="center">
   <picture>
     <img alt="Rendering" src="https://github.com/huggingface/gia/assets/45557362/5b4d4920-fafd-4cb8-90d1-ac4df3a97073" style="max-width: 100%;">
@@ -31,6 +30,40 @@ To get started with JAT, follow these steps:
     pip install .
     ```
 
+
+## Demonstration of the trained agent
+
+```python
+from transformers import AutoModelForCausalLM, AutoProcessor
+from jat.eval.rl import make
+
+# Load the model and the processor
+model_name_or_path = "jat-project/jat"
+processor = AutoProcessor.from_pretrained(model_name_or_path, trust_remote_code=True)
+model = AutoModelForCausalLM.from_pretrained(model_name_or_path, trust_remote_code=True).to("cuda")
+
+# Make the environment
+env = make("atari-pong", render_mode="human")
+
+observation, info = env.reset()
+reward = None
+done = False
+model.reset_rl()  # clear key-value cache
+while not done:
+    action = model.get_next_action(processor, **observation, reward=reward, action_space=env.action_space)
+    observation, reward, termined, truncated, info = env.step(action)
+    done = termined or truncated
+
+    if done and "episode" not in info:  # handle "fake done" for atari
+        observation, info = env.reset()
+        done = False
+
+env.close()
+```
+
+% GIF of trained agent here
+
+
 ## Usage Examples
 Here are some examples of how you might use JAT in both evaluation and fine-tuning modes. More detailed information about each example is provided within the corresponding script files.
 
@@ -45,9 +78,10 @@ Here are some examples of how you might use JAT in both evaluation and fine-tuni
 
 For further details regarding usage, consult the documentation included with individual script files.
 
+
 ## Dataset
 
-Upon completion, your newly trained JAT model will reside at the specified `output_dir`, ready for evaluation or fine-tuning purposes.
+% TODO
 
 
 ## Citation
