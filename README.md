@@ -67,6 +67,5 @@ Please ensure proper citations when incorporating this work into your projects.
     journal = {arXiv preprint arXiv:2402.09844},
     year = {2024},
     url = {https://arxiv.org/abs/2402.09844}
-
 }
 ```
