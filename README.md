@@ -33,6 +33,8 @@ To get started with JAT, follow these steps:
 
 ## Demonstration of the trained agent
 
+The trained JAT agent is available [here](https://huggingface.co/jat-project/jat). The following script gives an example of the use of this agent on the Pong environment
+
 ```python
 from transformers import AutoModelForCausalLM, AutoProcessor
 from jat.eval.rl import make
