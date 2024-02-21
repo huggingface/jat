@@ -75,6 +75,8 @@ def eval_rl(model, processor, task, eval_args):
 
     env = make(task, **env_kwargs)
 
+    context_window = 32 if task.startswith("atari") else 256
+
     scores = []
     frames = []
     for episode in tqdm(range(eval_args.num_episodes), desc=task, unit="episode", leave=False):
@@ -84,7 +86,7 @@ def eval_rl(model, processor, task, eval_args):
         done = False
         model.reset_rl()  # remove KV Cache
         while not done:
-            action = model.get_next_action(processor, **observation, reward=reward, action_space=env.action_space)
+            action = model.get_next_action(processor, **observation, reward=reward, action_space=env.action_space, context_window=context_window)
             observation, reward, termined, truncated, info = env.step(action)
             done = termined or truncated
 

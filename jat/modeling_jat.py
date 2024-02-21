@@ -711,6 +711,7 @@ class JatModel(GPTNeoPreTrainedModel):
         action_space: Union[spaces.Box, spaces.Discrete] = None,
         reward: Optional[float] = None,
         deterministic: bool = False,
+        context_window: Optional[int] = None,
     ):
         # Get the maximum sequence length
         max_length = self.config.max_position_embeddings // 2
@@ -803,6 +804,10 @@ class JatModel(GPTNeoPreTrainedModel):
         # Store the last key values
         # We remove the last two values, as the inputs are [s_0, 0], [s_0, a_0, s_1, 0], [s_1, a_1, s_2, 0], ...
         self._last_key_values = tuple(tuple(pkv[:, :, :-2] for pkv in pkvs) for pkvs in self._last_key_values)
+
+        # Context window
+        if context_window is not None:
+            self._last_key_values = tuple(tuple(pkv[:, :, -context_window:] for pkv in pkvs) for pkvs in self._last_key_values)
 
         # Return the predicted action
         if continuous_actions is not None:
