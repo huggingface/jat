@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Eval a GIA model on the GIA dataset"""
+"""Eval a JAT model"""
 import json
 import logging
 import os
@@ -13,8 +13,8 @@ import torch
 from tqdm import tqdm
 from transformers import AutoModelForCausalLM, AutoProcessor, HfArgumentParser
 
-from gia.eval.rl import TASK_NAME_TO_ENV_ID, make
-from gia.utils import push_to_hub, save_video_grid, suppress_stdout
+from jat.eval.rl import TASK_NAME_TO_ENV_ID, make
+from jat.utils import normalize, push_to_hub, save_video_grid
 
 
 @dataclass
@@ -72,8 +72,8 @@ def eval_rl(model, processor, task, eval_args):
         env_kwargs["clip_reward"] = False
     if eval_args.save_video:
         env_kwargs["render_mode"] = "rgb_array"
-    with suppress_stdout():  # avoid printing the env info
-        env = make(task, **env_kwargs)
+
+    env = make(task, **env_kwargs)
 
     scores = []
     frames = []
@@ -104,23 +104,18 @@ def eval_rl(model, processor, task, eval_args):
         scores.append(sum(rewards))
     env.close()
 
-    # Get the mean and std of the expert and random scores
-    with open("gia/eval/rl/scores_dict.json", "r") as file:
-        scores_dict = json.load(file)
-
-    expert_mean = scores_dict[task]["expert"]["mean"]
-    random_mean = scores_dict[task]["random"]["mean"]
+    raw_mean, raw_std = np.mean(scores), np.std(scores)
 
     # Normalize the scores
-    raw_mean = np.mean(scores)
-    raw_std = np.std(scores)
-    norm_mean = (raw_mean - random_mean) / (expert_mean - random_mean)
-    norm_std = raw_std / (expert_mean - random_mean)
-
-    # Print the results
-    tqdm.write(
-        f"Task {task} Raw score: {raw_mean:.2f} ± {raw_std:.2f} " f"Normalized score: {norm_mean:.2f} ± {norm_std:.2f}"
-    )
+    norm_scores = normalize(scores, task, "expert")
+    if norm_scores is not None:  # Can be None if random is better than expert
+        norm_mean, norm_std = np.mean(norm_scores), np.std(norm_scores)
+        tqdm.write(
+            f"Task {task} Raw score: {raw_mean:.2f} ± {raw_std:.2f}\t"
+            f"Normalized score: {norm_mean:.2f} ± {norm_std:.2f}"
+        )
+    else:
+        tqdm.write(f"Task {task} Raw score: {raw_mean:.2f} ± {raw_std:.2f}")
 
     # Resize images by 1/3 to limit memory usage (the video is reduced anyway when aggregated with the others)
     if eval_args.save_video:
@@ -180,8 +175,9 @@ def main():
 
     # Extract mean and std, and save scores dict
     eval_path = f"{model_args.model_name_or_path}/evaluations.json"
-    with open(eval_path, "w") as file:
-        json.dump(evaluations, file)
+    if evaluations:
+        with open(eval_path, "w") as file:
+            json.dump(evaluations, file)
 
     # Save the video
     if eval_args.save_video:

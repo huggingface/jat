@@ -1,10 +1,35 @@
 import copy
+import warnings
 from typing import Any, Dict, List, Optional, Union
 
 import torch
-from torchvision.transforms.functional import to_tensor
+import torchvision.transforms.functional as F
 from transformers import BatchEncoding
 from transformers.processing_utils import ProcessorMixin
+
+
+def to_tensor(x):
+    """
+    Convert a nested structure of numpy arrays or tensors (including lists and tuples of them)
+    into a tensor. Assumes that all nested structures can be converted into a tensor directly.
+
+    :param x: Nested structure containing numpy arrays, tensors, lists, or tuples
+    :return: torch.Tensor
+    """
+    with warnings.catch_warnings():
+        # Convert specific warning to an error
+        warnings.filterwarnings(
+            "error",
+            category=UserWarning,
+            message=".*Creating a tensor from a list of numpy.ndarrays is extremely slow.*",
+        )
+        try:
+            return torch.Tensor(x)
+        except Exception:
+            if isinstance(x, list):
+                return torch.stack([to_tensor(item) for item in x])
+            else:
+                raise TypeError("Unsupported type for conversion to tensor")
 
 
 def truncate(
@@ -144,12 +169,12 @@ def pad(encoding: Dict[str, List[List[Any]]], target_length: int) -> Dict[str, L
     return padded_encoding
 
 
-class GiaProcessor(ProcessorMixin):
+class JatProcessor(ProcessorMixin):
     r"""
-    Constructs a GIA processor which wraps a CLIP image processor and a BERT tokenizer into a single processor.
+    JAT processor which wraps a CLIP image processor and a BERT tokenizer into a single processor.
 
-    [`GiaProcessor`] offers all the functionalities of [`CLIPImageProcessor`] and [`BertTokenizerFast`]. See the
-    [`~GiaProcessor.__call__`] and [`~GiaProcessor.decode`] for more information.
+    [`JatProcessor`] offers all the functionalities of [`CLIPImageProcessor`] and [`BertTokenizerFast`]. See the
+    [`~JatProcessor.__call__`] and [`~JatProcessor.decode`] for more information.
 
     Args:
         image_processor ([`AutoImageProcessor`]):
@@ -210,7 +235,7 @@ class GiaProcessor(ProcessorMixin):
         # Particular case, we handle the conversion to tensor of image_observations, as the format used
         # (list of tensors) is not properly handled by the BatchEncoding class:
         if "image_observations" in encoding:
-            encoding["image_observations"] = torch.stack([torch.stack(ep) for ep in encoding["image_observations"]])
+            encoding["image_observations"] = to_tensor(encoding["image_observations"])
 
         return encoding
 
@@ -303,7 +328,7 @@ class GiaProcessor(ProcessorMixin):
                 for timestep, text_tokens in enumerate(encoded_text):
                     encoding["discrete_observations"][batch_idx][timestep].extend(text_tokens)
         if image_observations is not None:
-            image_observations = [[(to_tensor(im) - 0.5) / 0.5 for im in ep] for ep in image_observations]
+            image_observations = [[(F.to_tensor(im) - 0.5) / 0.5 for im in ep] for ep in image_observations]
             encoding["image_observations"] = image_observations
         if continuous_actions is not None:
             encoding["continuous_actions"] = copy.deepcopy(continuous_actions)
@@ -347,10 +372,17 @@ class GiaProcessor(ProcessorMixin):
         return self.tokenizer.decode(*args, **kwargs)
 
     def pad(self, *args, **kwargs):
-        inputs = {key: [arg[key] for arg in args[0]] for key in args[0][0].keys()}
-        encoding = self._truncate_and_pad(
-            inputs, padding=kwargs.get("padding", False), truncation=False, max_length=kwargs.get("max_length")
-        )
+        inputs = args[0]
+        keys = [key for key in inputs[0].keys() if inputs[0][key] is not None]
+        inputs = {key: [arg[key] for arg in inputs] for key in keys}
+        elmt = next(iter(inputs.values()))
+        if isinstance(elmt[0], torch.Tensor) and not isinstance(elmt, torch.Tensor):
+            encoding = {key: torch.stack(inputs[key]) for key in inputs.keys()}
+        else:
+            encoding = self._truncate_and_pad(
+                inputs, padding=kwargs.get("padding", False), truncation=False, max_length=kwargs.get("max_length")
+            )
+
         return BatchEncoding(encoding, tensor_type=kwargs.get("return_tensors"))
 
     @property
@@ -368,4 +400,4 @@ class GiaProcessor(ProcessorMixin):
         ]
 
 
-GiaProcessor.register_for_auto_class("AutoProcessor")
+JatProcessor.register_for_auto_class("AutoProcessor")

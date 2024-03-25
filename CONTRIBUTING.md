@@ -1,3 +1,3 @@
-# Contributing to the GIA Project
+# Contributing to the JAT Project
 
 Under construction

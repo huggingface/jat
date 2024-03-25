@@ -171,12 +171,12 @@ ENV_NAMES = [
     "mujoco-walker",
 ]
 
-FILENAME = "gia/eval/rl/scores_dict.json"
+FILENAME = "jat/eval/rl/scores_dict.json"
 
 for env_name in tqdm(ENV_NAMES):
     tqdm.write(f"Downloading expert scores for {env_name}")
 
-    dataset = load_dataset("gia-project/gia-dataset", env_name)
+    dataset = load_dataset("jat-project/jat-dataset", env_name)
     # Initialize the variables
     rewards = dataset["train"]["rewards"] + dataset["test"]["rewards"]
     episode_sum_rewards = [np.sum(r) for r in rewards]

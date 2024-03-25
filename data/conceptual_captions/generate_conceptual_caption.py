@@ -108,7 +108,7 @@ if __name__ == "__main__":
 
         for i in range(retry):
             try:
-                dataset.push_to_hub("gia-project/gia-dataset", "conceptual-captions", split=split)
+                dataset.push_to_hub("jat-project/jat-dataset", "conceptual-captions", split=split)
                 break
             except Exception:
                 print(f"Retry {i+1}/{retry}")

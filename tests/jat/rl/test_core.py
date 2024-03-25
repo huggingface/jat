@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from gia.eval.rl import make
+from jat.eval.rl import make
 
 
 OBS_KEYS = {"discrete_observation", "continuous_observation", "image_observation", "text_observation"}

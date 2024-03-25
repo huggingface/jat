@@ -58,6 +58,6 @@ NAMES=(
 
 module purge
 module load python/3.8.2
-conda activate hf_gia
+conda activate hf_jat
 
 python create_babyai_dataset.py --task_name=${NAMES[$SLURM_ARRAY_TASK_ID]} --max_num_episodes=100000

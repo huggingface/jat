@@ -135,7 +135,7 @@ def create_atari_dataset(cfg: Config):
     env.close()
 
     task = cfg.env.split("_")[1]
-    # Fix task names (see see https://huggingface.co/datasets/gia-project/gia-dataset/discussions/21 to 24)
+    # Fix task names (see see https://huggingface.co/datasets/jat-project/jat-dataset/discussions/21 to 24)
     task = "asteroids" if task == "asteroid" else task
     task = "kungfumaster" if task == "kongfumaster" else task
     task = "montezumarevenge" if task == "montezuma" else task
@@ -159,9 +159,9 @@ def create_atari_dataset(cfg: Config):
     ]
     dataset = concatenate_datasets(ds)
     dataset = dataset.train_test_split(test_size=0.1, writer_batch_size=1)
-    HfApi().create_branch("gia-project/gia-dataset", branch="new_breakout", exist_ok=True, repo_type="dataset")
+    HfApi().create_branch("jat-project/jat-dataset", branch="new_breakout", exist_ok=True, repo_type="dataset")
     dataset.push_to_hub(
-        "gia-project/gia-dataset",
+        "jat-project/jat-dataset",
         config_name=f"atari-{task}",
         branch="new_breakout",
     )

@@ -1,6 +1,6 @@
 import torch
 
-from gia.modeling_gia import compute_mse_loss
+from jat.modeling_jat import compute_mse_loss
 
 
 def test_basic():
