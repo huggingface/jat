@@ -807,7 +807,9 @@ class JatModel(GPTNeoPreTrainedModel):
 
         # Context window
         if context_window is not None:
-            self._last_key_values = tuple(tuple(pkv[:, :, -context_window:] for pkv in pkvs) for pkvs in self._last_key_values)
+            self._last_key_values = tuple(
+                tuple(pkv[:, :, -context_window:] for pkv in pkvs) for pkvs in self._last_key_values
+            )
 
         # Return the predicted action
         if continuous_actions is not None:
