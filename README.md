@@ -19,17 +19,19 @@
 To get started with JAT, follow these steps:
 
 1. Clone this repository onto your local machine.
+
+    ```shell
+    git clone https://github.com/huggingface/jat.git
+    cd jat
     ```
-   git clone https://github.com/huggingface/jat.git
-   cd jat
-   ```
+
 2. Create a new virtual environment and activate it, and install required dependencies via pip.
-    ```
+
+    ```shell
     python3 -m venv env
     source env/bin/activate
     pip install .
     ```
-
 
 ## Demonstration of the trained agent
 
@@ -65,26 +67,27 @@ env.close()
 
 % GIF of trained agent here
 
-
 ## Usage Examples
+
 Here are some examples of how you might use JAT in both evaluation and fine-tuning modes. More detailed information about each example is provided within the corresponding script files.
 
 * **Evaluation Mode**: Evaluate pretrained JAT models on specific downstream tasks
-    ```
+
+    ```shell
     python scripts/eval_jat.py --model_name_or_path jat-project/jat --tasks atari-pong --trust_remote_code
     ```
+
 * **Training Mode**: Train your own JAT model from scratch
-    ```
+
+    ```shell
     python scripts/train_jat.py %TODO
     ```
 
 For further details regarding usage, consult the documentation included with individual script files.
 
-
 ## Dataset
 
 % TODO
-
 
 ## Citation
 
