@@ -122,10 +122,10 @@ def eval_rl(model, processor, task, eval_args):
         tqdm.write(f"Task {task} Raw score: {raw_mean:.2f} ± {raw_std:.2f}")
 
     # Resize images by 1/3 to limit memory usage (the video is reduced anyway when aggregated with the others)
-    if eval_args.save_video:
-        import cv2
+    # if eval_args.save_video:
+        # import cv2
 
-        frames = [cv2.resize(frame, (0, 0), fx=1 / 3, fy=1 / 3) for frame in frames]
+        # frames = [cv2.resize(frame, (0, 0), fx=1 / 3, fy=1 / 3) for frame in frames]
 
     return scores, frames, env.metadata["render_fps"]
 
@@ -179,14 +179,14 @@ def main():
 
     # Extract mean and std, and save scores dict
     eval_path = f"{model_args.model_name_or_path}/evaluations.json"
-    if evaluations:
+    if evaluations and False:
         with open(eval_path, "w") as file:
             json.dump(evaluations, file)
 
     # Save the video
     if eval_args.save_video:
-        replay_path = f"{model_args.model_name_or_path}/replay.mp4"
-        save_video_grid(video_list, input_fps, replay_path, output_fps=30, max_length_seconds=180)
+        replay_path = f"{eval_args.tasks[0]}.mp4"
+        save_video_grid(video_list, input_fps, replay_path, output_fps=30, max_length_seconds=180, width=720)
     else:
         replay_path = None
 
