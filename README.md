@@ -30,7 +30,13 @@ To get started with JAT, follow these steps:
     ```shell
     python3 -m venv env
     source env/bin/activate
-    pip install .
+    # all deps
+    pip install .[dev]
+    # training deps
+    pip install .[train]
+    # eval deps
+    pip install .[eval]
+
     ```
 
 ## Demonstration of the trained agent
@@ -69,17 +75,28 @@ env.close()
 ## Usage Examples
 
 Here are some examples of how you might use JAT in both evaluation and fine-tuning modes. More detailed information about each example is provided within the corresponding script files.
-
-* **Evaluation Mode**: Evaluate pretrained JAT models on specific downstream tasks
+- **Evaluating JAT**: Evaluate pretrained JAT models on specific downstream tasks
 
     ```shell
     python scripts/eval_jat.py --model_name_or_path jat-project/jat --tasks atari-pong --trust_remote_code
     ```
 
-* **Training Mode**: Train your own JAT model from scratch
-
+- **Training JAT**: Train your own JAT model from scratch (run on 8xA100)
     ```shell
-    python scripts/train_jat.py %TODO
+    accelerate launch scripts/train_jat_tokenized.py \
+    --output_dir checkpoints/jat_small_v100 \
+    --model_name_or_path jat-project/jat-small \
+    --tasks all \
+    --trust_remote_code \
+    --per_device_train_batch_size 20 \
+    --gradient_accumulation_steps 2 \
+    --save_steps 10000 \
+    --run_name train_jat_small \
+    --logging_steps 100 \
+    --logging_first_step \
+    --dispatch_batches False \
+    --dataloader_num_workers 16 \
+    --max_steps 250000 \
     ```
 
 For further details regarding usage, consult the documentation included with individual script files.
