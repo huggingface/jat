@@ -70,8 +70,6 @@ while not done:
 env.close()
 ```
 
-% GIF of trained agent here
-
 ## Usage Examples
 
 Here are some examples of how you might use JAT in both evaluation and fine-tuning modes. More detailed information about each example is provided within the corresponding script files.
