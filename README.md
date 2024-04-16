@@ -30,11 +30,16 @@ To get started with JAT, follow these steps:
     ```shell
     python3 -m venv env
     source env/bin/activate
-    pip install .
+    # all deps
+    pip install .[dev]
+    # training deps
+    pip install .[train]
+    # eval deps
+    pip install .[eval]
+
     ```
 
 ## Demonstration of the trained agent
-
 The trained JAT agent is available [here](https://huggingface.co/jat-project/jat). The following script gives an example of the use of this agent on the Pong environment
 
 ```python
@@ -70,24 +75,69 @@ env.close()
 ## Usage Examples
 
 Here are some examples of how you might use JAT in both evaluation and fine-tuning modes. More detailed information about each example is provided within the corresponding script files.
-
-* **Evaluation Mode**: Evaluate pretrained JAT models on specific downstream tasks
+- **Evaluating JAT**: Evaluate pretrained JAT models on specific downstream tasks
 
     ```shell
     python scripts/eval_jat.py --model_name_or_path jat-project/jat --tasks atari-pong --trust_remote_code
     ```
 
-* **Training Mode**: Train your own JAT model from scratch
-
+- **Training JAT**: Train your own JAT model from scratch (run on 8xA100)
     ```shell
-    python scripts/train_jat.py %TODO
+    accelerate launch scripts/train_jat_tokenized.py \
+    --output_dir checkpoints/jat_small_v100 \
+    --model_name_or_path jat-project/jat-small \
+    --tasks all \
+    --trust_remote_code \
+    --per_device_train_batch_size 20 \
+    --gradient_accumulation_steps 2 \
+    --save_steps 10000 \
+    --run_name train_jat_small \
+    --logging_steps 100 \
+    --logging_first_step \
+    --dispatch_batches False \
+    --dataloader_num_workers 16 \
+    --max_steps 250000 \
     ```
 
 For further details regarding usage, consult the documentation included with individual script files.
 
 ## Dataset
+You can find the training dataset used to train the JAT model at this [Hugging Face dataset repo](https://huggingface.co/datasets/jat-project/jat-dataset). Thhe dataset contains a large selection of Reinforcement Learning, textual and multimodal tasks:
 
-% TODO
+**Reinforment Learning tasks**
+- Atari 57
+- BabyAI
+- Metaworld
+- Mujoco
+
+**Textual tasks**
+- Wikipedia
+- OSCAR
+
+**Visual Question answering tasks**
+- OK VQA
+- Conceptual Captions
+
+Usage:
+```python
+>>> from datasets import load_dataset
+>>> dataset = load_dataset("jat-project/jat-dataset", "metaworld-assembly")
+>>> first_episode = dataset["train"][0]
+>>> first_episode.keys()
+dict_keys(['continuous_observations', 'continuous_actions', 'rewards'])
+>>> len(first_episode["rewards"])
+500
+>>> first_episode["continuous_actions"][0]
+[6.459120273590088, 2.2422609329223633, -5.914587020874023, -19.799840927124023]
+```
+
+Check out the dataset's model card for more information.
+
+
+## Contributing & Issues
+
+We welcome contributions from the community of expert policies, datasets or code improvements.
+Feel free to fork the repository and make a PR with your improvements. If you find any problems running the code, please open an issue.
 
 ## Citation
 
