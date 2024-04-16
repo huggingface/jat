@@ -78,6 +78,7 @@ EVAL_REQUIRE = [
     "gymnasium[accept-rom-license,atari,mujoco]",
     "metaworld @ git+https://github.com/qgallouedec/Metaworld@gym2.6_register",
     "minigrid",
+    "rliable",
 ]
 TRAIN_REQUIRE = []
 
@@ -91,6 +92,7 @@ QUALITY_REQUIRE = ["black[jupyter]~=22.0", "ruff", "pyyaml>=5.3.1"]
 EXTRAS_REQUIRE = {
     "dev": TRAIN_REQUIRE + EVAL_REQUIRE + TESTS_REQUIRE + QUALITY_REQUIRE,
     "test": TESTS_REQUIRE + EVAL_REQUIRE,
+    "eval": EVAL_REQUIRE,
     
 }
 

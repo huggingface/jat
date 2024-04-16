@@ -179,6 +179,10 @@ def main():
 
     # Extract mean and std, and save scores dict
     eval_path = f"{model_args.model_name_or_path}/evaluations.json"
+
+    if not os.path.exists(f"{model_args.model_name_or_path}"):
+        os.makedirs(f"{model_args.model_name_or_path}")
+        
     if evaluations:
         with open(eval_path, "w") as file:
             json.dump(evaluations, file)
