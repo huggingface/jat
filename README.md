@@ -143,7 +143,7 @@ Please ensure proper citations when incorporating this work into your projects.
 
 ```bibtex
 @article{gallouedec2024jack,
-    title = {{Jack of All Trades, Master of Some: a Multi-Purpose Transformer Agent}},
+    title = {{Jack of All Trades, Master of Some, a Multi-Purpose Transformer Agent}},
     author = {Gallouédec, Quentin and Beeching, Edward and Romac, Clément and Dellandréa, Emmanuel},
     journal = {arXiv preprint arXiv:2402.09844},
     year = {2024},
