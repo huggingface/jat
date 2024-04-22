@@ -1,4 +1,4 @@
-# 🦂 Jack of All Trades, Master of Some, a Multi-Purpose Transformer Agent
+# Jack of All Trades, Master of Some, a Multi-Purpose Transformer Agent
 
 [![Build](https://github.com/huggingface/jat/actions/workflows/test-ci.yml/badge.svg?branch=main)](https://github.com/huggingface/jat/actions/workflows/ci.yml?query=branch%3Amain)
 [![License](https://img.shields.io/github/license/huggingface/jat.svg?color=blue)](https://github.com/huggingface/jat/blob/main/LICENSE)
