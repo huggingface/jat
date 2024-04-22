@@ -100,13 +100,13 @@ Here are some examples of how you might use JAT in both evaluation and fine-tuni
 For further details regarding usage, consult the documentation included with individual script files.
 
 ## Dataset
-You can find the training dataset used to train the JAT model at this [Hugging Face dataset repo](https://huggingface.co/datasets/jat-project/jat-dataset). Thhe dataset contains a large selection of Reinforcement Learning, textual and multimodal tasks:
+You can find the training dataset used to train the JAT model at this [Hugging Face dataset repo](https://huggingface.co/datasets/jat-project/jat-dataset). The dataset contains a large selection of Reinforcement Learning, textual and multimodal tasks:
 
 **Reinforment Learning tasks**
 - Atari 57
 - BabyAI
-- Metaworld
-- Mujoco
+- Meta-World
+- MuJoCo
 
 **Textual tasks**
 - Wikipedia
