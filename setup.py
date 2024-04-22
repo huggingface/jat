@@ -61,35 +61,39 @@ from setuptools import find_packages
 __version__ = "0.0.1.dev0"  # expected format is one of x.y.z.dev0, or x.y.z.rc1 or x.y.z (no to dashes, yes to dots)
 
 REQUIRED_PKGS = [
-    "accelerate==0.25.0",
-    "datasets==2.15.0",
+    "accelerate>=0.25.0",
+    "datasets>=2.15.0",
     "gymnasium==0.29.1",  # For RL action spaces and API
     "huggingface_hub>=0.10",  # For sharing objects, environments & trained RL policies
     "numpy",
     "opencv-python",
-    "torch==2.1.1",
+    "torch>=2.1.1",
     "torchvision",
-    "transformers==4.36.1",
+    "transformers>=4.36.1",
     "wandb",
 ]
 
-
-DEV_REQUIRE = []
-
-TESTS_REQUIRE = [
+EVAL_REQUIRE = [
     "free-mujoco-py",
     "gymnasium[accept-rom-license,atari,mujoco]",
     "metaworld @ git+https://github.com/qgallouedec/Metaworld@gym2.6_register",
     "minigrid",
+    "rliable",
+]
+TRAIN_REQUIRE = []
+
+
+TESTS_REQUIRE = [
     "pytest-xdist",
     "pytest",
 ]
-
 QUALITY_REQUIRE = ["black[jupyter]~=22.0", "ruff", "pyyaml>=5.3.1"]
 
 EXTRAS_REQUIRE = {
-    "dev": DEV_REQUIRE + TESTS_REQUIRE + QUALITY_REQUIRE,
-    "test": TESTS_REQUIRE,
+    "train": TRAIN_REQUIRE,
+    "dev": TRAIN_REQUIRE + EVAL_REQUIRE + TESTS_REQUIRE + QUALITY_REQUIRE,
+    "test": TESTS_REQUIRE + EVAL_REQUIRE,
+    "eval": EVAL_REQUIRE,
 }
 
 
