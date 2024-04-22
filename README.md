@@ -1,4 +1,4 @@
-# 🦂 Jack of All Trades, Master of Some, a Multi-Purpose Transformer Agent
+# Jack of All Trades, Master of Some, a Multi-Purpose Transformer Agent
 
 [![Build](https://github.com/huggingface/jat/actions/workflows/test-ci.yml/badge.svg?branch=main)](https://github.com/huggingface/jat/actions/workflows/ci.yml?query=branch%3Amain)
 [![License](https://img.shields.io/github/license/huggingface/jat.svg?color=blue)](https://github.com/huggingface/jat/blob/main/LICENSE)
@@ -70,8 +70,6 @@ while not done:
 env.close()
 ```
 
-% GIF of trained agent here
-
 ## Usage Examples
 
 Here are some examples of how you might use JAT in both evaluation and fine-tuning modes. More detailed information about each example is provided within the corresponding script files.
@@ -102,13 +100,13 @@ Here are some examples of how you might use JAT in both evaluation and fine-tuni
 For further details regarding usage, consult the documentation included with individual script files.
 
 ## Dataset
-You can find the training dataset used to train the JAT model at this [Hugging Face dataset repo](https://huggingface.co/datasets/jat-project/jat-dataset). Thhe dataset contains a large selection of Reinforcement Learning, textual and multimodal tasks:
+You can find the training dataset used to train the JAT model at this [Hugging Face dataset repo](https://huggingface.co/datasets/jat-project/jat-dataset). The dataset contains a large selection of Reinforcement Learning, textual and multimodal tasks:
 
 **Reinforment Learning tasks**
 - Atari 57
 - BabyAI
-- Metaworld
-- Mujoco
+- Meta-World
+- MuJoCo
 
 **Textual tasks**
 - Wikipedia
@@ -145,7 +143,7 @@ Please ensure proper citations when incorporating this work into your projects.
 
 ```bibtex
 @article{gallouedec2024jack,
-    title = {{Jack of All Trades, Master of Some: a Multi-Purpose Transformer Agent}},
+    title = {{Jack of All Trades, Master of Some, a Multi-Purpose Transformer Agent}},
     author = {Gallouédec, Quentin and Beeching, Edward and Romac, Clément and Dellandréa, Emmanuel},
     journal = {arXiv preprint arXiv:2402.09844},
     year = {2024},
