@@ -108,8 +108,8 @@ setup(
     url="https://github.com/huggingface/jat",
     download_url="https://github.com/huggingface/jat/tags",
     license="Apache 2.0",
-    package_dir={"": "./"},
-    packages=find_packages(where="./", include="jat*"),
+    package_dir={"": "."},
+    packages=find_packages(where=".", include="jat*"),
     install_requires=REQUIRED_PKGS,
     extras_require=EXTRAS_REQUIRE,
     classifiers=[
