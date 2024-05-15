@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Train a JAT model on the JAT dataset"""
 
-
 import logging
 import os
 import sys
@@ -11,11 +10,13 @@ from typing import List, Optional
 import datasets.config
 from datasets import load_dataset, load_from_disk
 from datasets.config import HF_DATASETS_CACHE, HF_DATASETS_OFFLINE
+from peft import LoraConfig, get_peft_model
 from tqdm import tqdm
-from transformers import AutoConfig, AutoProcessor, HfArgumentParser, Trainer, TrainingArguments
+from transformers import AutoConfig, AutoTokenizer, CLIPImageProcessor, HfArgumentParser, Trainer, TrainingArguments
 
 from jat.eval.rl.core import TASK_NAME_TO_ENV_ID
 from jat.modeling_jat import JatModel
+from jat.processing_jat import JatProcessor
 from jat.utils_interleave_datasets import interleave_datasets
 
 
@@ -102,11 +103,12 @@ def main():
         trust_remote_code=model_args.trust_remote_code,
     )
     model = JatModel(config)
-    processor = AutoProcessor.from_pretrained(
-        model_args.config_name if model_args.config_name else model_args.model_name_or_path,
-        cache_dir=model_args.cache_dir,
-        trust_remote_code=model_args.trust_remote_code,
-    )
+    tokenizer = AutoTokenizer.from_pretrained("mistralai/Mistral-7B-v0.1")
+    image_processor = CLIPImageProcessor(size={"shortest_edge": 224}, crop_size={"height": 224, "width": 224})
+    processor = JatProcessor(tokenizer=tokenizer, image_processor=image_processor)
+    lora_config = LoraConfig(r=16, target_modules=["q_proj", "v_proj"], lora_alpha=32, lora_dropout=0.05)
+    model = get_peft_model(model, lora_config)
+    model.print_trainable_parameters()
 
     # Set the tasks
     tasks = data_args.tasks

@@ -7,7 +7,7 @@ import torch
 import torch.nn.functional as F
 from gymnasium import spaces
 from torch import BoolTensor, FloatTensor, LongTensor, Tensor, nn
-from transformers import GPTNeoModel, GPTNeoPreTrainedModel
+from transformers import AutoModelForCausalLM, GPTNeoPreTrainedModel
 from transformers.modeling_outputs import ModelOutput
 from transformers.models.vit.modeling_vit import ViTPatchEmbeddings
 
@@ -365,19 +365,20 @@ class JatModel(GPTNeoPreTrainedModel):
     def __init__(self, config: JatConfig) -> None:
         super().__init__(config)
 
-        vocab_size = config.vocab_size
-        hidden_size = config.hidden_size
         max_discrete_value = config.max_discrete_value
         max_continuous_size = config.max_continuous_size
         self.observation_loss_coef = config.observation_loss_coef
         self.action_loss_coef = config.action_loss_coef
 
         # Transformer
-        self.transformer = GPTNeoModel(config)
+        _transformer = AutoModelForCausalLM.from_pretrained("mistralai/Mistral-7B-v0.1")
+        self.transformer = _transformer.model
+        hidden_size = self.transformer.config.hidden_size
+        self.hidden_size = hidden_size
 
         # Encoders
         self.vit_encoder = ViTPatchEmbeddings(config)
-        self.single_discrete_encoder = self.transformer.wte
+        self.single_discrete_encoder = self.transformer.embed_tokens
         self.continuous_encoder = nn.Linear(max_continuous_size, hidden_size)
         self.multi_discrete_encoder = nn.Sequential(
             self.single_discrete_encoder,  # (B, L, X, H)
@@ -389,7 +390,7 @@ class JatModel(GPTNeoPreTrainedModel):
         self.image_encoder = DualBatchReshapeWrapper(ImageEncoder(hidden_size))
 
         # Decoders
-        self.single_discrete_decoder = nn.Linear(hidden_size, vocab_size, bias=False)
+        self.single_discrete_decoder = _transformer.lm_head
         self.continuous_decoder = nn.Linear(hidden_size, max_continuous_size)
         self.multi_discrete_decoder = nn.Sequential(
             nn.Linear(hidden_size, max_discrete_value * (hidden_size // 50)),  # (B, L, X * (H // 50))
@@ -469,7 +470,7 @@ class JatModel(GPTNeoPreTrainedModel):
 
         # Concatenate observations and actions
         inputs_embeds = torch.cat((inputs_embeds_observations, inputs_embeds_actions), dim=2)
-        inputs_embeds = inputs_embeds.view(batch_size, 2 * seq_len, self.config.hidden_size)
+        inputs_embeds = inputs_embeds.view(batch_size, 2 * seq_len, self.hidden_size)
         if attention_mask is not None:
             attention_mask = torch.repeat_interleave(attention_mask, repeats=2, dim=1)
         return inputs_embeds, attention_mask
@@ -630,7 +631,6 @@ class JatModel(GPTNeoPreTrainedModel):
         rewards: Optional[FloatTensor] = None,
         past_key_values: Optional[Tuple[Tuple[FloatTensor]]] = None,
         attention_mask: Optional[BoolTensor] = None,
-        token_type_ids: Optional[LongTensor] = None,
         position_ids: Optional[LongTensor] = None,
         return_loss: bool = True,
         use_cache: Optional[bool] = None,
@@ -664,7 +664,6 @@ class JatModel(GPTNeoPreTrainedModel):
         transformer_outputs = self.transformer(
             past_key_values=past_key_values,
             attention_mask=attention_mask,
-            token_type_ids=token_type_ids,
             position_ids=position_ids,
             inputs_embeds=inputs_embeds,
             use_cache=use_cache,
