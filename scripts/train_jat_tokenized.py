@@ -103,7 +103,7 @@ def main():
         trust_remote_code=model_args.trust_remote_code,
     )
     model = JatModel(config)
-    tokenizer = AutoTokenizer.from_pretrained("mistralai/Mistral-7B-v0.1")
+    tokenizer = AutoTokenizer.from_pretrained("google/gemma-2b")
     image_processor = CLIPImageProcessor(size={"shortest_edge": 224}, crop_size={"height": 224, "width": 224})
     processor = JatProcessor(tokenizer=tokenizer, image_processor=image_processor)
     lora_config = LoraConfig(r=16, target_modules=["q_proj", "v_proj"], lora_alpha=32, lora_dropout=0.05)
@@ -120,23 +120,23 @@ def main():
     # Load the datasets
     if HF_DATASETS_OFFLINE:
         for task in tasks:
-            if not os.path.exists(f"{HF_DATASETS_CACHE}/jat-project/jat-dataset-tokenized/{task}"):
+            if not os.path.exists(f"{HF_DATASETS_CACHE}/jat-project/jat-dataset-tokenized-gemma/{task}"):
                 raise ValueError(
-                    f"""Dataset {task} not found in {HF_DATASETS_CACHE}/jat-project/jat-dataset-tokenized/
+                    f"""Dataset {task} not found in {HF_DATASETS_CACHE}/jat-project/jat-dataset-tokenized-gemma/
 Make sure to download and save it first with
 ```
 from datasets import load_dataset
-dataset = load_dataset('jat-project/jat-dataset-tokenized', '{task}')
-dataset.save_to_disk('{HF_DATASETS_CACHE}/jat-project/jat-dataset-tokenized/{task}')
+dataset = load_dataset('jat-project/jat-dataset-tokenized-gemma', '{task}')
+dataset.save_to_disk('{HF_DATASETS_CACHE}/jat-project/jat-dataset-tokenized-gemma/{task}')
 ```"""
                 )
         train_dataset = {}
         for task in tqdm(tasks, desc="Loading datasets"):
-            d = load_from_disk(f"{HF_DATASETS_CACHE}/jat-project/jat-dataset-tokenized/{task}")
-            train_dataset[task] = d["train"]
+            d = load_from_disk(f"{HF_DATASETS_CACHE}/jat-project/jat-dataset-tokenized-gemma/{task}")
+            train_dataset[task] = d["train"].to_iterable_dataset(num_shards=12)
     else:
         train_dataset = {
-            task: load_dataset("jat-project/jat-dataset-tokenized", task, split="train") for task in tasks
+            task: load_dataset("jat-project/jat-dataset-tokenized-gemma", task, split="train") for task in tasks
         }
 
     weights = [SAMPLE_WEIGHTS.get(t, 1.0) for t in train_dataset.keys()]

@@ -371,7 +371,7 @@ class JatModel(GPTNeoPreTrainedModel):
         self.action_loss_coef = config.action_loss_coef
 
         # Transformer
-        _transformer = AutoModelForCausalLM.from_pretrained("mistralai/Mistral-7B-v0.1")
+        _transformer = AutoModelForCausalLM.from_pretrained("google/gemma-2b")
         self.transformer = _transformer.model
         hidden_size = self.transformer.config.hidden_size
         self.hidden_size = hidden_size

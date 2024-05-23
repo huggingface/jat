@@ -84,6 +84,7 @@ def main():
         cache_dir=model_args.cache_dir,
         trust_remote_code=model_args.trust_remote_code,
     )
+    processor.tokenizer.model_max_length = 512
 
     # Set the tasks
     tasks = data_args.tasks
@@ -104,7 +105,7 @@ def main():
     def gen_from_iterable_dataset(iterable_ds):
         yield from iterable_ds
 
-    configs = datasets.get_dataset_config_names("jat-project/jat-dataset-tokenized")
+    configs = datasets.get_dataset_config_names("jat-project/jat-dataset-tokenized-gemma")
 
     for task in dataset_dict.keys():
         if task in configs:
@@ -153,7 +154,7 @@ def main():
         task_dataset = DatasetDict(task_dataset)
 
         print(f"Pushing {task} to the hub...")
-        task_dataset.push_to_hub("jat-project/jat-dataset-tokenized", config_name=task)
+        task_dataset.push_to_hub("jat-project/jat-dataset-tokenized-gemma", config_name=task)
 
 
 if __name__ == "__main__":

@@ -81,20 +81,21 @@ Here are some examples of how you might use JAT in both evaluation and fine-tuni
 
 - **Training JAT**: Train your own JAT model from scratch (run on 8xA100)
     ```shell
-    accelerate launch scripts/train_jat_tokenized.py \
-    --output_dir checkpoints/jat_small_v100 \
-    --model_name_or_path jat-project/jat-small \
-    --tasks all \
+accelerate launch scripts/train_jat_tokenized.py \
+    --output_dir checkpoints/jat_gemma \
+    --model_name_or_path jat-project/jat-gemma \
+    --tasks atari babyai metaworld mujoco \
     --trust_remote_code \
-    --per_device_train_batch_size 20 \
+    --per_device_train_batch_size 16 \
     --gradient_accumulation_steps 2 \
-    --save_steps 10000 \
-    --run_name train_jat_small \
+    --save_steps 1000 \
+    --run_name train_jat_gemma \
     --logging_steps 100 \
     --logging_first_step \
     --dispatch_batches False \
-    --dataloader_num_workers 16 \
-    --max_steps 250000 \
+    --remove_unused_columns False \
+    --dataloader_num_workers 8 \
+    --max_steps 50000
     ```
 
 For further details regarding usage, consult the documentation included with individual script files.

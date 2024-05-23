@@ -15,7 +15,7 @@ from transformers import AutoModelForCausalLM, AutoProcessor, HfArgumentParser
 
 from jat.eval.rl import TASK_NAME_TO_ENV_ID, make
 from jat.utils import normalize, push_to_hub, save_video_grid
-
+from jat.modeling_jat import JatModel
 
 @dataclass
 class ModelArguments:
@@ -155,12 +155,14 @@ def main():
             tasks.extend([env_id for env_id in TASK_NAME_TO_ENV_ID.keys() if env_id.startswith(domain)])
 
     device = torch.device("cpu") if eval_args.use_cpu else get_default_device()
-    model = AutoModelForCausalLM.from_pretrained(
+    model = JatModel.from_pretrained(
         model_args.model_name_or_path, cache_dir=model_args.cache_dir, trust_remote_code=model_args.trust_remote_code
     ).to(device)
-    processor = AutoProcessor.from_pretrained(
-        model_args.model_name_or_path, cache_dir=model_args.cache_dir, trust_remote_code=model_args.trust_remote_code
-    )
+    from transformers import AutoTokenizer, CLIPImageProcessor
+    from jat.processing_jat import JatProcessor
+    tokenizer = AutoTokenizer.from_pretrained("google/gemma-2b")
+    image_processor = CLIPImageProcessor(size={"shortest_edge": 224}, crop_size={"height": 224, "width": 224})
+    processor = JatProcessor(tokenizer=tokenizer, image_processor=image_processor)
 
     evaluations = {}
     video_list = []
