@@ -82,8 +82,8 @@ Here are some examples of how you might use JAT in both evaluation and fine-tuni
 - **Training JAT**: Train your own JAT model from scratch (run on 8xA100)
     ```shell
     accelerate launch scripts/train_jat_tokenized.py \
-    --output_dir checkpoints/jat_small_v100 \
-    --model_name_or_path jat-project/jat-small \
+    --output_dir checkpoints/jat \
+    --model_name_or_path jat-project/jat \
     --tasks all \
     --trust_remote_code \
     --per_device_train_batch_size 20 \
